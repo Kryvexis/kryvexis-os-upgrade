@@ -47,3 +47,7 @@ npm run build
 - responsive desktop/mobile shell
 - light / dark / system theme toggle
 - starter routes and test scaffolding
+
+
+## Vercel fix included
+- `vite.config.ts` now imports `defineConfig` from `vitest/config` so the `test` block is typed correctly during deploys.
