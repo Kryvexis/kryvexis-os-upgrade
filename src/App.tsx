@@ -2,7 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { AppShell } from './layout/AppShell';
 import { DashboardPage } from './pages/DashboardPage';
 import { ModuleLandingPage } from './pages/ModuleLandingPage';
-import { ApprovalsPage, CustomersPage, InvoicesPage, ProductsPage, PurchaseOrdersPage, QuotesPage } from './pages/records';
+import { ApprovalsPage, CustomersPage, InvoicesPage, PaymentsPage, ProductsPage, PurchaseOrdersPage, QuotesPage } from './pages/records';
 import { SettingsPage } from './pages/SettingsPage';
 import { NotificationsPage } from './pages/NotificationsPage';
 import { CustomerDetailPage } from './pages/CustomerDetailPage';
@@ -53,6 +53,7 @@ export default function App() {
         <Route path="products/:productId" element={<ProductDetailPage />} />
         <Route path="quotes" element={<QuotesPage />} />
         <Route path="invoices" element={<InvoicesPage />} />
+        <Route path="payments" element={<PaymentsPage />} />
         <Route path="purchase-orders" element={<PurchaseOrdersPage />} />
         <Route path="purchase-orders/:purchaseOrderId" element={<PurchaseOrderDetailPage />} />
         <Route path="approvals" element={<ApprovalsPage />} />

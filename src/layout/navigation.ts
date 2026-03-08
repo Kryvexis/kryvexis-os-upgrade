@@ -32,6 +32,7 @@ export const sidebarNavigation: NavSection[] = [
       { label: 'Products', href: '/products', description: 'Catalog and stock insight', roles: ['admin', 'warehouse', 'procurement', 'operations'] },
       { label: 'Quotes', href: '/quotes', description: 'Commercial pipeline', roles: ['admin', 'sales'] },
       { label: 'Invoices', href: '/invoices', description: 'Billing and collections', roles: ['admin', 'sales', 'finance'] },
+      { label: 'Payments', href: '/payments', description: 'Receipts and supplier payments', roles: ['admin', 'finance'] },
       { label: 'Purchase Orders', href: '/purchase-orders', description: 'Supplier purchasing', roles: ['admin', 'procurement', 'warehouse'] },
       { label: 'Approvals', href: '/approvals', badge: '5', description: 'Pending decisions' }
     ]

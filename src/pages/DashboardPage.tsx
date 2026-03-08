@@ -1,9 +1,132 @@
-const statCards = [
-  { label: 'Open Invoices', value: '$45,230', detail: 'Overdue', tone: 'rose', icon: '◔' },
-  { label: 'Pending Approvals', value: '6', detail: 'Requests', tone: 'amber', icon: '◉' },
-  { label: 'Low Stock Alerts', value: '8', detail: 'Products', tone: 'red', icon: '!' },
-  { label: 'Cash on Hand', value: '$145,890', detail: 'Available', tone: 'green', icon: '$' }
-] as const;
+import { usePreferences } from '../preferences/PreferencesProvider';
+import type { RoleKey } from '../layout/navigation';
+
+const dashboardByRole: Record<RoleKey, {
+  statCards: Array<{ label: string; value: string; detail: string; tone: string; icon: string }>;
+  tasks: Array<{ label: string; due: string; tone?: string }>;
+  debtors: Array<{ name: string; amount: string; fill: number; tone: string }>;
+}> = {
+  admin: {
+    statCards: [
+      { label: 'Open Invoices', value: 'R 241,880', detail: 'Debtors book', tone: 'rose', icon: 'R' },
+      { label: 'Pending Approvals', value: '6', detail: 'Cross-module queue', tone: 'amber', icon: '!' },
+      { label: 'Low Stock Alerts', value: '12', detail: 'Products at risk', tone: 'red', icon: '•' },
+      { label: 'Cash Collected', value: 'R 32,600', detail: 'Today', tone: 'green', icon: '+' }
+    ],
+    tasks: [
+      { label: 'Approve PO-2034 for Cape Town branch', due: 'Today', tone: 'warning' },
+      { label: 'Review overdue debtor pack', due: 'Today' },
+      { label: 'Publish invoice numbering defaults', due: 'Tomorrow' },
+      { label: 'Resolve cash-up variance in JHB', due: 'Tomorrow' },
+      { label: 'Check branch KPI digest schedule', due: 'Friday' }
+    ],
+    debtors: [
+      { name: 'Aether Group', amount: 'R 24,500', fill: 100, tone: 'green' },
+      { name: 'Northline Stores', amount: 'R 8,200', fill: 52, tone: 'amber' },
+      { name: 'Crest Office Park', amount: 'R 13,870', fill: 65, tone: 'red' }
+    ]
+  },
+  sales: {
+    statCards: [
+      { label: 'Quotes Awaiting Action', value: '18', detail: 'Need sales follow-up', tone: 'amber', icon: 'Q' },
+      { label: 'Invoices Due', value: 'R 84,220', detail: 'This week', tone: 'rose', icon: 'I' },
+      { label: 'Quote Conversion', value: '68%', detail: 'Last 30 days', tone: 'green', icon: '%' },
+      { label: 'Customer Flags', value: '5', detail: 'Pricing or credit', tone: 'red', icon: '!' }
+    ],
+    tasks: [
+      { label: 'Send revision for QT-1011', due: 'Today' },
+      { label: 'Follow up on Northline invoice', due: 'Today', tone: 'warning' },
+      { label: 'Prepare statement run for Aether Group', due: 'Tomorrow' },
+      { label: 'Review expiring quotes', due: 'Friday' },
+      { label: 'Update customer price list', due: 'Friday' }
+    ],
+    debtors: [
+      { name: 'Aether Group', amount: 'R 24,500', fill: 100, tone: 'green' },
+      { name: 'Northline Stores', amount: 'R 8,200', fill: 52, tone: 'amber' },
+      { name: 'BluePeak Foods', amount: 'R 6,100', fill: 40, tone: 'red' }
+    ]
+  },
+  warehouse: {
+    statCards: [
+      { label: 'Low Stock', value: '12', detail: 'Need reorder review', tone: 'red', icon: '!' },
+      { label: 'Pending Transfers', value: '7', detail: 'Cross-branch movement', tone: 'amber', icon: 'T' },
+      { label: 'Goods Awaiting Receipt', value: '4', detail: 'Today', tone: 'rose', icon: 'G' },
+      { label: 'Available Units', value: '1,842', detail: 'All branches', tone: 'green', icon: '+' }
+    ],
+    tasks: [
+      { label: 'Count incoming goods for PO-2031', due: 'Today' },
+      { label: 'Dispatch Cape Town transfer', due: 'Today', tone: 'warning' },
+      { label: 'Investigate stock discrepancy for KX-200', due: 'Tomorrow' },
+      { label: 'Prepare low-stock list for procurement', due: 'Tomorrow' },
+      { label: 'Review dead-stock candidates', due: 'Friday' }
+    ],
+    debtors: [
+      { name: 'Main Branch coverage', amount: '84%', fill: 84, tone: 'green' },
+      { name: 'Cape Town coverage', amount: '53%', fill: 53, tone: 'amber' },
+      { name: 'JHB coverage', amount: '38%', fill: 38, tone: 'red' }
+    ]
+  },
+  finance: {
+    statCards: [
+      { label: 'Debtors Book', value: 'R 241,880', detail: 'Open invoices', tone: 'rose', icon: 'D' },
+      { label: 'Receipts Today', value: 'R 32,600', detail: '8 allocations posted', tone: 'green', icon: '+' },
+      { label: 'Supplier Payments Due', value: 'R 117,420', detail: 'Next 7 days', tone: 'amber', icon: 'P' },
+      { label: 'Cash-up Variances', value: '2', detail: 'Need sign-off', tone: 'red', icon: '!' }
+    ],
+    tasks: [
+      { label: 'Allocate RCPT-2204 against INV-1049', due: 'Today' },
+      { label: 'Review supplier bill mismatch SB-412', due: 'Today', tone: 'warning' },
+      { label: 'Run debtor statements', due: 'Tomorrow' },
+      { label: 'Schedule Friday supplier payments', due: 'Tomorrow' },
+      { label: 'Clear JHB cash-up variance', due: 'Friday' }
+    ],
+    debtors: [
+      { name: 'Aether Group', amount: 'R 24,500', fill: 100, tone: 'green' },
+      { name: 'Northline Stores', amount: 'R 8,200', fill: 52, tone: 'amber' },
+      { name: 'Crest Office Park', amount: 'R 13,870', fill: 65, tone: 'red' }
+    ]
+  },
+  procurement: {
+    statCards: [
+      { label: 'Open POs', value: '14', detail: '4 awaiting approval', tone: 'amber', icon: 'P' },
+      { label: 'Late Suppliers', value: '3', detail: 'Past expected date', tone: 'red', icon: '!' },
+      { label: 'Bills Unmatched', value: '5', detail: 'Need PO and GRN review', tone: 'rose', icon: 'B' },
+      { label: 'Reorder Candidates', value: '12', detail: 'Generated from stock rules', tone: 'green', icon: 'R' }
+    ],
+    tasks: [
+      { label: 'Release PO-2034 after approval', due: 'Today' },
+      { label: 'Chase Alpha Industrial overdue delivery', due: 'Today', tone: 'warning' },
+      { label: 'Run reorder sweep for Cape Town', due: 'Tomorrow' },
+      { label: 'Compare supplier lead times', due: 'Tomorrow' },
+      { label: 'Prepare unmatched bill pack', due: 'Friday' }
+    ],
+    debtors: [
+      { name: 'Vertex Trade', amount: '9.2 days', fill: 92, tone: 'green' },
+      { name: 'Nexa Supply', amount: '6.1 days', fill: 61, tone: 'amber' },
+      { name: 'Alpha Industrial', amount: '3.4 days', fill: 34, tone: 'red' }
+    ]
+  },
+  operations: {
+    statCards: [
+      { label: 'Open Tasks', value: '26', detail: 'Across teams', tone: 'amber', icon: 'T' },
+      { label: 'Deliveries Queued', value: '9', detail: 'Ready to dispatch', tone: 'green', icon: 'D' },
+      { label: 'Returns In Process', value: '4', detail: 'Need decision', tone: 'rose', icon: 'R' },
+      { label: 'Linked Approvals', value: '6', detail: 'Operational blockers', tone: 'red', icon: '!' }
+    ],
+    tasks: [
+      { label: 'Dispatch DEL-215 to Aether Group', due: 'Today' },
+      { label: 'Close return inspection RET-020', due: 'Today', tone: 'warning' },
+      { label: 'Assign picking team to JOB-882', due: 'Tomorrow' },
+      { label: 'Upload proof of completion', due: 'Tomorrow' },
+      { label: 'Review branch task backlog', due: 'Friday' }
+    ],
+    debtors: [
+      { name: 'Dispatch readiness', amount: '86%', fill: 86, tone: 'green' },
+      { name: 'Return closure', amount: '58%', fill: 58, tone: 'amber' },
+      { name: 'Proof capture', amount: '42%', fill: 42, tone: 'red' }
+    ]
+  }
+};
 
 const chartMonths = [
   { month: 'Nov', revenue: 90, target: 34, trend: 20, targetTrend: 16 },
@@ -16,39 +139,28 @@ const chartMonths = [
   { month: 'Jun', revenue: 138, target: 140, trend: 102, targetTrend: 62 }
 ] as const;
 
-const tasks: Array<{ label: string; due: string; tone?: string }> = [
-  { label: 'Review Monthly Report', due: 'Today' },
-  { label: 'Follow up with Acme Corp', due: 'Today' },
-  { label: 'Restock Warehouse A', due: 'Tomorrow' },
-  { label: 'Approve Purchase Order #1045', due: 'Pending', tone: 'warning' },
-  { label: 'Schedule Team Meeting', due: 'Friday' }
-] as const;
-
-const debtors = [
-  { name: 'Acme Corporation', amount: '$12,700', fill: 100, tone: 'green' },
-  { name: 'Global Tech Ltd', amount: '$8,500', fill: 52, tone: 'amber' },
-  { name: 'Sunrise Retail', amount: '$6,100', fill: 40, tone: 'red' }
-] as const;
-
 const activities = [
-  { label: 'Invoice #5679 marked as', accent: 'Paid', tone: 'green' },
-  { label: 'Stock Transfer completed', accent: '', tone: 'amber' },
-  { label: 'PO #1045 submitted for', accent: 'Approval', tone: 'green' },
-  { label: 'Payment Received from', accent: 'Global Tech Ltd', tone: 'amber' },
-  { label: 'Shipment Delivered to', accent: 'Warehouse', tone: 'green' }
+  { label: 'Invoice INV-1042 marked as', accent: 'Paid', tone: 'green' },
+  { label: 'Stock transfer TRF-184 moved to', accent: 'In Transit', tone: 'amber' },
+  { label: 'PO-2034 submitted for', accent: 'Approval', tone: 'green' },
+  { label: 'Payment received from', accent: 'Northline Stores', tone: 'amber' },
+  { label: 'Delivery DEL-215 ready for', accent: 'Dispatch', tone: 'green' }
 ] as const;
 
 const stockItems = [
-  { name: 'Wireless Mouse', sku: 'WM-1002', stock: '5 in Stock' },
-  { name: 'Printer Toner Cartridge', sku: 'PTC-204', stock: '2 in Stock' },
-  { name: 'LED Desk Lamp', sku: 'LDL-160', stock: '3 in Stock' }
+  { name: 'KX-200 Access Point', sku: 'KX-200', stock: '12 available' },
+  { name: 'CCTV Camera Dome', sku: 'CCTV-204', stock: '4 available' },
+  { name: '12U Wall Cabinet', sku: 'CAB-160', stock: '3 available' }
 ] as const;
 
 export function DashboardPage() {
+  const { activeRole } = usePreferences();
+  const roleBoard = dashboardByRole[activeRole];
+
   return (
     <div className="dashboard-screen">
       <section className="hero-stats-row">
-        {statCards.map((card) => (
+        {roleBoard.statCards.map((card) => (
           <article key={card.label} className="hero-stat-card glass-panel">
             <div className={`hero-stat-icon ${card.tone}`}>{card.icon}</div>
             <div>
@@ -73,7 +185,7 @@ export function DashboardPage() {
 
           <div className="chart-summary-row">
             <div>
-              <div className="chart-total">$78,200</div>
+              <div className="chart-total">R 78,200</div>
               <div className="chart-total-underline" />
             </div>
             <div className="chart-legend">
@@ -84,9 +196,9 @@ export function DashboardPage() {
 
           <div className="chart-shell">
             <div className="chart-y-axis">
-              <span>$300</span>
-              <span>$300</span>
-              <span>$100</span>
+              <span>R 300k</span>
+              <span>R 200k</span>
+              <span>R 100k</span>
             </div>
             <div className="chart-area">
               <div className="chart-grid-lines">
@@ -133,14 +245,14 @@ export function DashboardPage() {
 
         <article className="dashboard-panel tasks-panel glass-panel">
           <div className="dashboard-panel-header dashboard-panel-icons">
-            <h3>Tasks &amp; Reminders</h3>
+            <h3>{activeRole[0].toUpperCase() + activeRole.slice(1)} focus</h3>
             <div className="panel-icon-actions">
               <button className="icon-button compact" type="button" aria-label="Open tasks">↗</button>
               <button className="icon-button compact" type="button" aria-label="Task settings">⚙</button>
             </div>
           </div>
           <div className="task-list">
-            {tasks.map((task) => (
+            {roleBoard.tasks.map((task) => (
               <div key={task.label} className="task-row">
                 <div className="task-main">
                   <span className="task-check">☑</span>
@@ -154,10 +266,10 @@ export function DashboardPage() {
 
         <article className="dashboard-panel debtors-panel glass-panel">
           <div className="dashboard-panel-header dashboard-panel-icons">
-            <h3>Debtors &amp; Creditors</h3>
+            <h3>{activeRole === 'finance' ? 'Debtors & Creditors' : 'Priority visibility'}</h3>
             <div className="panel-icon-actions">
-              <button className="icon-button compact" type="button" aria-label="Open debtors and creditors">↗</button>
-              <button className="icon-button compact" type="button" aria-label="Debtors settings">⚙</button>
+              <button className="icon-button compact" type="button" aria-label="Open panel">↗</button>
+              <button className="icon-button compact" type="button" aria-label="Panel settings">⚙</button>
             </div>
           </div>
 
@@ -165,23 +277,23 @@ export function DashboardPage() {
             <div className="account-summary-card">
               <span className="account-title">Accounts Receivable</span>
               <div className="account-summary-row">
-                <span>Revenue</span>
-                <strong>$32,450</strong>
+                <span>Open value</span>
+                <strong>R 32,450</strong>
               </div>
             </div>
             <div className="account-summary-card">
               <span className="account-title">Accounts Payable</span>
               <div className="account-summary-row">
                 <span>Review</span>
-                <strong>$21,870</strong>
+                <strong>R 21,870</strong>
               </div>
             </div>
           </div>
 
           <div className="top-debtors-block">
-            <h4>Top Debtors</h4>
+            <h4>{activeRole === 'procurement' ? 'Supplier performance' : 'Top items'}</h4>
             <div className="debtor-list">
-              {debtors.map((item) => (
+              {roleBoard.debtors.map((item) => (
                 <div key={item.name} className="debtor-row">
                   <span>{item.name}</span>
                   <strong>{item.amount}</strong>
@@ -204,7 +316,7 @@ export function DashboardPage() {
           <div className="recent-activity-list">
             {activities.map((item, index) => (
               <div key={`${item.label}-${index}`} className="recent-activity-row">
-                <span className={`status-dot ${item.tone}`}>{item.tone === 'green' ? '2' : '2'}</span>
+                <span className={`status-dot ${item.tone}`}>•</span>
                 <p>
                   {item.label} {item.accent ? <strong>{item.accent}</strong> : null}
                 </p>
