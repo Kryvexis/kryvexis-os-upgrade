@@ -1,3 +1,5 @@
+import { useMemo, useState } from 'react';
+import { NavLink } from 'react-router-dom';
 import { PageHeader } from '../components/PageHeader';
 import { PanelCard } from '../components/PanelCard';
 import { StatCard } from '../components/StatCard';
@@ -12,6 +14,7 @@ type ModuleConfig = {
   rows: Array<Record<string, string> & { id: string }>;
   sideTitle: string;
   sideItems: string[];
+  quickLinks: Array<{ label: string; href: string }>;
 };
 
 const moduleConfigs: Record<string, ModuleConfig> = {
@@ -37,7 +40,8 @@ const moduleConfigs: Record<string, ModuleConfig> = {
       { id: '3', record: 'RET-020', counterparty: 'BluePeak Foods', owner: 'Sales', status: 'Inspection needed' }
     ],
     sideTitle: 'Sales next build',
-    sideItems: ['Customer statements', 'Discount approval policy', 'Quote to invoice conversion log', 'Rep targets and branch leaderboard']
+    sideItems: ['Customer statements', 'Discount approval policy', 'Quote to invoice conversion log', 'Rep targets and branch leaderboard'],
+    quickLinks: [{ label: 'Customers', href: '/customers' }, { label: 'Quotes', href: '/quotes' }, { label: 'Invoices', href: '/invoices' }]
   },
   Accounting: {
     stats: [
@@ -61,7 +65,8 @@ const moduleConfigs: Record<string, ModuleConfig> = {
       { id: '3', record: 'CU-008', counterparty: 'Main Branch', owner: 'Supervisor', status: 'Variance pending' }
     ],
     sideTitle: 'Accounting next build',
-    sideItems: ['Supplier statements', 'Expense approvals', 'Reconciliation foundations', 'Audit extracts and exports']
+    sideItems: ['Supplier statements', 'Expense approvals', 'Reconciliation foundations', 'Audit extracts and exports'],
+    quickLinks: [{ label: 'Invoices', href: '/invoices' }, { label: 'Payments', href: '/payments' }, { label: 'Settings', href: '/settings?tab=notifications' }]
   },
   Inventory: {
     stats: [
@@ -85,7 +90,8 @@ const moduleConfigs: Record<string, ModuleConfig> = {
       { id: '3', record: 'GRN-093', counterparty: 'Johannesburg', owner: 'Receiving', status: 'Awaiting count confirmation' }
     ],
     sideTitle: 'Inventory next build',
-    sideItems: ['Reserved stock logic', 'Available vs incoming stock', 'Dead stock analysis', 'Barcode and scan-ready workflows']
+    sideItems: ['Reserved stock logic', 'Available vs incoming stock', 'Dead stock analysis', 'Barcode and scan-ready workflows'],
+    quickLinks: [{ label: 'Products', href: '/products' }, { label: 'Purchase Orders', href: '/purchase-orders' }, { label: 'Dashboard', href: '/dashboard' }]
   },
   Procurement: {
     stats: [
@@ -109,7 +115,8 @@ const moduleConfigs: Record<string, ModuleConfig> = {
       { id: '3', record: 'ACK-081', counterparty: 'Alpha Industrial', owner: 'Receiving', status: 'Delivery overdue' }
     ],
     sideTitle: 'Procurement next build',
-    sideItems: ['Supplier scorecards', 'Lead time reporting', 'PO acknowledgement flow', 'Reorder sweeps and alerts']
+    sideItems: ['Supplier scorecards', 'Lead time reporting', 'PO acknowledgement flow', 'Reorder sweeps and alerts'],
+    quickLinks: [{ label: 'Purchase Orders', href: '/purchase-orders' }, { label: 'Inventory', href: '/inventory' }, { label: 'Approvals', href: '/approvals' }]
   },
   Operations: {
     stats: [
@@ -133,7 +140,8 @@ const moduleConfigs: Record<string, ModuleConfig> = {
       { id: '3', record: 'RET-020', counterparty: 'Northline Stores', owner: 'Warehouse', status: 'Inspection booked' }
     ],
     sideTitle: 'Operations next build',
-    sideItems: ['Dispatch board', 'Proof capture', 'Return disposition states', 'Task templates by branch']
+    sideItems: ['Dispatch board', 'Proof capture', 'Return disposition states', 'Task templates by branch'],
+    quickLinks: [{ label: 'Notifications', href: '/notifications' }, { label: 'Approvals', href: '/approvals' }, { label: 'Dashboard', href: '/dashboard' }]
   },
   Reports: {
     stats: [
@@ -157,7 +165,8 @@ const moduleConfigs: Record<string, ModuleConfig> = {
       { id: '3', record: 'Low-stock exceptions', counterparty: 'Procurement', owner: 'Inventory', status: 'Needs review' }
     ],
     sideTitle: 'Reports next build',
-    sideItems: ['Trend charts', 'Forecast assumptions', 'Role-specific export packs', 'Scheduled report delivery']
+    sideItems: ['Trend charts', 'Forecast assumptions', 'Role-specific export packs', 'Scheduled report delivery'],
+    quickLinks: [{ label: 'Dashboard', href: '/dashboard' }, { label: 'Accounting', href: '/accounting' }, { label: 'Inventory', href: '/inventory' }]
   },
   Admin: {
     stats: [
@@ -181,47 +190,47 @@ const moduleConfigs: Record<string, ModuleConfig> = {
       { id: '3', record: 'Import map - Products', counterparty: 'Inventory', owner: 'System', status: 'Validated' }
     ],
     sideTitle: 'Admin next build',
-    sideItems: ['Approver chains', 'Branch-specific numbering', 'Data import mappings', 'Automation audit viewer']
+    sideItems: ['Approver chains', 'Branch-specific numbering', 'Data import mappings', 'Automation audit viewer'],
+    quickLinks: [{ label: 'Settings', href: '/settings' }, { label: 'Notifications', href: '/notifications' }, { label: 'Dashboard', href: '/dashboard' }]
   }
 };
 
 export function ModuleLandingPage({ title, description }: { title: string; description: string }) {
   const config = moduleConfigs[title] ?? moduleConfigs.Admin;
+  const [view, setView] = useState<'overview' | 'queue' | 'workflow'>('overview');
+
+  const rows = useMemo(() => {
+    if (view === 'queue') return config.rows;
+    if (view === 'workflow') return [...config.rows].reverse();
+    return config.rows.slice(0, 2);
+  }, [config.rows, view]);
 
   return (
     <div className="page-stack">
-      <PageHeader title={title} description={description} actions={<button className="soft-button primary">Open workspace</button>} />
+      <PageHeader title={title} description={description} actions={<div className="quick-link-row">{config.quickLinks.map((item) => <NavLink key={item.href} className="soft-button" to={item.href}>{item.label}</NavLink>)}</div>} />
+
+      <nav className="section-tabs" aria-label={`${title} views`}>
+        {(['overview', 'queue', 'workflow'] as const).map((tab) => (
+          <button key={tab} type="button" className={`section-tab ${view === tab ? 'active' : ''}`} onClick={() => setView(tab)}>
+            {tab[0].toUpperCase() + tab.slice(1)}
+          </button>
+        ))}
+      </nav>
 
       <section className="stats-grid compact">
-        {config.stats.map((item) => (
-          <StatCard key={item.label} label={item.label} value={item.value} detail={item.detail} />
-        ))}
+        {config.stats.map((item) => (<StatCard key={item.label} label={item.label} value={item.value} detail={item.detail} />))}
       </section>
 
       <div className="content-split">
         <div className="page-stack">
-          <TableShell
-            title={config.queueTitle}
-            description={config.queueDescription}
-            columns={config.columns}
-            rows={config.rows}
-            actions={<button className="soft-button">Saved views</button>}
-          />
+          <TableShell title={config.queueTitle} description={view === 'workflow' ? 'Workflow-oriented queue view with reordered priority.' : config.queueDescription} columns={config.columns} rows={rows} actions={<span className="eyebrow">{rows.length} visible records</span>} />
           <PanelCard title={`${title} focus areas`}>
-            <ul className="clean-list">
-              {config.focus.map((item) => (
-                <li key={item}>{item}</li>
-              ))}
-            </ul>
+            <ul className="clean-list">{(view === 'workflow' ? config.sideItems : config.focus).map((item) => (<li key={item}>{item}</li>))}</ul>
           </PanelCard>
         </div>
 
-        <PanelCard title={config.sideTitle}>
-          <ul className="clean-list">
-            {config.sideItems.map((item) => (
-              <li key={item}>{item}</li>
-            ))}
-          </ul>
+        <PanelCard title={view === 'workflow' ? `${title} linked modules` : config.sideTitle}>
+          <ul className="clean-list">{(view === 'queue' ? config.quickLinks.map((item) => item.label) : config.sideItems).map((item) => (<li key={item}>{item}</li>))}</ul>
         </PanelCard>
       </div>
     </div>

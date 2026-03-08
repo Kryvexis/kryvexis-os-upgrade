@@ -955,3 +955,71 @@ button { cursor: pointer; }
     grid-template-columns: 1fr;
   }
 }
+
+.dashboard-toolbar {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 20px;
+  border-radius: 24px;
+}
+.dashboard-toolbar-actions,
+.quick-link-row,
+.mini-toggle-group {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.mini-toggle {
+  border: 1px solid var(--line);
+  background: var(--button);
+  color: var(--ink);
+  border-radius: 999px;
+  padding: 10px 14px;
+}
+.mini-toggle.active {
+  background: var(--button-primary);
+  color: var(--button-primary-ink);
+}
+.clickable-card {
+  transition: transform .18s ease, border-color .18s ease, background .18s ease;
+}
+.clickable-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(116, 157, 255, 0.42);
+  background: rgba(255,255,255,0.06);
+}
+.dashboard-panel-stack {
+  align-items: center;
+}
+.icon-link {
+  display: grid;
+  place-items: center;
+}
+.task-button {
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,0.02);
+  border-radius: 14px;
+}
+.empty-inline-state {
+  padding: 18px;
+  border: 1px dashed var(--line);
+  border-radius: 16px;
+  color: var(--muted);
+}
+.stock-row,
+.recent-activity-row,
+.debtor-row {
+  border-radius: 16px;
+}
+.brand-image {
+  object-fit: cover;
+  object-position: left center;
+}
+@media (max-width: 960px) {
+  .dashboard-toolbar {
+    flex-direction: column;
+  }
+}
