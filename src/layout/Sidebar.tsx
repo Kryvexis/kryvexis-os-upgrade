@@ -21,9 +21,11 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
     <>
       <div className={`sidebar-backdrop ${isOpen ? 'visible' : ''}`} onClick={onClose} />
       <aside className={`sidebar glass-panel ${isOpen ? 'mobile-open' : ''}`}>
-        <div className="brand-block">
-          <div className="brand-mark">K</div>
-          <div>
+        <div className="brand-block brand-block-vertical">
+          <div className="brand-image-wrap">
+            <img src="/kryvexis-brand.png" alt="Kryvexis brand" className="brand-image" />
+          </div>
+          <div className="brand-copy">
             <p className="eyebrow">Soft Business</p>
             <h1>Kryvexis OS</h1>
           </div>
