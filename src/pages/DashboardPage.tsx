@@ -1,227 +1,212 @@
-import { PageHeader } from '../components/PageHeader';
-
 const statCards = [
-  {
-    label: 'Open Invoices',
-    value: '$45,230',
-    meta: 'Overdue',
-    tone: 'rose',
-    icon: '◔'
-  },
-  {
-    label: 'Pending Approvals',
-    value: '6',
-    meta: 'Requests',
-    tone: 'amber',
-    icon: '◉'
-  },
-  {
-    label: 'Low Stock Alerts',
-    value: '8',
-    meta: 'Products',
-    tone: 'red',
-    icon: '!'
-  },
-  {
-    label: 'Cash on Hand',
-    value: '$145,890',
-    meta: '',
-    tone: 'green',
-    icon: '◐'
-  }
+  { label: 'Open Invoices', value: '$45,230', detail: 'Overdue', tone: 'rose', icon: '◔' },
+  { label: 'Pending Approvals', value: '6', detail: 'Requests', tone: 'amber', icon: '◉' },
+  { label: 'Low Stock Alerts', value: '8', detail: 'Products', tone: 'red', icon: '!' },
+  { label: 'Cash on Hand', value: '$145,890', detail: 'Available', tone: 'green', icon: '$' }
 ] as const;
 
-const monthBars = [110, 160, 105, 118, 190, 205, 265, 248];
-const targetBars = [45, 38, 42, 74, 88, 78, 104, 182];
-const revenueLine = [28, 72, 55, 74, 124, 164, 146, 188];
-const targetLine = [14, 28, 22, 34, 58, 74, 88, 106];
-const months = ['Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
-
-const tasks = [
-  ['Review Monthly Report', 'Today', ''],
-  ['Follow up with Acme Corp', 'Today', ''],
-  ['Restock Warehouse A', 'Tomorrow', ''],
-  ['Approve Purchase Order #1045', 'Pending', 'pending'],
-  ['Schedule Team Meeting', 'Friday', '']
+const chartMonths = [
+  { month: 'Nov', revenue: 90, target: 34, trend: 20, targetTrend: 16 },
+  { month: 'Dec', revenue: 132, target: 46, trend: 38, targetTrend: 22 },
+  { month: 'Jan', revenue: 88, target: 42, trend: 30, targetTrend: 18 },
+  { month: 'Feb', revenue: 96, target: 58, trend: 38, targetTrend: 26 },
+  { month: 'Mar', revenue: 148, target: 74, trend: 72, targetTrend: 39 },
+  { month: 'Apr', revenue: 144, target: 68, trend: 92, targetTrend: 46 },
+  { month: 'May', revenue: 188, target: 92, trend: 84, targetTrend: 52 },
+  { month: 'Jun', revenue: 138, target: 140, trend: 102, targetTrend: 62 }
 ] as const;
 
-const activities = [
-  ['Invoice #5679 marked as', 'Paid', 'good'],
-  ['Stock Transfer completed', '', 'warn'],
-  ['PO #1045 submitted for', 'Approval', 'good'],
-  ['Payment Received from', 'Global Tech Ltd', 'warn'],
-  ['Shipment Delivered to', 'Warehouse', 'good']
+const tasks: Array<{ label: string; due: string; tone?: string }> = [
+  { label: 'Review Monthly Report', due: 'Today' },
+  { label: 'Follow up with Acme Corp', due: 'Today' },
+  { label: 'Restock Warehouse A', due: 'Tomorrow' },
+  { label: 'Approve Purchase Order #1045', due: 'Pending', tone: 'warning' },
+  { label: 'Schedule Team Meeting', due: 'Friday' }
 ] as const;
 
 const debtors = [
-  ['Acme Corporation', '$12,700', 100, 'good'],
-  ['Global Tech Ltd', '$8,500', 72, 'warn'],
-  ['Sunrise Retail', '$6,100', 58, 'danger']
+  { name: 'Acme Corporation', amount: '$12,700', fill: 100, tone: 'green' },
+  { name: 'Global Tech Ltd', amount: '$8,500', fill: 52, tone: 'amber' },
+  { name: 'Sunrise Retail', amount: '$6,100', fill: 40, tone: 'red' }
 ] as const;
 
-const lowStock = [
-  ['Wireless Mouse', 'WM-1002', '5', 'Reorder'],
-  ['Printer Toner Cartridge', 'PTC-204', '2', 'Reorder'],
-  ['LED Desk Lamp', 'LDL-160', '3', 'Reorder']
+const activities = [
+  { label: 'Invoice #5679 marked as', accent: 'Paid', tone: 'green' },
+  { label: 'Stock Transfer completed', accent: '', tone: 'amber' },
+  { label: 'PO #1045 submitted for', accent: 'Approval', tone: 'green' },
+  { label: 'Payment Received from', accent: 'Global Tech Ltd', tone: 'amber' },
+  { label: 'Shipment Delivered to', accent: 'Warehouse', tone: 'green' }
+] as const;
+
+const stockItems = [
+  { name: 'Wireless Mouse', sku: 'WM-1002', stock: '5 in Stock' },
+  { name: 'Printer Toner Cartridge', sku: 'PTC-204', stock: '2 in Stock' },
+  { name: 'LED Desk Lamp', sku: 'LDL-160', stock: '3 in Stock' }
 ] as const;
 
 export function DashboardPage() {
   return (
-    <div className="page-stack kry-dashboard-page">
-      <PageHeader
-        title="Admin Dashboard"
-        description="A dark, high-clarity operating surface for finance, approvals, stock, and day-to-day execution."
-        actions={<button className="soft-button primary">Open command center</button>}
-      />
-
-      <section className="kpi-grid">
+    <div className="dashboard-screen">
+      <section className="hero-stats-row">
         {statCards.map((card) => (
-          <article key={card.label} className="stat-card glass-panel kpi-card">
-            <div className={`kpi-icon ${card.tone}`}>{card.icon}</div>
+          <article key={card.label} className="hero-stat-card glass-panel">
+            <div className={`hero-stat-icon ${card.tone}`}>{card.icon}</div>
             <div>
               <h3>{card.label}</h3>
-              <div className="kpi-value-row">
+              <div className="hero-stat-value-row">
                 <strong>{card.value}</strong>
-                {card.meta ? <span>{card.meta}</span> : null}
+                <span>{card.detail}</span>
               </div>
             </div>
           </article>
         ))}
       </section>
 
-      <section className="hero-grid">
-        <article className="panel-card glass-panel sales-overview-card">
-          <div className="panel-heading split-heading">
+      <section className="dashboard-feature-grid">
+        <article className="dashboard-panel chart-panel glass-panel">
+          <div className="dashboard-panel-header">
             <div>
               <h3>Sales Overview</h3>
-              <div className="sales-total">$78,200</div>
-              <div className="sales-accent-bar" />
             </div>
-            <div className="chart-toolbar">
-              <button className="soft-pill">This Month</button>
-              <div className="legend-pills">
-                <span><i className="legend-swatch revenue" />Revenue</span>
-                <span><i className="legend-swatch target" />Target</span>
-              </div>
+            <span className="panel-muted-action">This Month</span>
+          </div>
+
+          <div className="chart-summary-row">
+            <div>
+              <div className="chart-total">$78,200</div>
+              <div className="chart-total-underline" />
+            </div>
+            <div className="chart-legend">
+              <span><i className="legend-swatch green" /> Revenue</span>
+              <span><i className="legend-swatch red" /> Target</span>
             </div>
           </div>
 
-          <div className="chart-frame">
-            <div className="chart-grid-lines">
-              <span />
-              <span />
-              <span />
-              <span />
+          <div className="chart-shell">
+            <div className="chart-y-axis">
+              <span>$300</span>
+              <span>$300</span>
+              <span>$100</span>
             </div>
-            <div className="bars-layer" aria-hidden="true">
-              {monthBars.map((value, index) => (
-                <div key={`bar-a-${index}`} className="bar-cluster">
-                  <span className="bar revenue-bar" style={{ height: `${value}px` }} />
-                  <span className="bar target-bar" style={{ height: `${targetBars[index]}px` }} />
-                </div>
-              ))}
-            </div>
-            <svg className="line-layer" viewBox="0 0 760 220" preserveAspectRatio="none" role="img" aria-label="Revenue and target chart">
-              <polyline
-                fill="none"
-                stroke="rgba(136, 237, 102, 0.95)"
-                strokeWidth="3"
-                points={revenueLine.map((value, index) => `${40 + index * 96},${200 - value}`).join(' ')}
-              />
-              <polyline
-                fill="none"
-                stroke="rgba(255, 165, 58, 0.92)"
-                strokeWidth="3"
-                points={targetLine.map((value, index) => `${40 + index * 96},${200 - value}`).join(' ')}
-              />
-              {revenueLine.map((value, index) => (
-                <circle key={`rev-${index}`} cx={40 + index * 96} cy={200 - value} r="5.5" fill="rgba(136, 237, 102, 1)" />
-              ))}
-              {targetLine.map((value, index) => (
-                <circle key={`tar-${index}`} cx={40 + index * 96} cy={200 - value} r="5" fill="rgba(255, 184, 77, 1)" />
-              ))}
-            </svg>
-            <div className="chart-axis months-axis">
-              {months.map((month) => (
-                <span key={month}>{month}</span>
-              ))}
+            <div className="chart-area">
+              <div className="chart-grid-lines">
+                <span />
+                <span />
+                <span />
+              </div>
+              <div className="chart-columns">
+                {chartMonths.map((item) => (
+                  <div key={item.month} className="chart-column-group">
+                    <div className="bars-with-lines">
+                      <div className="chart-bars">
+                        <span className="bar revenue" style={{ height: `${item.revenue}px` }} />
+                        <span className="bar target" style={{ height: `${item.target}px` }} />
+                      </div>
+                      <span className="line-point revenue-line" style={{ bottom: `${item.trend}px` }} />
+                      <span className="line-point target-line" style={{ bottom: `${item.targetTrend}px` }} />
+                    </div>
+                    <small>{item.month}</small>
+                  </div>
+                ))}
+              </div>
+              <div className="trend-line revenue-trend">
+                <span style={{ left: '4%', bottom: '20px', width: '15%', transform: 'rotate(-12deg)' }} />
+                <span style={{ left: '18%', bottom: '34px', width: '13%', transform: 'rotate(8deg)' }} />
+                <span style={{ left: '31%', bottom: '29px', width: '13%', transform: 'rotate(-6deg)' }} />
+                <span style={{ left: '44%', bottom: '38px', width: '14%', transform: 'rotate(-18deg)' }} />
+                <span style={{ left: '58%', bottom: '66px', width: '14%', transform: 'rotate(-14deg)' }} />
+                <span style={{ left: '72%', bottom: '86px', width: '12%', transform: 'rotate(8deg)' }} />
+                <span style={{ left: '84%', bottom: '82px', width: '12%', transform: 'rotate(-18deg)' }} />
+              </div>
+              <div className="trend-line target-trend">
+                <span style={{ left: '4%', bottom: '16px', width: '15%', transform: 'rotate(-6deg)' }} />
+                <span style={{ left: '18%', bottom: '22px', width: '13%', transform: 'rotate(4deg)' }} />
+                <span style={{ left: '31%', bottom: '18px', width: '13%', transform: 'rotate(-8deg)' }} />
+                <span style={{ left: '44%', bottom: '26px', width: '14%', transform: 'rotate(-10deg)' }} />
+                <span style={{ left: '58%', bottom: '39px', width: '14%', transform: 'rotate(-8deg)' }} />
+                <span style={{ left: '72%', bottom: '46px', width: '12%', transform: 'rotate(-8deg)' }} />
+                <span style={{ left: '84%', bottom: '52px', width: '12%', transform: 'rotate(-8deg)' }} />
+              </div>
             </div>
           </div>
         </article>
 
-        <article className="panel-card glass-panel list-panel">
-          <div className="panel-heading split-heading compact-heading">
+        <article className="dashboard-panel tasks-panel glass-panel">
+          <div className="dashboard-panel-header dashboard-panel-icons">
             <h3>Tasks &amp; Reminders</h3>
-            <div className="panel-actions">✎ ⚙</div>
+            <div className="panel-icon-actions">
+              <button className="icon-button compact" type="button" aria-label="Open tasks">↗</button>
+              <button className="icon-button compact" type="button" aria-label="Task settings">⚙</button>
+            </div>
           </div>
           <div className="task-list">
-            {tasks.map(([label, due, tone]) => (
-              <div key={label} className="task-row">
+            {tasks.map((task) => (
+              <div key={task.label} className="task-row">
                 <div className="task-main">
-                  <span className="task-check">✓</span>
-                  <span>{label}</span>
+                  <span className="task-check">☑</span>
+                  <span>{task.label}</span>
                 </div>
-                <div className="task-side">
-                  {tone === 'pending' ? <span className="status-pill pending">Pending</span> : <span className="task-due">{due}</span>}
-                  <span className="task-chevron">›</span>
-                </div>
+                <span className={`task-due ${task.tone ?? ''}`}>{task.due}</span>
               </div>
             ))}
           </div>
         </article>
-      </section>
 
-      <section className="secondary-grid">
-        <article className="panel-card glass-panel ledger-panel">
-          <div className="panel-heading split-heading compact-heading">
+        <article className="dashboard-panel debtors-panel glass-panel">
+          <div className="dashboard-panel-header dashboard-panel-icons">
             <h3>Debtors &amp; Creditors</h3>
-            <div className="panel-actions">↗ ⚙</div>
+            <div className="panel-icon-actions">
+              <button className="icon-button compact" type="button" aria-label="Open debtors and creditors">↗</button>
+              <button className="icon-button compact" type="button" aria-label="Debtors settings">⚙</button>
+            </div>
           </div>
 
-          <div className="ledger-cards">
-            <div className="ledger-card">
-              <span className="ledger-title">Accounts Receivable</span>
-              <div className="ledger-row">
+          <div className="account-summary-grid">
+            <div className="account-summary-card">
+              <span className="account-title">Accounts Receivable</span>
+              <div className="account-summary-row">
                 <span>Revenue</span>
                 <strong>$32,450</strong>
               </div>
             </div>
-            <div className="ledger-card">
-              <span className="ledger-title">Accounts Payable</span>
-              <div className="ledger-row">
+            <div className="account-summary-card">
+              <span className="account-title">Accounts Payable</span>
+              <div className="account-summary-row">
                 <span>Review</span>
                 <strong>$21,870</strong>
               </div>
             </div>
           </div>
 
-          <div className="debtor-table">
+          <div className="top-debtors-block">
             <h4>Top Debtors</h4>
-            {debtors.map(([name, value, width, tone]) => (
-              <div key={name} className="debtor-row">
-                <div>
-                  <strong>{name}</strong>
+            <div className="debtor-list">
+              {debtors.map((item) => (
+                <div key={item.name} className="debtor-row">
+                  <span>{item.name}</span>
+                  <strong>{item.amount}</strong>
+                  <div className="debtor-track">
+                    <span className={`debtor-fill ${item.tone}`} style={{ width: `${item.fill}%` }} />
+                  </div>
                 </div>
-                <strong>{value}</strong>
-                <div className="progress-track">
-                  <span className={`progress-fill ${tone}`} style={{ width: `${width}%` }} />
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         </article>
 
-        <article className="panel-card glass-panel list-panel recent-panel">
-          <div className="panel-heading split-heading compact-heading">
+        <article className="dashboard-panel activity-panel glass-panel">
+          <div className="dashboard-panel-header dashboard-panel-icons">
             <h3>Recent Activities</h3>
-            <div className="panel-actions">↗</div>
+            <div className="panel-icon-actions">
+              <button className="icon-button compact" type="button" aria-label="Open activities">↗</button>
+            </div>
           </div>
-          <div className="activity-feed">
-            {activities.map(([prefix, highlight, tone], index) => (
-              <div key={`${prefix}-${index}`} className="activity-row">
-                <span className={`activity-dot ${tone}`}>{tone === 'warn' ? '2' : '2'}</span>
+          <div className="recent-activity-list">
+            {activities.map((item, index) => (
+              <div key={`${item.label}-${index}`} className="recent-activity-row">
+                <span className={`status-dot ${item.tone}`}>{item.tone === 'green' ? '2' : '2'}</span>
                 <p>
-                  {prefix} {highlight ? <strong>{highlight}</strong> : null}
+                  {item.label} {item.accent ? <strong>{item.accent}</strong> : null}
                 </p>
               </div>
             ))}
@@ -229,16 +214,18 @@ export function DashboardPage() {
         </article>
       </section>
 
-      <section className="table-shell glass-panel low-stock-panel">
-        <div className="table-shell-header">
-          <div>
-            <h3>Low Stock Items</h3>
-            <p>Products below threshold that need purchasing attention.</p>
+      <article className="dashboard-panel stock-panel glass-panel">
+        <div className="dashboard-panel-header dashboard-panel-icons">
+          <h3>Low Stock Items</h3>
+          <div className="panel-icon-actions text-actions">
+            <span>☰</span>
+            <span>⌄</span>
+            <span>⋯</span>
           </div>
-          <div className="panel-actions">☰ ˅ ⠇</div>
         </div>
-        <div className="table-scroll">
-          <table>
+
+        <div className="stock-table-wrap">
+          <table className="stock-table">
             <thead>
               <tr>
                 <th>Product</th>
@@ -248,18 +235,18 @@ export function DashboardPage() {
               </tr>
             </thead>
             <tbody>
-              {lowStock.map(([product, sku, stock, action]) => (
-                <tr key={sku}>
-                  <td>{product}</td>
-                  <td>{sku}</td>
-                  <td>{stock} in Stock</td>
-                  <td><button className="table-action-button">{action}</button></td>
+              {stockItems.map((item) => (
+                <tr key={item.sku}>
+                  <td>{item.name}</td>
+                  <td>{item.sku}</td>
+                  <td>{item.stock}</td>
+                  <td><button className="reorder-button" type="button">Reorder</button></td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-      </section>
+      </article>
     </div>
   );
 }
