@@ -719,9 +719,15 @@ button { cursor: pointer; }
 .nav-section-label,
 .nav-link p,
 .search-shell,
-.soft-button.desktop-only,
-.page-stack > :not(.dashboard-screen) {
+.soft-button.desktop-only {
   display: none !important;
+}
+
+/* Keep non-dashboard pages visible. The prior visual-direction pass hid every
+   direct child of .page-stack unless it matched .dashboard-screen, which made
+   most tabs appear empty in production. */
+.page-stack > :not(.dashboard-screen) {
+  display: revert !important;
 }
 .brand-block h1 {
   font-size: 1.2rem;
