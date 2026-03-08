@@ -40,3 +40,10 @@ npm run build
 - Desktop and mobile foundations are built from the start
 - Theme support is part of the shell, not an afterthought
 - The navigation is ready for role-aware expansion in later passes
+
+
+## Included in this refresh
+- .gitignore included
+- responsive desktop/mobile shell
+- light / dark / system theme toggle
+- starter routes and test scaffolding
