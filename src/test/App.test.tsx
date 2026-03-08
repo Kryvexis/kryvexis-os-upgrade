@@ -2,18 +2,21 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import App from '../App';
 import { ThemeProvider } from '../theme/ThemeProvider';
+import { PreferencesProvider } from '../preferences/PreferencesProvider';
 
 function renderApp(route: string) {
   return render(
     <ThemeProvider>
-      <MemoryRouter initialEntries={[route]} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-        <App />
-      </MemoryRouter>
+      <PreferencesProvider>
+        <MemoryRouter initialEntries={[route]} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+          <App />
+        </MemoryRouter>
+      </PreferencesProvider>
     </ThemeProvider>
   );
 }
 
-describe('Kryvexis OS structure pass', () => {
+describe('Kryvexis OS detail pages pass', () => {
   it('renders the dashboard route', async () => {
     renderApp('/dashboard');
 
@@ -21,18 +24,27 @@ describe('Kryvexis OS structure pass', () => {
     expect(screen.getByText('Kryvexis OS')).toBeInTheDocument();
   });
 
-  it('renders the customers page', async () => {
-    renderApp('/customers');
+  it('renders the notifications page', async () => {
+    renderApp('/notifications');
 
-    expect(await screen.findByRole('heading', { name: 'Customers' })).toBeInTheDocument();
-    expect(screen.getByText(/customer profiles/i)).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Notifications' })).toBeInTheDocument();
+    expect(screen.getByText(/priority alerts/i)).toBeInTheDocument();
   });
 
-  it('opens the settings page', async () => {
+  it('renders the sample customer detail page', async () => {
+    renderApp('/customers/1');
+
+    expect(await screen.findByRole('heading', { name: 'Aether Group' })).toBeInTheDocument();
+    expect(screen.getByText(/customer overview/i)).toBeInTheDocument();
+  });
+
+  it('updates the active role from settings', async () => {
     renderApp('/settings');
 
-    expect(await screen.findByRole('heading', { name: 'Settings' })).toBeInTheDocument();
-    expect(screen.getByText(/role selection/i)).toBeInTheDocument();
+    const financeRoleButton = await screen.findByRole('button', { name: /finance/i });
+    fireEvent.click(financeRoleButton);
+
+    expect(screen.getByText(/main branch · finance/i)).toBeInTheDocument();
   });
 
   it('cycles theme mode from the topbar', async () => {

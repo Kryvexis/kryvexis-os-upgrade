@@ -7,6 +7,7 @@ import { useMediaQuery } from '../hooks/useMediaQuery';
 
 const titleMap: Record<string, string> = {
   '/dashboard': 'Business overview',
+  '/notifications': 'Notifications and activity center',
   '/customers': 'Customer operating workspace',
   '/products': 'Product and stock control',
   '/quotes': 'Commercial pipeline workspace',

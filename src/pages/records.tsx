@@ -1,3 +1,4 @@
+import { NavLink } from 'react-router-dom';
 import { PageHeader } from '../components/PageHeader';
 import { PanelCard } from '../components/PanelCard';
 import { StatCard } from '../components/StatCard';
@@ -5,7 +6,7 @@ import { TableShell } from '../components/TableShell';
 
 export function CustomersPage() {
   const rows = [
-    { id: '1', customer: 'Aether Group', status: 'Active', balance: 'R 24,500', rep: 'Antonie' },
+    { id: '1', customer: <NavLink className="text-link" to="/customers/1">Aether Group</NavLink>, status: 'Active', balance: 'R 24,500', rep: 'Antonie' },
     { id: '2', customer: 'Northline Stores', status: 'Review', balance: 'R 8,200', rep: 'Maya' },
     { id: '3', customer: 'BluePeak Foods', status: 'Good', balance: 'R 0', rep: 'Chris' }
   ];
@@ -29,13 +30,14 @@ export function CustomersPage() {
             { key: 'rep', label: 'Owner' }
           ]}
           rows={rows}
+          actions={<NavLink className="soft-button" to="/customers/1">Open sample profile</NavLink>}
         />
-        <PanelCard title="Profile page next">
+        <PanelCard title="Profile page delivered">
           <ul className="clean-list">
             <li>Summary hero with balance and payment behaviour</li>
-            <li>Quotes, invoices, and statement tabs</li>
-            <li>Activity timeline and internal notes</li>
-            <li>Credit control and approval hooks</li>
+            <li>Quotes, invoices, and statement-ready history</li>
+            <li>Activity timeline and internal notes lane</li>
+            <li>Credit control hooks for later approvals</li>
           </ul>
         </PanelCard>
       </div>
@@ -45,8 +47,8 @@ export function CustomersPage() {
 
 export function ProductsPage() {
   const rows = [
-    { id: '1', product: 'KX-100 Router', stock: '84', location: 'Main / Cape Town', reorder: '40' },
-    { id: '2', product: 'KX-200 Access Point', stock: '19', location: 'Main', reorder: '25' },
+    { id: '1', product: <NavLink className="text-link" to="/products/1">KX-100 Router</NavLink>, stock: '84', location: 'Main / Cape Town', reorder: '40' },
+    { id: '2', product: <NavLink className="text-link" to="/products/1">KX-200 Access Point</NavLink>, stock: '19', location: 'Main', reorder: '25' },
     { id: '3', product: 'KX-500 Switch', stock: '42', location: 'Main / JHB', reorder: '18' }
   ];
   return (
@@ -67,7 +69,7 @@ export function ProductsPage() {
           { key: 'reorder', label: 'Reorder point' }
         ]}
         rows={rows}
-        actions={<button className="soft-button">Export view</button>}
+        actions={<NavLink className="soft-button" to="/products/1">Open sample product</NavLink>}
       />
     </div>
   );
@@ -124,7 +126,7 @@ export function InvoicesPage() {
 export function PurchaseOrdersPage() {
   const rows = [
     { id: '1', po: 'PO-2031', supplier: 'Nexa Supply', received: 'Partial', bill: 'Awaiting match' },
-    { id: '2', po: 'PO-2034', supplier: 'Vertex Trade', received: 'Not received', bill: 'Not billed' },
+    { id: '2', po: <NavLink className="text-link" to="/purchase-orders/1">PO-2034</NavLink>, supplier: 'Vertex Trade', received: 'Not received', bill: 'Not billed' },
     { id: '3', po: 'PO-2037', supplier: 'Alpha Industrial', received: 'Received', bill: 'Matched' }
   ];
   return (
@@ -141,12 +143,13 @@ export function PurchaseOrdersPage() {
             { key: 'bill', label: 'Billing' }
           ]}
           rows={rows}
+          actions={<NavLink className="soft-button" to="/purchase-orders/1">Open sample PO</NavLink>}
         />
-        <PanelCard title="PO detail page next">
+        <PanelCard title="PO detail page delivered">
           <ul className="clean-list">
             <li>Supplier summary and approval history</li>
             <li>Line items with ordered vs received values</li>
-            <li>GRN links and supplier bill matching</li>
+            <li>GRN links and supplier bill matching lane</li>
             <li>Attachments, notes, and internal timeline</li>
           </ul>
         </PanelCard>

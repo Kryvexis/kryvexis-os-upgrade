@@ -5,6 +5,7 @@ export type NavItem = {
   href: string;
   description?: string;
   badge?: string;
+  roles?: RoleKey[];
 };
 
 export type NavSection = {
@@ -26,27 +27,39 @@ export const sidebarNavigation: NavSection[] = [
     label: 'Workspace',
     items: [
       { label: 'Dashboard', href: '/dashboard', description: 'Overview and alerts' },
-      { label: 'Customers', href: '/customers', description: 'Profiles and account health' },
-      { label: 'Products', href: '/products', description: 'Catalog and stock insight' },
-      { label: 'Quotes', href: '/quotes', description: 'Commercial pipeline' },
-      { label: 'Invoices', href: '/invoices', description: 'Billing and collections' },
-      { label: 'Purchase Orders', href: '/purchase-orders', description: 'Supplier purchasing' },
+      { label: 'Notifications', href: '/notifications', description: 'Approvals, alerts, and activity', badge: '12' },
+      { label: 'Customers', href: '/customers', description: 'Profiles and account health', roles: ['admin', 'sales', 'finance'] },
+      { label: 'Products', href: '/products', description: 'Catalog and stock insight', roles: ['admin', 'warehouse', 'procurement', 'operations'] },
+      { label: 'Quotes', href: '/quotes', description: 'Commercial pipeline', roles: ['admin', 'sales'] },
+      { label: 'Invoices', href: '/invoices', description: 'Billing and collections', roles: ['admin', 'sales', 'finance'] },
+      { label: 'Purchase Orders', href: '/purchase-orders', description: 'Supplier purchasing', roles: ['admin', 'procurement', 'warehouse'] },
       { label: 'Approvals', href: '/approvals', badge: '5', description: 'Pending decisions' }
+    ]
+  },
+  {
+    label: 'Domains',
+    items: [
+      { label: 'Sales', href: '/sales', description: 'Quotes, invoices, orders, pricing', roles: ['admin', 'sales'] },
+      { label: 'Accounting', href: '/accounting', description: 'Debtors, creditors, payments', roles: ['admin', 'finance'] },
+      { label: 'Inventory', href: '/inventory', description: 'Stock, movements, transfers', roles: ['admin', 'warehouse', 'operations'] },
+      { label: 'Procurement', href: '/procurement', description: 'Suppliers, POs, bills', roles: ['admin', 'procurement'] },
+      { label: 'Operations', href: '/operations', description: 'Tasks, deliveries, returns', roles: ['admin', 'operations', 'warehouse'] },
+      { label: 'Reports', href: '/reports', description: 'Reporting and forecasting' }
     ]
   },
   {
     label: 'System',
     items: [
       { label: 'Settings', href: '/settings', description: 'Theme, role, profile, preferences' },
-      { label: 'Admin', href: '/admin', description: 'Users, roles, templates, audit' }
+      { label: 'Admin', href: '/admin', description: 'Users, roles, templates, audit', roles: ['admin'] }
     ]
   }
 ];
 
 export const bottomNavigation: NavItem[] = [
   { label: 'Home', href: '/dashboard' },
+  { label: 'Alerts', href: '/notifications' },
   { label: 'Customers', href: '/customers' },
-  { label: 'Products', href: '/products' },
   { label: 'Approvals', href: '/approvals' },
   { label: 'Settings', href: '/settings' }
 ];

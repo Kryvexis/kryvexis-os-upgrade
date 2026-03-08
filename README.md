@@ -1,16 +1,17 @@
-# Kryvexis OS Structure Pass
+# Kryvexis OS Detail Pages Pass
 
-This package moves the project from starter shell into a more real app structure.
+This package extends the structure pass into more realistic app behavior.
 
 ## Included
-- top-right logged-in user menu
-- real settings page
-- role preview and role selection foundation
-- dashboard, customers, products, quotes, invoices, purchase orders, approvals
-- reusable table shell and settings sections
-- responsive mobile shell
-- light / dark / system theme support
-- Vitest + Testing Library coverage
+- top-right user area wired to role + branch preferences
+- notifications center route
+- customer detail page
+- product detail page
+- purchase order detail page
+- role-aware sidebar visibility
+- branch selector foundation inside settings
+- theme controls and responsive shell
+- updated Vitest + Testing Library coverage
 
 ## Commands
 ```bash

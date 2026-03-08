@@ -1,5 +1,6 @@
 import { NavLink } from 'react-router-dom';
 import { roleOptions, sidebarNavigation } from './navigation';
+import { usePreferences } from '../preferences/PreferencesProvider';
 
 type SidebarProps = {
   isOpen: boolean;
@@ -7,6 +8,15 @@ type SidebarProps = {
 };
 
 export function Sidebar({ isOpen, onClose }: SidebarProps) {
+  const { activeRole, branchName } = usePreferences();
+
+  const visibleSections = sidebarNavigation
+    .map((section) => ({
+      ...section,
+      items: section.items.filter((item) => !item.roles || item.roles.includes(activeRole))
+    }))
+    .filter((section) => section.items.length > 0);
+
   return (
     <>
       <div className={`sidebar-backdrop ${isOpen ? 'visible' : ''}`} onClick={onClose} />
@@ -21,15 +31,15 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
 
         <div className="branch-card muted-card">
           <span className="eyebrow">Active branch</span>
-          <strong>Main Branch</strong>
+          <strong>{branchName}</strong>
           <p>Ready for modular rollout and workflow testing.</p>
         </div>
 
         <div className="branch-card muted-card compact-card">
           <span className="eyebrow">Role preview</span>
           <div className="role-list">
-            {roleOptions.slice(0, 4).map((role) => (
-              <div key={role.key} className="role-item">
+            {roleOptions.map((role) => (
+              <div key={role.key} className={`role-item ${activeRole === role.key ? 'active' : ''}`}>
                 <strong>{role.label}</strong>
                 <p>{role.description}</p>
               </div>
@@ -37,7 +47,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
           </div>
         </div>
 
-        {sidebarNavigation.map((section) => (
+        {visibleSections.map((section) => (
           <nav key={section.label} className="nav-section">
             <span className="nav-section-label">{section.label}</span>
             <div className="nav-links">

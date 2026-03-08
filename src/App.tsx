@@ -4,6 +4,10 @@ import { DashboardPage } from './pages/DashboardPage';
 import { ModuleLandingPage } from './pages/ModuleLandingPage';
 import { ApprovalsPage, CustomersPage, InvoicesPage, ProductsPage, PurchaseOrdersPage, QuotesPage } from './pages/records';
 import { SettingsPage } from './pages/SettingsPage';
+import { NotificationsPage } from './pages/NotificationsPage';
+import { CustomerDetailPage } from './pages/CustomerDetailPage';
+import { ProductDetailPage } from './pages/ProductDetailPage';
+import { PurchaseOrderDetailPage } from './pages/PurchaseOrderDetailPage';
 
 const moduleRoutes = {
   sales: {
@@ -42,11 +46,15 @@ export default function App() {
       <Route path="/" element={<AppShell />}>
         <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="dashboard" element={<DashboardPage />} />
+        <Route path="notifications" element={<NotificationsPage />} />
         <Route path="customers" element={<CustomersPage />} />
+        <Route path="customers/:customerId" element={<CustomerDetailPage />} />
         <Route path="products" element={<ProductsPage />} />
+        <Route path="products/:productId" element={<ProductDetailPage />} />
         <Route path="quotes" element={<QuotesPage />} />
         <Route path="invoices" element={<InvoicesPage />} />
         <Route path="purchase-orders" element={<PurchaseOrdersPage />} />
+        <Route path="purchase-orders/:purchaseOrderId" element={<PurchaseOrderDetailPage />} />
         <Route path="approvals" element={<ApprovalsPage />} />
         <Route path="settings" element={<SettingsPage />} />
         {Object.entries(moduleRoutes).map(([path, data]) => (

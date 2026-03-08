@@ -2,11 +2,21 @@ import { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { userMenuItems } from './navigation';
 import { useTheme } from '../theme/ThemeProvider';
+import { usePreferences } from '../preferences/PreferencesProvider';
 
 const themeLabelMap = {
   light: 'Light',
   dark: 'Dark',
   system: 'System'
+} as const;
+
+const roleLabelMap = {
+  admin: 'Admin',
+  sales: 'Sales Rep',
+  warehouse: 'Warehouse',
+  finance: 'Finance',
+  procurement: 'Procurement',
+  operations: 'Operations'
 } as const;
 
 type TopbarProps = {
@@ -16,6 +26,7 @@ type TopbarProps = {
 
 export function Topbar({ subtitle, onMenuClick }: TopbarProps) {
   const { theme, cycleTheme } = useTheme();
+  const { activeRole, branchName } = usePreferences();
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
@@ -38,21 +49,21 @@ export function Topbar({ subtitle, onMenuClick }: TopbarProps) {
         <button className="soft-button desktop-only" type="button" onClick={cycleTheme} aria-label={`Change theme mode. Current mode ${themeLabelMap[theme]}`}>
           Theme: {themeLabelMap[theme]}
         </button>
-        <button className="soft-button desktop-only" type="button">Notifications</button>
+        <NavLink className="soft-button desktop-only" to="/notifications">Notifications</NavLink>
         <button className="soft-button primary desktop-only" type="button">Quick Create</button>
         <div className="user-menu-wrap">
           <button className="user-menu-trigger" type="button" onClick={() => setMenuOpen((value) => !value)} aria-expanded={menuOpen} aria-label="Open user menu">
             <span className="avatar">A</span>
             <span className="desktop-only user-meta">
               <strong>Antonie Meyer</strong>
-              <small>Admin · Main Branch</small>
+              <small>{roleLabelMap[activeRole]} · {branchName}</small>
             </span>
           </button>
           {menuOpen ? (
             <div className="user-menu glass-panel">
               <div className="user-menu-header">
                 <strong>Signed in as Antonie Meyer</strong>
-                <p>Kryvexis OS workspace controls</p>
+                <p>{roleLabelMap[activeRole]} workspace · {branchName}</p>
               </div>
               <div className="user-menu-links">
                 {userMenuItems.map((item) => (
