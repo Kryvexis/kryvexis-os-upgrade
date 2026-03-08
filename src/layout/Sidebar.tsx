@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { primaryNavigation, roleOptions } from './navigation';
+import { roleOptions, sidebarNavigation } from './navigation';
 
 type SidebarProps = {
   isOpen: boolean;
@@ -27,37 +27,32 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
 
         <div className="branch-card muted-card compact-card">
           <span className="eyebrow">Role preview</span>
-          <div className="role-stack">
-            {roleOptions.map((role) => (
-              <button key={role.label} className="role-pill" type="button">
-                <span>{role.label}</span>
-                <small>{role.description}</small>
-              </button>
+          <div className="role-list">
+            {roleOptions.slice(0, 4).map((role) => (
+              <div key={role.key} className="role-item">
+                <strong>{role.label}</strong>
+                <p>{role.description}</p>
+              </div>
             ))}
           </div>
         </div>
 
-        <nav className="nav-groups" aria-label="Primary navigation">
-          {primaryNavigation.map((section) => (
-            <div key={section.label} className="nav-section">
-              <p className="nav-label">{section.label}</p>
+        {sidebarNavigation.map((section) => (
+          <nav key={section.label} className="nav-section">
+            <span className="nav-section-label">{section.label}</span>
+            <div className="nav-links">
               {section.items.map((item) => (
-                <NavLink
-                  key={item.href}
-                  to={item.href}
-                  className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
-                  onClick={onClose}
-                >
+                <NavLink key={item.href} to={item.href} className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
                   <div>
-                    <span>{item.label}</span>
-                    {item.description ? <small>{item.description}</small> : null}
+                    <strong>{item.label}</strong>
+                    {item.description ? <p>{item.description}</p> : null}
                   </div>
                   {item.badge ? <span className="nav-badge">{item.badge}</span> : null}
                 </NavLink>
               ))}
             </div>
-          ))}
-        </nav>
+          </nav>
+        ))}
       </aside>
     </>
   );

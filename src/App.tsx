@@ -2,8 +2,10 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { AppShell } from './layout/AppShell';
 import { DashboardPage } from './pages/DashboardPage';
 import { ModuleLandingPage } from './pages/ModuleLandingPage';
+import { ApprovalsPage, CustomersPage, InvoicesPage, ProductsPage, PurchaseOrdersPage, QuotesPage } from './pages/records';
+import { SettingsPage } from './pages/SettingsPage';
 
-const routeContent = {
+const moduleRoutes = {
   sales: {
     title: 'Sales',
     description: 'Quotes, invoices, orders, customers, pricing, and returns.'
@@ -40,12 +42,15 @@ export default function App() {
       <Route path="/" element={<AppShell />}>
         <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="dashboard" element={<DashboardPage />} />
-        {Object.entries(routeContent).map(([path, data]) => (
-          <Route
-            key={path}
-            path={path}
-            element={<ModuleLandingPage title={data.title} description={data.description} />}
-          />
+        <Route path="customers" element={<CustomersPage />} />
+        <Route path="products" element={<ProductsPage />} />
+        <Route path="quotes" element={<QuotesPage />} />
+        <Route path="invoices" element={<InvoicesPage />} />
+        <Route path="purchase-orders" element={<PurchaseOrdersPage />} />
+        <Route path="approvals" element={<ApprovalsPage />} />
+        <Route path="settings" element={<SettingsPage />} />
+        {Object.entries(moduleRoutes).map(([path, data]) => (
+          <Route key={path} path={path} element={<ModuleLandingPage title={data.title} description={data.description} />} />
         ))}
       </Route>
     </Routes>

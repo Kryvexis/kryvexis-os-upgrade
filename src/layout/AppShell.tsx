@@ -7,13 +7,20 @@ import { useMediaQuery } from '../hooks/useMediaQuery';
 
 const titleMap: Record<string, string> = {
   '/dashboard': 'Business overview',
+  '/customers': 'Customer operating workspace',
+  '/products': 'Product and stock control',
+  '/quotes': 'Commercial pipeline workspace',
+  '/invoices': 'Billing and collections workspace',
+  '/purchase-orders': 'Procurement control workspace',
+  '/approvals': 'Approvals control center',
+  '/settings': 'User and workspace settings',
+  '/admin': 'System administration workspace',
   '/sales': 'Customer revenue workspace',
   '/accounting': 'Financial control workspace',
   '/inventory': 'Stock and product control',
   '/procurement': 'Supplier purchasing workspace',
   '/operations': 'Execution and approvals workspace',
-  '/reports': 'Reporting and forecasting workspace',
-  '/admin': 'System administration workspace'
+  '/reports': 'Reporting and forecasting workspace'
 };
 
 export function AppShell() {

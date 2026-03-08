@@ -13,7 +13,7 @@ function renderApp(route: string) {
   );
 }
 
-describe('Kryvexis OS starter shell', () => {
+describe('Kryvexis OS structure pass', () => {
   it('renders the dashboard route', async () => {
     renderApp('/dashboard');
 
@@ -21,11 +21,18 @@ describe('Kryvexis OS starter shell', () => {
     expect(screen.getByText('Kryvexis OS')).toBeInTheDocument();
   });
 
-  it('renders a domain landing page', async () => {
-    renderApp('/inventory');
+  it('renders the customers page', async () => {
+    renderApp('/customers');
 
-    expect(await screen.findByRole('heading', { name: 'Inventory' })).toBeInTheDocument();
-    expect(screen.getByText(/stock, movements, low stock/i)).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Customers' })).toBeInTheDocument();
+    expect(screen.getByText(/customer profiles/i)).toBeInTheDocument();
+  });
+
+  it('opens the settings page', async () => {
+    renderApp('/settings');
+
+    expect(await screen.findByRole('heading', { name: 'Settings' })).toBeInTheDocument();
+    expect(screen.getByText(/role selection/i)).toBeInTheDocument();
   });
 
   it('cycles theme mode from the topbar', async () => {
@@ -34,8 +41,17 @@ describe('Kryvexis OS starter shell', () => {
     const themeButton = await screen.findByRole('button', { name: /change theme mode/i });
     fireEvent.click(themeButton);
 
-    expect(document.documentElement.dataset.theme).toBe('light');
+    expect(document.documentElement.dataset.themeMode).toBe('light');
     fireEvent.click(themeButton);
-    expect(document.documentElement.dataset.theme).toBe('dark');
+    expect(document.documentElement.dataset.themeMode).toBe('dark');
+  });
+
+  it('opens the top-right user menu', async () => {
+    renderApp('/dashboard');
+
+    const menuButton = await screen.findByRole('button', { name: /open user menu/i });
+    fireEvent.click(menuButton);
+
+    expect(screen.getByText(/signed in as antonie meyer/i)).toBeInTheDocument();
   });
 });

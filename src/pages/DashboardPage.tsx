@@ -1,7 +1,7 @@
 import { PageHeader } from '../components/PageHeader';
 import { PanelCard } from '../components/PanelCard';
 import { StatCard } from '../components/StatCard';
-import { ThemeShowcaseCard } from '../components/ThemeShowcaseCard';
+import { SectionTabs } from '../components/SectionTabs';
 
 const priorities = [
   '5 approvals waiting in Operations',
@@ -20,13 +20,23 @@ const activity = [
 export function DashboardPage() {
   return (
     <div className="page-stack">
-      <PageHeader
-        title="Dashboard"
-        description="A calm business overview across revenue, stock, purchasing, operational workload, and role-specific mobile access."
-        actions={<button className="soft-button primary">Open command palette</button>}
+      <SectionTabs
+        items={[
+          { label: 'Dashboard', href: '/dashboard' },
+          { label: 'Customers', href: '/customers' },
+          { label: 'Products', href: '/products' },
+          { label: 'Approvals', href: '/approvals' },
+          { label: 'Settings', href: '/settings' }
+        ]}
       />
 
-      <section className="stats-grid">
+      <PageHeader
+        title="Dashboard"
+        description="A calm executive overview with room for notifications, approvals, financial control, and role-based daily focus."
+        actions={<button className="soft-button primary">Open command center</button>}
+      />
+
+      <section className="stats-grid compact">
         <StatCard label="Revenue" value="R 482,300" detail="Month-to-date sales performance" />
         <StatCard label="Outstanding" value="R 91,240" detail="Debtors needing follow-up" />
         <StatCard label="Stock Risk" value="12 SKUs" detail="Low stock and transfer pressure" />
@@ -50,7 +60,14 @@ export function DashboardPage() {
           </ul>
         </PanelCard>
 
-        <ThemeShowcaseCard />
+        <PanelCard title="Next structure pass focus">
+          <ul className="clean-list">
+            <li>Real customer and product detail pages</li>
+            <li>Purchase order receiving and matching flow</li>
+            <li>Role-aware widget visibility</li>
+            <li>Notifications center and activity timeline</li>
+          </ul>
+        </PanelCard>
       </section>
     </div>
   );

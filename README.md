@@ -1,53 +1,21 @@
-# Kryvexis OS Starter
+# Kryvexis OS Structure Pass
 
-Responsive starter shell for the Kryvexis OS rebuild.
+This package moves the project from starter shell into a more real app structure.
 
-## Stack
-- React 18
-- Vite
-- TypeScript
-- React Router
-- Vitest + React Testing Library
+## Included
+- top-right logged-in user menu
+- real settings page
+- role preview and role selection foundation
+- dashboard, customers, products, quotes, invoices, purchase orders, approvals
+- reusable table shell and settings sections
+- responsive mobile shell
+- light / dark / system theme support
+- Vitest + Testing Library coverage
 
-## Setup
+## Commands
 ```bash
-cd C:\Kryvexis-OS-Upgrade
 npm install
 npm run dev
-```
-
-## Test
-```bash
+npm run build
 npm run test
 ```
-
-## Build
-```bash
-npm run build
-```
-
-## Included in this package
-- Premium calm shell
-- Ambient background
-- Responsive sidebar and mobile bottom navigation
-- Light, dark, and system theme modes
-- Starter routes for major domains
-- Dashboard page
-- Module landing pages
-- Initial render and theme tests
-
-## What this package proves
-- Desktop and mobile foundations are built from the start
-- Theme support is part of the shell, not an afterthought
-- The navigation is ready for role-aware expansion in later passes
-
-
-## Included in this refresh
-- .gitignore included
-- responsive desktop/mobile shell
-- light / dark / system theme toggle
-- starter routes and test scaffolding
-
-
-## Vercel fix included
-- `vite.config.ts` now imports `defineConfig` from `vitest/config` so the `test` block is typed correctly during deploys.
