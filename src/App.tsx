@@ -15,8 +15,8 @@ const moduleRoutes = {
     description: 'Quotes, invoices, orders, customers, pricing, and returns.'
   },
   accounting: {
-    title: 'Accounting',
-    description: 'Debtors, creditors, payments, statements, expenses, and cash up.'
+    title: 'Finance',
+    description: 'Invoices, debtors, payments, approvals, and core financial control.'
   },
   inventory: {
     title: 'Inventory',

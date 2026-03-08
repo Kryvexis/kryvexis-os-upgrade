@@ -14,7 +14,7 @@ type ModuleConfig = {
   rows: Array<Record<string, string> & { id: string }>;
   sideTitle: string;
   sideItems: string[];
-  quickLinks: Array<{ label: string; href: string }>;
+  quickLinks: Array<{ label: string; href: string; detail: string }>;
 };
 
 const moduleConfigs: Record<string, ModuleConfig> = {
@@ -25,7 +25,7 @@ const moduleConfigs: Record<string, ModuleConfig> = {
       { label: 'Quote conversion', value: '68%', detail: 'Last 30 days' },
       { label: 'Returns pending', value: '4', detail: 'Need inspection' }
     ],
-    focus: ['Quotes and orders', 'Invoice issue flow', 'Customer pricing', 'Returns and credits'],
+    focus: ['Keep customers, quotes, and invoices in one sales lane', 'Push accepted quotes into invoice issuing', 'Use fewer clicks between pipeline and debtor follow-up'],
     queueTitle: 'Sales control room',
     queueDescription: 'Commercial activity, pipeline risk, and follow-up tasks.',
     columns: [
@@ -41,18 +41,22 @@ const moduleConfigs: Record<string, ModuleConfig> = {
     ],
     sideTitle: 'Sales next build',
     sideItems: ['Customer statements', 'Discount approval policy', 'Quote to invoice conversion log', 'Rep targets and branch leaderboard'],
-    quickLinks: [{ label: 'Customers', href: '/customers' }, { label: 'Quotes', href: '/quotes' }, { label: 'Invoices', href: '/invoices' }]
+    quickLinks: [
+      { label: 'Customers', href: '/customers', detail: 'Profiles, balances, and account health' },
+      { label: 'Quotes', href: '/quotes', detail: 'Create, review, and convert quotes' },
+      { label: 'Invoices', href: '/invoices', detail: 'Billing, reminders, and debtor control' }
+    ]
   },
-  Accounting: {
+  Finance: {
     stats: [
       { label: 'Debtors book', value: 'R 241,880', detail: 'Open invoices' },
       { label: 'Creditors due', value: 'R 117,420', detail: 'Next 7 days' },
       { label: 'Receipts today', value: 'R 32,600', detail: '8 allocations posted' },
       { label: 'Cash-up variances', value: '2', detail: 'Need sign-off' }
     ],
-    focus: ['Debtors aging', 'Creditors control', 'Payments allocation', 'Statements and expenses'],
+    focus: ['Keep invoicing, receipts, and approvals together', 'Reduce bouncing between finance screens', 'Make payment allocation and follow-up feel immediate'],
     queueTitle: 'Finance control',
-    queueDescription: 'Core accounting actions tied to commercial and procurement events.',
+    queueDescription: 'Core finance actions tied to commercial and procurement events.',
     columns: [
       { key: 'record', label: 'Record' },
       { key: 'counterparty', label: 'Counterparty' },
@@ -61,12 +65,16 @@ const moduleConfigs: Record<string, ModuleConfig> = {
     ],
     rows: [
       { id: '1', record: 'INV-1049', counterparty: 'Northline Stores', owner: 'Credit control', status: 'Overdue' },
-      { id: '2', record: 'SB-412', counterparty: 'Nexa Supply', owner: 'AP queue', status: 'Mismatch review' },
-      { id: '3', record: 'CU-008', counterparty: 'Main Branch', owner: 'Supervisor', status: 'Variance pending' }
+      { id: '2', record: 'RCPT-2204', counterparty: 'Northline Stores', owner: 'Finance desk', status: 'Unallocated' },
+      { id: '3', record: 'APP-045', counterparty: 'PO-2034', owner: 'Finance lead', status: 'Needs decision' }
     ],
-    sideTitle: 'Accounting next build',
+    sideTitle: 'Finance next build',
     sideItems: ['Supplier statements', 'Expense approvals', 'Reconciliation foundations', 'Audit extracts and exports'],
-    quickLinks: [{ label: 'Invoices', href: '/invoices' }, { label: 'Payments', href: '/payments' }, { label: 'Settings', href: '/settings?tab=notifications' }]
+    quickLinks: [
+      { label: 'Invoices', href: '/invoices', detail: 'Issue, chase, and reconcile invoices' },
+      { label: 'Payments', href: '/payments', detail: 'Receipts, allocations, and proof' },
+      { label: 'Approvals', href: '/approvals', detail: 'Cross-module approval inbox' }
+    ]
   },
   Inventory: {
     stats: [
@@ -75,7 +83,7 @@ const moduleConfigs: Record<string, ModuleConfig> = {
       { label: 'Transfers pending', value: '7', detail: 'Cross-branch movement' },
       { label: 'Incoming units', value: '87', detail: 'Expected this week' }
     ],
-    focus: ['Stock on hand', 'Transfers and movements', 'Low-stock control', 'Goods received'],
+    focus: ['Group products, procurement, and receiving under one stock lane', 'Expose low-stock pressure without extra navigation', 'Keep warehouse actions close to purchase orders'],
     queueTitle: 'Inventory operations',
     queueDescription: 'Live stock visibility, movement health, and replenishment pressure.',
     columns: [
@@ -86,12 +94,16 @@ const moduleConfigs: Record<string, ModuleConfig> = {
     ],
     rows: [
       { id: '1', record: 'KX-200 Access Point', counterparty: 'Main Branch', owner: 'Warehouse', status: 'Below reorder point' },
-      { id: '2', record: 'TRF-184', counterparty: 'Main → Cape Town', owner: 'Operations', status: 'In transit' },
+      { id: '2', record: 'PO-2034', counterparty: 'Vertex Trade', owner: 'Procurement', status: 'Awaiting approval' },
       { id: '3', record: 'GRN-093', counterparty: 'Johannesburg', owner: 'Receiving', status: 'Awaiting count confirmation' }
     ],
     sideTitle: 'Inventory next build',
     sideItems: ['Reserved stock logic', 'Available vs incoming stock', 'Dead stock analysis', 'Barcode and scan-ready workflows'],
-    quickLinks: [{ label: 'Products', href: '/products' }, { label: 'Purchase Orders', href: '/purchase-orders' }, { label: 'Dashboard', href: '/dashboard' }]
+    quickLinks: [
+      { label: 'Products', href: '/products', detail: 'Catalog, stock, and reorder posture' },
+      { label: 'Purchase Orders', href: '/purchase-orders', detail: 'Replenishment and supplier execution' },
+      { label: 'Approvals', href: '/approvals', detail: 'Stock and procurement blockers' }
+    ]
   },
   Procurement: {
     stats: [
@@ -116,7 +128,11 @@ const moduleConfigs: Record<string, ModuleConfig> = {
     ],
     sideTitle: 'Procurement next build',
     sideItems: ['Supplier scorecards', 'Lead time reporting', 'PO acknowledgement flow', 'Reorder sweeps and alerts'],
-    quickLinks: [{ label: 'Purchase Orders', href: '/purchase-orders' }, { label: 'Inventory', href: '/inventory' }, { label: 'Approvals', href: '/approvals' }]
+    quickLinks: [
+      { label: 'Purchase Orders', href: '/purchase-orders', detail: 'Supplier POs and matching' },
+      { label: 'Products', href: '/products', detail: 'Low-stock and supplier linkage' },
+      { label: 'Approvals', href: '/approvals', detail: 'Approval path for purchases' }
+    ]
   },
   Operations: {
     stats: [
@@ -141,7 +157,11 @@ const moduleConfigs: Record<string, ModuleConfig> = {
     ],
     sideTitle: 'Operations next build',
     sideItems: ['Dispatch board', 'Proof capture', 'Return disposition states', 'Task templates by branch'],
-    quickLinks: [{ label: 'Notifications', href: '/notifications' }, { label: 'Approvals', href: '/approvals' }, { label: 'Dashboard', href: '/dashboard' }]
+    quickLinks: [
+      { label: 'Approvals', href: '/approvals', detail: 'Clear blockers and approvals' },
+      { label: 'Inventory', href: '/inventory', detail: 'Move into stock and receiving views' },
+      { label: 'Dashboard', href: '/dashboard', detail: 'Return to branch overview' }
+    ]
   },
   Reports: {
     stats: [
@@ -166,7 +186,11 @@ const moduleConfigs: Record<string, ModuleConfig> = {
     ],
     sideTitle: 'Reports next build',
     sideItems: ['Trend charts', 'Forecast assumptions', 'Role-specific export packs', 'Scheduled report delivery'],
-    quickLinks: [{ label: 'Dashboard', href: '/dashboard' }, { label: 'Accounting', href: '/accounting' }, { label: 'Inventory', href: '/inventory' }]
+    quickLinks: [
+      { label: 'Dashboard', href: '/dashboard', detail: 'Return to summary view' },
+      { label: 'Finance', href: '/accounting', detail: 'Open finance source data' },
+      { label: 'Inventory', href: '/inventory', detail: 'Open stock source data' }
+    ]
   },
   Admin: {
     stats: [
@@ -191,46 +215,71 @@ const moduleConfigs: Record<string, ModuleConfig> = {
     ],
     sideTitle: 'Admin next build',
     sideItems: ['Approver chains', 'Branch-specific numbering', 'Data import mappings', 'Automation audit viewer'],
-    quickLinks: [{ label: 'Settings', href: '/settings' }, { label: 'Notifications', href: '/notifications' }, { label: 'Dashboard', href: '/dashboard' }]
+    quickLinks: [
+      { label: 'Settings', href: '/settings', detail: 'Appearance and system preferences' },
+      { label: 'Dashboard', href: '/dashboard', detail: 'Return to control center' },
+      { label: 'Finance', href: '/accounting', detail: 'Open billing and controls' }
+    ]
   }
 };
 
 export function ModuleLandingPage({ title, description }: { title: string; description: string }) {
   const config = moduleConfigs[title] ?? moduleConfigs.Admin;
-  const [view, setView] = useState<'overview' | 'queue' | 'workflow'>('overview');
+  const [view, setView] = useState<'overview' | 'live queue' | 'next up'>('overview');
 
   const rows = useMemo(() => {
-    if (view === 'queue') return config.rows;
-    if (view === 'workflow') return [...config.rows].reverse();
+    if (view === 'live queue') return config.rows;
+    if (view === 'next up') return [...config.rows].reverse();
     return config.rows.slice(0, 2);
   }, [config.rows, view]);
 
   return (
     <div className="page-stack">
-      <PageHeader title={title} description={description} actions={<div className="quick-link-row">{config.quickLinks.map((item) => <NavLink key={item.href} className="soft-button" to={item.href}>{item.label}</NavLink>)}</div>} />
+      <PageHeader
+        title={title}
+        description={description}
+        actions={<div className="quick-link-row premium-actions">{config.quickLinks.map((item) => <NavLink key={item.href} className="soft-button" to={item.href}>{item.label}</NavLink>)}</div>}
+      />
 
-      <nav className="section-tabs" aria-label={`${title} views`}>
-        {(['overview', 'queue', 'workflow'] as const).map((tab) => (
-          <button key={tab} type="button" className={`section-tab ${view === tab ? 'active' : ''}`} onClick={() => setView(tab)}>
-            {tab[0].toUpperCase() + tab.slice(1)}
-          </button>
+      <section className="module-hero glass-panel">
+        <div>
+          <p className="eyebrow">Workspace focus</p>
+          <h2>{title} is now a parent tab</h2>
+          <p className="page-description">The sidebar stays calmer while the detailed tools live inside this workspace where they belong.</p>
+        </div>
+        <div className="section-tabs premium-section-tabs" aria-label={`${title} views`}>
+          {(['overview', 'live queue', 'next up'] as const).map((tab) => (
+            <button key={tab} type="button" className={`section-tab ${view === tab ? 'active' : ''}`} onClick={() => setView(tab)}>
+              {tab}
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <section className="submodule-grid">
+        {config.quickLinks.map((item) => (
+          <NavLink key={item.href} to={item.href} className="submodule-card glass-panel">
+            <span className="eyebrow">Inside {title}</span>
+            <strong>{item.label}</strong>
+            <p>{item.detail}</p>
+          </NavLink>
         ))}
-      </nav>
+      </section>
 
       <section className="stats-grid compact">
         {config.stats.map((item) => (<StatCard key={item.label} label={item.label} value={item.value} detail={item.detail} />))}
       </section>
 
-      <div className="content-split">
+      <div className="content-split premium-content-split">
         <div className="page-stack">
-          <TableShell title={config.queueTitle} description={view === 'workflow' ? 'Workflow-oriented queue view with reordered priority.' : config.queueDescription} columns={config.columns} rows={rows} actions={<span className="eyebrow">{rows.length} visible records</span>} />
-          <PanelCard title={`${title} focus areas`}>
-            <ul className="clean-list">{(view === 'workflow' ? config.sideItems : config.focus).map((item) => (<li key={item}>{item}</li>))}</ul>
+          <TableShell title={config.queueTitle} description={view === 'next up' ? 'Priority view arranged around the next handoffs to clear.' : config.queueDescription} columns={config.columns} rows={rows} actions={<span className="eyebrow">{rows.length} visible records</span>} />
+          <PanelCard title={`${title} focus`}>
+            <ul className="clean-list">{(view === 'next up' ? config.sideItems : config.focus).map((item) => (<li key={item}>{item}</li>))}</ul>
           </PanelCard>
         </div>
 
-        <PanelCard title={view === 'workflow' ? `${title} linked modules` : config.sideTitle}>
-          <ul className="clean-list">{(view === 'queue' ? config.quickLinks.map((item) => item.label) : config.sideItems).map((item) => (<li key={item}>{item}</li>))}</ul>
+        <PanelCard title={view === 'live queue' ? 'Linked tools' : config.sideTitle}>
+          <ul className="clean-list">{(view === 'live queue' ? config.quickLinks.map((item) => item.label) : config.sideItems).map((item) => (<li key={item}>{item}</li>))}</ul>
         </PanelCard>
       </div>
     </div>
