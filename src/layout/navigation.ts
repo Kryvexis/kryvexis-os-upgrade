@@ -1,4 +1,5 @@
 export type RoleKey = 'admin' | 'sales' | 'warehouse' | 'finance' | 'procurement' | 'operations';
+export type NavIconKey = 'dashboard' | 'sales' | 'inventory' | 'finance' | 'settings' | 'alerts';
 
 export type NavItem = {
   label: string;
@@ -6,6 +7,7 @@ export type NavItem = {
   description?: string;
   badge?: string;
   roles?: RoleKey[];
+  icon?: NavIconKey;
 };
 
 export type NavSection = {
@@ -24,23 +26,23 @@ export const roleOptions: Array<{ key: RoleKey; label: string; description: stri
 
 export const sidebarNavigation: NavSection[] = [
   {
-    label: 'Core',
+    label: 'Main navigation',
     items: [
-      { label: 'Dashboard', href: '/dashboard', description: 'Overview, alerts, and branch performance' },
-      { label: 'Sales', href: '/sales', description: 'Customers, quotes, invoices, and pipeline', roles: ['admin', 'sales', 'finance'] },
-      { label: 'Inventory', href: '/inventory', description: 'Products, stock, procurement, and receiving', roles: ['admin', 'warehouse', 'procurement', 'operations'] },
-      { label: 'Finance', href: '/accounting', description: 'Invoices, payments, approvals, and controls', roles: ['admin', 'finance', 'sales'] },
-      { label: 'Settings', href: '/settings', description: 'Appearance, roles, templates, and preferences' }
+      { label: 'Dashboard', href: '/dashboard', description: 'Overview, alerts, and branch performance', icon: 'dashboard' },
+      { label: 'Sales', href: '/sales', description: 'Customers, quotes, invoices, and pipeline', roles: ['admin', 'sales', 'finance'], icon: 'sales' },
+      { label: 'Inventory', href: '/inventory', description: 'Products, stock, procurement, and receiving', roles: ['admin', 'warehouse', 'procurement', 'operations'], icon: 'inventory' },
+      { label: 'Finance', href: '/accounting', description: 'Invoices, payments, approvals, and controls', roles: ['admin', 'finance', 'sales'], icon: 'finance' },
+      { label: 'Settings', href: '/settings', description: 'Appearance, roles, templates, and preferences', icon: 'settings' }
     ]
   }
 ];
 
 export const bottomNavigation: NavItem[] = [
-  { label: 'Home', href: '/dashboard' },
-  { label: 'Sales', href: '/sales' },
-  { label: 'Stock', href: '/inventory' },
-  { label: 'Finance', href: '/accounting' },
-  { label: 'Settings', href: '/settings' }
+  { label: 'Home', href: '/dashboard', icon: 'dashboard' },
+  { label: 'Sales', href: '/sales', icon: 'sales' },
+  { label: 'Stock', href: '/inventory', icon: 'inventory' },
+  { label: 'Finance', href: '/accounting', icon: 'finance' },
+  { label: 'Settings', href: '/settings', icon: 'settings' }
 ];
 
 export const userMenuItems = [

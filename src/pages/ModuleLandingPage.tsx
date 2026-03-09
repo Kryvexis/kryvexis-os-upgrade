@@ -5,29 +5,46 @@ import { PanelCard } from '../components/PanelCard';
 import { StatCard } from '../components/StatCard';
 import { TableShell } from '../components/TableShell';
 
+type WorkspaceStat = { label: string; value: string; detail: string };
+type WorkspaceTile = { label: string; href: string; detail: string; tag: string };
+type WorkspaceRow = Record<string, string> & { id: string };
+
 type ModuleConfig = {
-  stats: Array<{ label: string; value: string; detail: string }>;
-  focus: string[];
+  eyebrow: string;
+  intro: string;
+  chips: string[];
+  stats: WorkspaceStat[];
+  tiles: WorkspaceTile[];
   queueTitle: string;
   queueDescription: string;
   columns: Array<{ key: string; label: string }>;
-  rows: Array<Record<string, string> & { id: string }>;
-  sideTitle: string;
-  sideItems: string[];
-  quickLinks: Array<{ label: string; href: string; detail: string }>;
+  rows: WorkspaceRow[];
+  insightsTitle: string;
+  insights: string[];
+  phaseTitle: string;
+  phaseItems: string[];
+  actions: string[];
 };
 
 const moduleConfigs: Record<string, ModuleConfig> = {
   Sales: {
+    eyebrow: 'Revenue and customer operations',
+    intro: 'Quotes, customers, invoices, payment follow-up, and commercial next actions in one calmer workspace.',
+    chips: ['Quote to cash', 'Customer health', 'Collections visibility'],
     stats: [
       { label: 'Quotes awaiting action', value: '18', detail: '3 need approval today' },
       { label: 'Invoices due this week', value: 'R 84,220', detail: 'Collections focus' },
       { label: 'Quote conversion', value: '68%', detail: 'Last 30 days' },
-      { label: 'Returns pending', value: '4', detail: 'Need inspection' }
+      { label: 'Customer follow-ups', value: '7', detail: 'Due before close' }
     ],
-    focus: ['Customers, quotes, invoices, and follow-up live inside one revenue workspace.', 'Accepted quotes should flow into invoice issuing with fewer clicks.', 'Statements and debtor actions stay close to customer context.'],
-    queueTitle: 'Sales queue',
-    queueDescription: 'Commercial activity, pipeline risk, and follow-up tasks.',
+    tiles: [
+      { label: 'Customers', href: '/customers', detail: 'Profiles, balances, contacts, statements, and credit posture.', tag: 'Accounts' },
+      { label: 'Quotes', href: '/quotes', detail: 'Create, approve, and convert quotes with fewer clicks.', tag: 'Pipeline' },
+      { label: 'Invoices', href: '/invoices', detail: 'Issue invoices, track due dates, and monitor reminders.', tag: 'Billing' },
+      { label: 'Payments', href: '/payments', detail: 'Review receipts and allocation handoff from finance.', tag: 'Collections' }
+    ],
+    queueTitle: 'Live commercial queue',
+    queueDescription: 'The current work needing attention across customers, quotes, invoices, and debtor follow-up.',
     columns: [
       { key: 'record', label: 'Record' },
       { key: 'counterparty', label: 'Customer' },
@@ -37,26 +54,36 @@ const moduleConfigs: Record<string, ModuleConfig> = {
     rows: [
       { id: '1', record: 'QT-1011', counterparty: 'Aether Group', owner: 'Antonie', status: 'Awaiting approval' },
       { id: '2', record: 'INV-1058', counterparty: 'Northline Stores', owner: 'Finance', status: 'Due tomorrow' },
-      { id: '3', record: 'RET-020', counterparty: 'BluePeak Foods', owner: 'Sales', status: 'Inspection needed' }
+      { id: '3', record: 'CUS-084', counterparty: 'Crest Office Park', owner: 'Sales desk', status: 'Credit review' }
     ],
-    sideTitle: 'Phase 1 scope',
-    sideItems: ['Customers', 'Quotes', 'Invoices', 'Payments handoff', 'Role-aware dashboard widgets'],
-    quickLinks: [
-      { label: 'Customers', href: '/customers', detail: 'Profiles, balances, and account health' },
-      { label: 'Quotes', href: '/quotes', detail: 'Create, review, and convert quotes' },
-      { label: 'Invoices', href: '/invoices', detail: 'Billing, reminders, and debtor control' }
-    ]
+    insightsTitle: 'What this workspace should feel like',
+    insights: [
+      'One clear lane from customer to quote to invoice to payment follow-up.',
+      'Status, owner, timestamps, and next actions always visible.',
+      'Role-aware visibility so sales sees the essentials without clutter.'
+    ],
+    phaseTitle: 'Phase 1 build focus',
+    phaseItems: ['Dashboard', 'Customers', 'Quotes', 'Invoices', 'Payments', 'Settings', 'Roles and themes'],
+    actions: ['New quote', 'Capture customer', 'Open debtor list']
   },
   Finance: {
+    eyebrow: 'Financial control and collections',
+    intro: 'Invoices, receipts, approvals, debtor visibility, and cleaner control surfaces for finance users.',
+    chips: ['Debtors first', 'Receipts and allocations', 'Approval inbox'],
     stats: [
       { label: 'Debtors book', value: 'R 241,880', detail: 'Open invoices' },
       { label: 'Receipts today', value: 'R 32,600', detail: '8 allocations posted' },
       { label: 'Approvals pending', value: '5', detail: 'Cross-module decisions' },
       { label: 'Statements ready', value: '22', detail: 'Tonight schedule' }
     ],
-    focus: ['Finance in Phase 1 centers on invoices, payments, and approvals.', 'Collections and receipts stay close to the customer document trail.', 'Deeper accounting layers land in later phases.'],
-    queueTitle: 'Finance queue',
-    queueDescription: 'Core finance actions tied to invoices, receipts, and approval control.',
+    tiles: [
+      { label: 'Invoices', href: '/invoices', detail: 'Issue, review, chase, and control invoice status.', tag: 'Receivables' },
+      { label: 'Payments', href: '/payments', detail: 'Customer receipts, allocations, and proof handling.', tag: 'Cash' },
+      { label: 'Approvals', href: '/approvals', detail: 'Cross-module approval inbox for commercial and stock events.', tag: 'Control' },
+      { label: 'Settings', href: '/settings?tab=roles', detail: 'Role templates, payment terms, and notification preferences.', tag: 'Policy' }
+    ],
+    queueTitle: 'Finance control queue',
+    queueDescription: 'High-signal items for debtor follow-up, allocations, and decisions waiting on finance.',
     columns: [
       { key: 'record', label: 'Record' },
       { key: 'counterparty', label: 'Counterparty' },
@@ -68,24 +95,34 @@ const moduleConfigs: Record<string, ModuleConfig> = {
       { id: '2', record: 'RCPT-2204', counterparty: 'Northline Stores', owner: 'Finance desk', status: 'Unallocated' },
       { id: '3', record: 'APP-045', counterparty: 'PO-2034', owner: 'Finance lead', status: 'Needs decision' }
     ],
-    sideTitle: 'Phase 2 and later',
-    sideItems: ['Debtors aging', 'Creditors', 'Expenses', 'Cash up', 'Reconciliation foundations'],
-    quickLinks: [
-      { label: 'Invoices', href: '/invoices', detail: 'Issue, chase, and reconcile invoices' },
-      { label: 'Payments', href: '/payments', detail: 'Receipts, allocations, and proof' },
-      { label: 'Approvals', href: '/approvals', detail: 'Cross-module approval inbox' }
-    ]
+    insightsTitle: 'Finance design principles',
+    insights: [
+      'Accounting should feel like the control backbone, not a side tab.',
+      'Everything should flow back to traceable documents and accountable outcomes.',
+      'Receipts, statements, and approvals need fast drill-down paths.'
+    ],
+    phaseTitle: 'Phase 1 now · deeper accounting later',
+    phaseItems: ['Invoices', 'Payments', 'Approvals', 'Statements visibility', 'Expenses and cash-up next phase'],
+    actions: ['Record receipt', 'Run statements', 'Review approvals']
   },
   Inventory: {
+    eyebrow: 'Stock posture and replenishment',
+    intro: 'Products, stock risk, purchase orders, and replenishment pressure in a cleaner inventory control room.',
+    chips: ['Low stock watch', 'Incoming stock', 'Procurement handoff'],
     stats: [
       { label: 'Tracked SKUs', value: '1,284', detail: 'Across all branches' },
       { label: 'Low stock items', value: '12', detail: 'Need reorder review' },
       { label: 'Transfers pending', value: '7', detail: 'Cross-branch movement' },
       { label: 'Incoming units', value: '87', detail: 'Expected this week' }
     ],
-    focus: ['Phase 1 includes products and stock posture.', 'Procurement, GRNs, and supplier bill matching deepen in Phase 2.', 'Keep the inventory lane clean and mobile-friendly from the start.'],
-    queueTitle: 'Inventory queue',
-    queueDescription: 'Live stock visibility and replenishment pressure.',
+    tiles: [
+      { label: 'Products', href: '/products', detail: 'Catalog, stock on hand, reorder thresholds, and branch visibility.', tag: 'Catalog' },
+      { label: 'Purchase Orders', href: '/purchase-orders', detail: 'Supplier ordering, expected receipt dates, and execution.', tag: 'Procurement' },
+      { label: 'Approvals', href: '/approvals', detail: 'Stock exceptions, blockers, and procurement decisions.', tag: 'Exceptions' },
+      { label: 'Dashboard', href: '/dashboard', detail: 'Jump back to low-stock and operational alerts.', tag: 'Overview' }
+    ],
+    queueTitle: 'Stock pressure queue',
+    queueDescription: 'What the warehouse and procurement lane should resolve next.',
     columns: [
       { key: 'record', label: 'Item / Move' },
       { key: 'counterparty', label: 'Branch / Location' },
@@ -94,27 +131,37 @@ const moduleConfigs: Record<string, ModuleConfig> = {
     ],
     rows: [
       { id: '1', record: 'KX-200 Access Point', counterparty: 'Main Branch', owner: 'Warehouse', status: 'Below reorder point' },
-      { id: '2', record: 'TRF-188', counterparty: 'Cape Town to JHB', owner: 'Warehouse', status: 'Awaiting dispatch' },
-      { id: '3', record: 'SKU-902', counterparty: 'Johannesburg', owner: 'Inventory', status: 'Critical level' }
+      { id: '2', record: 'TRF-188', counterparty: 'Cape Town → JHB', owner: 'Warehouse', status: 'Awaiting dispatch' },
+      { id: '3', record: 'PO-2034', counterparty: 'SignalWave Supply', owner: 'Procurement', status: 'Expected Friday' }
     ],
-    sideTitle: 'Phase 2 build-outs',
-    sideItems: ['Suppliers', 'Purchase orders', 'Goods received', 'Supplier bills', 'Valuation support'],
-    quickLinks: [
-      { label: 'Products', href: '/products', detail: 'Catalog, stock, and reorder posture' },
-      { label: 'Purchase Orders', href: '/purchase-orders', detail: 'Replenishment and supplier execution' },
-      { label: 'Approvals', href: '/approvals', detail: 'Stock and procurement blockers' }
-    ]
+    insightsTitle: 'Inventory design principles',
+    insights: [
+      'Multi-branch stock posture should stay visible without burying the user in ERP noise.',
+      'Low-stock, incoming stock, and approvals need one clear decision lane.',
+      'Mobile readiness matters for warehouse and operations workflows.'
+    ],
+    phaseTitle: 'Phase 1 with Phase 2 in view',
+    phaseItems: ['Products', 'Stock posture', 'Purchase orders', 'Goods received next', 'Supplier bills next'],
+    actions: ['Add product', 'Raise PO', 'Review low stock']
   },
   Admin: {
+    eyebrow: 'Platform controls and appearance',
+    intro: 'Roles, preferences, themes, and workspace standards that keep the OS coherent as more modules arrive.',
+    chips: ['Shared shell', 'Role-aware visibility', 'Config-driven growth'],
     stats: [
       { label: 'Active users', value: '18', detail: '6 roles in use' },
       { label: 'Theme modes', value: '3', detail: 'Light, dark, system' },
       { label: 'Branches', value: '4', detail: 'Role-aware context' },
       { label: 'Audit events today', value: '132', detail: 'Traceable changes' }
     ],
-    focus: ['Settings, themes, and role-aware controls are core Phase 1 deliverables.', 'The shell should stay shared across desktop and mobile.', 'Templates and automation rules deepen after the commerce basics are stable.'],
-    queueTitle: 'Admin queue',
-    queueDescription: 'Workspace controls, appearance, access, and rollout readiness.',
+    tiles: [
+      { label: 'Settings', href: '/settings', detail: 'Appearance, profile, business settings, and preferences.', tag: 'Preferences' },
+      { label: 'Dashboard', href: '/dashboard', detail: 'Return to the main control center and branch activity.', tag: 'Control room' },
+      { label: 'Sales', href: '/sales', detail: 'Check the customer-facing module state and layout quality.', tag: 'Module QA' },
+      { label: 'Finance', href: '/accounting', detail: 'Verify billing, payments, and approval control surfaces.', tag: 'Governance' }
+    ],
+    queueTitle: 'Admin readiness queue',
+    queueDescription: 'The work needed to keep the shell consistent while Phase 1 moves toward a full platform.',
     columns: [
       { key: 'record', label: 'Control item' },
       { key: 'counterparty', label: 'Scope' },
@@ -126,83 +173,134 @@ const moduleConfigs: Record<string, ModuleConfig> = {
       { id: '2', record: 'Theme preference rollout', counterparty: 'All users', owner: 'System', status: 'Live' },
       { id: '3', record: 'Mobile shell review', counterparty: 'Operations', owner: 'Product', status: 'In test' }
     ],
-    sideTitle: 'Phase roadmap',
-    sideItems: ['Phase 1: Shell and core commerce', 'Phase 2: Inventory and procurement depth', 'Phase 3: Workflow, accounting, automation, and reports'],
-    quickLinks: [
-      { label: 'Settings', href: '/settings', detail: 'Appearance and system preferences' },
-      { label: 'Dashboard', href: '/dashboard', detail: 'Return to control center' },
-      { label: 'Finance', href: '/accounting', detail: 'Open billing and controls' }
-    ]
+    insightsTitle: 'Admin design principles',
+    insights: [
+      'Every new module should still feel like one operating system.',
+      'Navigation should stay calm as deeper workflows move inside parent workspaces.',
+      'Role visibility, branch scope, and auditability must be designed from the beginning.'
+    ],
+    phaseTitle: 'Roadmap staging',
+    phaseItems: ['Phase 1: shell and core commerce', 'Phase 2: inventory and procurement', 'Phase 3: workflow depth'],
+    actions: ['Open settings', 'Review roles', 'Check theme modes']
   }
 };
 
+function WorkspaceCard({ title, items }: { title: string; items: string[] }) {
+  return (
+    <PanelCard title={title}>
+      <ul className="clean-list workspace-clean-list">
+        {items.map((item) => (
+          <li key={item}>{item}</li>
+        ))}
+      </ul>
+    </PanelCard>
+  );
+}
+
 export function ModuleLandingPage({ title, description }: { title: string; description: string }) {
-  const baseConfig = moduleConfigs[title] ?? moduleConfigs.Admin;
-  const config = title === 'Procurement' || title === 'Operations' || title === 'Reports' ? moduleConfigs.Admin : baseConfig;
-  const [view, setView] = useState<'overview' | 'queue' | 'roadmap'>('overview');
+  const config = useMemo(() => {
+    if (title === 'Finance') return moduleConfigs.Finance;
+    if (title === 'Inventory') return moduleConfigs.Inventory;
+    if (title === 'Sales') return moduleConfigs.Sales;
+    return moduleConfigs.Admin;
+  }, [title]);
+  const [view, setView] = useState<'overview' | 'live' | 'plan'>('overview');
 
   const rows = useMemo(() => {
-    if (view === 'queue') return config.rows;
-    if (view === 'roadmap') return [...config.rows].reverse();
+    if (view === 'live') return config.rows;
+    if (view === 'plan') return [...config.rows].reverse();
     return config.rows.slice(0, 2);
   }, [config.rows, view]);
 
-  const sideItems = view === 'roadmap' ? config.sideItems : view === 'queue' ? config.quickLinks.map((item) => item.label) : config.focus;
+  const phaseList = view === 'plan' ? config.phaseItems : config.insights;
 
   return (
-    <div className="page-stack">
+    <div className="page-stack rebuilt-workspace-page">
       <PageHeader
+        eyebrow={config.eyebrow}
         title={title}
         description={description}
-        actions={<div className="quick-link-row premium-actions">{config.quickLinks.map((item) => <NavLink key={item.href} className="soft-button" to={item.href}>{item.label}</NavLink>)}</div>}
+        actions={<div className="quick-link-row premium-actions rebuilt-page-actions">{config.actions.map((action) => <button key={action} className="soft-button" type="button">{action}</button>)}</div>}
       />
 
-      <section className="module-hero glass-panel">
-        <div className="module-hero-copy">
-          <p className="eyebrow">Phase 1 focus</p>
-          <h2>{title} workspace</h2>
-          <p className="page-description">{title === 'Sales' || title === 'Inventory' || title === 'Finance' || title === 'Admin' ? 'A cleaner parent workspace with the detailed tools folded inside.' : 'This lane stays mapped to the Phase 1 shell while deeper operational depth lands later.'}</p>
+      <section className="workspace-overview-shell">
+        <div className="workspace-overview-card glass-panel">
+          <div className="workspace-overview-head">
+            <div>
+              <p className="eyebrow">Workspace overview</p>
+              <h2>{title} control room</h2>
+              <p className="page-description">{config.intro}</p>
+            </div>
+            <div className="section-tabs rebuilt-segmented-tabs" aria-label={`${title} views`}>
+              {(['overview', 'live', 'plan'] as const).map((tab) => (
+                <button key={tab} type="button" className={`section-tab ${view === tab ? 'active' : ''}`} onClick={() => setView(tab)}>
+                  {tab}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="workspace-chip-row">
+            {config.chips.map((chip) => (
+              <span key={chip} className="workspace-chip">{chip}</span>
+            ))}
+          </div>
         </div>
-        <div className="section-tabs premium-section-tabs" aria-label={`${title} views`}>
-          {(['overview', 'queue', 'roadmap'] as const).map((tab) => (
-            <button key={tab} type="button" className={`section-tab ${view === tab ? 'active' : ''}`} onClick={() => setView(tab)}>
-              {tab}
-            </button>
-          ))}
-        </div>
+
+        <aside className="workspace-context-card glass-panel">
+          <p className="eyebrow">Phase 1 direction</p>
+          <strong>Calm, dense, role-aware</strong>
+          <p>{description}</p>
+          <div className="workspace-context-grid">
+            <div className="muted-card">
+              <span className="eyebrow">Visible now</span>
+              <strong>{rows.length} live items</strong>
+            </div>
+            <div className="muted-card">
+              <span className="eyebrow">Next</span>
+              <strong>{view === 'plan' ? 'Roadmap' : 'Execution'}</strong>
+            </div>
+          </div>
+        </aside>
       </section>
 
-      <section className="submodule-grid">
-        {config.quickLinks.map((item) => (
-          <NavLink key={item.href} to={item.href} className="submodule-card glass-panel">
-            <span className="eyebrow">Inside {title}</span>
-            <strong>{item.label}</strong>
-            <p>{item.detail}</p>
+      <section className="workspace-tile-grid">
+        {config.tiles.map((tile) => (
+          <NavLink key={tile.href} to={tile.href} className="workspace-tile glass-panel">
+            <span className="workspace-tile-tag">{tile.tag}</span>
+            <strong>{tile.label}</strong>
+            <p>{tile.detail}</p>
           </NavLink>
         ))}
       </section>
 
       <section className="stats-grid compact">
-        {config.stats.map((item) => <StatCard key={item.label} label={item.label} value={item.value} detail={item.detail} />)}
+        {config.stats.map((item) => (
+          <StatCard key={item.label} label={item.label} value={item.value} detail={item.detail} />
+        ))}
       </section>
 
-      <div className="content-split premium-content-split">
+      <div className="content-split rebuilt-content-split">
         <div className="page-stack">
           <TableShell
             title={config.queueTitle}
-            description={view === 'roadmap' ? 'Roadmap-flavoured slice of the current workspace queue.' : config.queueDescription}
+            description={config.queueDescription}
             columns={config.columns}
             rows={rows}
-            actions={<span className="eyebrow">{rows.length} visible records</span>}
+            actions={<span className="eyebrow">{view === 'overview' ? 'Snapshot' : view === 'live' ? 'Live queue' : 'Plan view'}</span>}
           />
-          <PanelCard title={view === 'roadmap' ? 'What lands next' : `${title} principles`}>
-            <ul className="clean-list">{sideItems.map((item) => (<li key={item}>{item}</li>))}</ul>
-          </PanelCard>
+          <WorkspaceCard title={config.insightsTitle} items={phaseList} />
         </div>
 
-        <PanelCard title={config.sideTitle}>
-          <ul className="clean-list">{config.sideItems.map((item) => (<li key={item}>{item}</li>))}</ul>
-        </PanelCard>
+        <div className="page-stack">
+          <WorkspaceCard title={config.phaseTitle} items={config.phaseItems} />
+          <PanelCard title="Why this rebuild matters">
+            <ul className="clean-list workspace-clean-list">
+              <li>Navigation stays clean while detailed tools move inside the parent workspace.</li>
+              <li>Content cards now sit in a stable grid instead of overlapping stacked blocks.</li>
+              <li>The shell is closer to the premium, soft-business direction from the blueprint.</li>
+            </ul>
+          </PanelCard>
+        </div>
       </div>
     </div>
   );
