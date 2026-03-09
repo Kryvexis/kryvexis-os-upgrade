@@ -1206,3 +1206,286 @@ button { cursor: pointer; }
     grid-template-columns: 1fr;
   }
 }
+
+/* Phase 1 cleanup pass */
+.app-shell {
+  grid-template-columns: 272px minmax(0, 1fr);
+}
+
+.sidebar {
+  min-width: 0;
+  padding: 22px 16px;
+}
+
+.brand-copy {
+  min-width: 0;
+}
+
+.brand-copy h1 {
+  font-size: 1.7rem;
+  line-height: 1.02;
+  letter-spacing: -0.03em;
+}
+
+.premium-brand-image-wrap {
+  width: 74px;
+  height: 74px;
+  border-radius: 22px;
+}
+
+.brand-subcopy {
+  max-width: 210px;
+  line-height: 1.45;
+}
+
+.nav-section {
+  gap: 8px;
+}
+
+.nav-links {
+  gap: 10px;
+}
+
+.nav-link,
+.premium-nav-section .nav-link {
+  align-items: center;
+  min-height: 58px;
+  padding: 0 16px;
+  border-radius: 18px;
+}
+
+.nav-link-copy {
+  min-width: 0;
+}
+
+.nav-link strong {
+  font-size: 1rem;
+  letter-spacing: -0.02em;
+}
+
+.nav-link p {
+  display: none;
+}
+
+.shell-main {
+  min-width: 0;
+  padding: 18px 18px 96px;
+}
+
+.topbar {
+  min-width: 0;
+  padding: 14px 16px;
+  border-radius: 24px;
+}
+
+.topbar-title-row,
+.topbar-actions {
+  min-width: 0;
+}
+
+.topbar-actions {
+  gap: 10px;
+}
+
+.search-shell {
+  flex: 1 1 360px;
+  min-width: 220px;
+  max-width: 520px;
+  min-height: 50px;
+  padding: 0 14px;
+  border-radius: 16px;
+}
+
+.search-shell span {
+  color: var(--muted);
+  font-size: 1rem;
+}
+
+.search-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  flex: 0 0 auto;
+}
+
+.search-shell input,
+.workspace-search input {
+  min-width: 0;
+  border: 0;
+}
+
+.page-stack,
+.content-split,
+.premium-content-split,
+.submodule-grid,
+.stats-grid,
+.dashboard-grid,
+.hero-stats-row,
+.dashboard-feature-grid,
+.table-shell,
+.panel-card,
+.page-header,
+.module-hero {
+  min-width: 0;
+}
+
+.page-header {
+  min-height: 0;
+  padding: 24px;
+}
+
+.page-actions {
+  align-items: center;
+}
+
+.module-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  padding: 22px 24px;
+}
+
+.module-hero-copy {
+  min-width: 0;
+}
+
+.module-hero .page-description {
+  margin-top: 8px;
+  max-width: 62ch;
+}
+
+.premium-section-tabs {
+  align-self: start;
+}
+
+.submodule-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.submodule-card {
+  min-height: 148px;
+}
+
+.content-split,
+.premium-content-split {
+  grid-template-columns: minmax(0, 1.6fr) minmax(300px, 0.9fr);
+}
+
+.workspace-toolbar {
+  padding: 16px 18px;
+  border-radius: 22px;
+}
+
+.workspace-toolbar-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.workspace-toolbar-lower {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.workspace-search {
+  display: grid;
+  gap: 8px;
+  min-width: min(420px, 100%);
+  flex: 1 1 340px;
+}
+
+.workspace-actions,
+.chip-row,
+.workspace-metrics {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.workspace-metric {
+  min-width: 120px;
+}
+
+.filter-chip {
+  border: 1px solid rgba(255,255,255,0.08);
+  background: var(--button);
+  color: var(--ink);
+  border-radius: 999px;
+  padding: 10px 14px;
+}
+
+.table-shell,
+.panel-card,
+.stat-card,
+.settings-section,
+.module-hero,
+.submodule-card,
+.page-header,
+.topbar {
+  overflow: hidden;
+}
+
+.table-scroll {
+  overflow: auto;
+}
+
+.table-shell table {
+  min-width: 100%;
+}
+
+@media (max-width: 1200px) {
+  .app-shell {
+    grid-template-columns: 248px minmax(0, 1fr);
+  }
+
+  .content-split,
+  .premium-content-split,
+  .dashboard-feature-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .submodule-grid,
+  .stats-grid,
+  .stats-grid.compact,
+  .hero-stats-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 960px) {
+  .app-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    width: min(300px, 86vw);
+  }
+
+  .topbar {
+    position: sticky;
+    top: 12px;
+  }
+
+  .module-hero {
+    grid-template-columns: 1fr;
+  }
+
+  .submodule-grid,
+  .stats-grid,
+  .stats-grid.compact,
+  .hero-stats-row {
+    grid-template-columns: 1fr;
+  }
+
+  .search-shell {
+    max-width: none;
+    width: 100%;
+  }
+
+  .workspace-search {
+    min-width: 100%;
+  }
+}

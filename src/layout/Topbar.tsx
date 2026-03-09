@@ -36,21 +36,21 @@ export function Topbar({ subtitle, onMenuClick }: TopbarProps) {
           ☰
         </button>
         <div>
-          <p className="eyebrow">Business Operating System</p>
+          <p className="eyebrow">Phase 1 · Core commerce</p>
           <h2>{subtitle}</h2>
         </div>
       </div>
 
       <div className="topbar-actions">
         <label className="search-shell" aria-label="Search workspace">
-          <span>⌘K</span>
-          <input placeholder="Search customers, invoices, stock, actions..." />
+          <span className="search-icon" aria-hidden="true">⌕</span>
+          <input placeholder="Search customers, invoices, products, payments..." />
         </label>
         <button className="soft-button desktop-only" type="button" onClick={cycleTheme} aria-label={`Change theme mode. Current mode ${themeLabelMap[theme]}`}>
-          Theme: {themeLabelMap[theme]}
+          {themeLabelMap[theme]}
         </button>
-        <NavLink className="soft-button desktop-only" to="/notifications">Notifications</NavLink>
-        <button className="soft-button primary desktop-only" type="button">Quick Create</button>
+        <NavLink className="soft-button desktop-only" to="/notifications">Alerts</NavLink>
+        <button className="soft-button primary desktop-only" type="button">New record</button>
         <div className="user-menu-wrap">
           <button className="user-menu-trigger" type="button" onClick={() => setMenuOpen((value) => !value)} aria-expanded={menuOpen} aria-label="Open user menu">
             <span className="avatar">A</span>

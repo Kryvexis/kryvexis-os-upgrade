@@ -25,8 +25,8 @@ const moduleConfigs: Record<string, ModuleConfig> = {
       { label: 'Quote conversion', value: '68%', detail: 'Last 30 days' },
       { label: 'Returns pending', value: '4', detail: 'Need inspection' }
     ],
-    focus: ['Keep customers, quotes, and invoices in one sales lane', 'Push accepted quotes into invoice issuing', 'Use fewer clicks between pipeline and debtor follow-up'],
-    queueTitle: 'Sales control room',
+    focus: ['Customers, quotes, invoices, and follow-up live inside one revenue workspace.', 'Accepted quotes should flow into invoice issuing with fewer clicks.', 'Statements and debtor actions stay close to customer context.'],
+    queueTitle: 'Sales queue',
     queueDescription: 'Commercial activity, pipeline risk, and follow-up tasks.',
     columns: [
       { key: 'record', label: 'Record' },
@@ -39,8 +39,8 @@ const moduleConfigs: Record<string, ModuleConfig> = {
       { id: '2', record: 'INV-1058', counterparty: 'Northline Stores', owner: 'Finance', status: 'Due tomorrow' },
       { id: '3', record: 'RET-020', counterparty: 'BluePeak Foods', owner: 'Sales', status: 'Inspection needed' }
     ],
-    sideTitle: 'Sales next build',
-    sideItems: ['Customer statements', 'Discount approval policy', 'Quote to invoice conversion log', 'Rep targets and branch leaderboard'],
+    sideTitle: 'Phase 1 scope',
+    sideItems: ['Customers', 'Quotes', 'Invoices', 'Payments handoff', 'Role-aware dashboard widgets'],
     quickLinks: [
       { label: 'Customers', href: '/customers', detail: 'Profiles, balances, and account health' },
       { label: 'Quotes', href: '/quotes', detail: 'Create, review, and convert quotes' },
@@ -50,13 +50,13 @@ const moduleConfigs: Record<string, ModuleConfig> = {
   Finance: {
     stats: [
       { label: 'Debtors book', value: 'R 241,880', detail: 'Open invoices' },
-      { label: 'Creditors due', value: 'R 117,420', detail: 'Next 7 days' },
       { label: 'Receipts today', value: 'R 32,600', detail: '8 allocations posted' },
-      { label: 'Cash-up variances', value: '2', detail: 'Need sign-off' }
+      { label: 'Approvals pending', value: '5', detail: 'Cross-module decisions' },
+      { label: 'Statements ready', value: '22', detail: 'Tonight schedule' }
     ],
-    focus: ['Keep invoicing, receipts, and approvals together', 'Reduce bouncing between finance screens', 'Make payment allocation and follow-up feel immediate'],
-    queueTitle: 'Finance control',
-    queueDescription: 'Core finance actions tied to commercial and procurement events.',
+    focus: ['Finance in Phase 1 centers on invoices, payments, and approvals.', 'Collections and receipts stay close to the customer document trail.', 'Deeper accounting layers land in later phases.'],
+    queueTitle: 'Finance queue',
+    queueDescription: 'Core finance actions tied to invoices, receipts, and approval control.',
     columns: [
       { key: 'record', label: 'Record' },
       { key: 'counterparty', label: 'Counterparty' },
@@ -68,8 +68,8 @@ const moduleConfigs: Record<string, ModuleConfig> = {
       { id: '2', record: 'RCPT-2204', counterparty: 'Northline Stores', owner: 'Finance desk', status: 'Unallocated' },
       { id: '3', record: 'APP-045', counterparty: 'PO-2034', owner: 'Finance lead', status: 'Needs decision' }
     ],
-    sideTitle: 'Finance next build',
-    sideItems: ['Supplier statements', 'Expense approvals', 'Reconciliation foundations', 'Audit extracts and exports'],
+    sideTitle: 'Phase 2 and later',
+    sideItems: ['Debtors aging', 'Creditors', 'Expenses', 'Cash up', 'Reconciliation foundations'],
     quickLinks: [
       { label: 'Invoices', href: '/invoices', detail: 'Issue, chase, and reconcile invoices' },
       { label: 'Payments', href: '/payments', detail: 'Receipts, allocations, and proof' },
@@ -83,9 +83,9 @@ const moduleConfigs: Record<string, ModuleConfig> = {
       { label: 'Transfers pending', value: '7', detail: 'Cross-branch movement' },
       { label: 'Incoming units', value: '87', detail: 'Expected this week' }
     ],
-    focus: ['Group products, procurement, and receiving under one stock lane', 'Expose low-stock pressure without extra navigation', 'Keep warehouse actions close to purchase orders'],
-    queueTitle: 'Inventory operations',
-    queueDescription: 'Live stock visibility, movement health, and replenishment pressure.',
+    focus: ['Phase 1 includes products and stock posture.', 'Procurement, GRNs, and supplier bill matching deepen in Phase 2.', 'Keep the inventory lane clean and mobile-friendly from the start.'],
+    queueTitle: 'Inventory queue',
+    queueDescription: 'Live stock visibility and replenishment pressure.',
     columns: [
       { key: 'record', label: 'Item / Move' },
       { key: 'counterparty', label: 'Branch / Location' },
@@ -94,114 +94,27 @@ const moduleConfigs: Record<string, ModuleConfig> = {
     ],
     rows: [
       { id: '1', record: 'KX-200 Access Point', counterparty: 'Main Branch', owner: 'Warehouse', status: 'Below reorder point' },
-      { id: '2', record: 'PO-2034', counterparty: 'Vertex Trade', owner: 'Procurement', status: 'Awaiting approval' },
-      { id: '3', record: 'GRN-093', counterparty: 'Johannesburg', owner: 'Receiving', status: 'Awaiting count confirmation' }
+      { id: '2', record: 'TRF-188', counterparty: 'Cape Town to JHB', owner: 'Warehouse', status: 'Awaiting dispatch' },
+      { id: '3', record: 'SKU-902', counterparty: 'Johannesburg', owner: 'Inventory', status: 'Critical level' }
     ],
-    sideTitle: 'Inventory next build',
-    sideItems: ['Reserved stock logic', 'Available vs incoming stock', 'Dead stock analysis', 'Barcode and scan-ready workflows'],
+    sideTitle: 'Phase 2 build-outs',
+    sideItems: ['Suppliers', 'Purchase orders', 'Goods received', 'Supplier bills', 'Valuation support'],
     quickLinks: [
       { label: 'Products', href: '/products', detail: 'Catalog, stock, and reorder posture' },
       { label: 'Purchase Orders', href: '/purchase-orders', detail: 'Replenishment and supplier execution' },
       { label: 'Approvals', href: '/approvals', detail: 'Stock and procurement blockers' }
     ]
   },
-  Procurement: {
-    stats: [
-      { label: 'Open POs', value: '14', detail: '4 awaiting approval' },
-      { label: 'Late suppliers', value: '3', detail: 'Past expected date' },
-      { label: 'Bills unmatched', value: '5', detail: 'Need PO/GRN review' },
-      { label: 'Reorder candidates', value: '12', detail: 'Generated from stock rules' }
-    ],
-    focus: ['Suppliers and quotes', 'Purchase orders', 'Goods received', 'Supplier bill matching'],
-    queueTitle: 'Procurement queue',
-    queueDescription: 'Supplier execution, receiving health, and discrepancy handling.',
-    columns: [
-      { key: 'record', label: 'Record' },
-      { key: 'counterparty', label: 'Supplier' },
-      { key: 'owner', label: 'Owner' },
-      { key: 'status', label: 'Status' }
-    ],
-    rows: [
-      { id: '1', record: 'PO-2034', counterparty: 'Vertex Trade', owner: 'Procurement', status: 'Awaiting approval' },
-      { id: '2', record: 'SB-412', counterparty: 'Nexa Supply', owner: 'Finance', status: 'Price mismatch' },
-      { id: '3', record: 'ACK-081', counterparty: 'Alpha Industrial', owner: 'Receiving', status: 'Delivery overdue' }
-    ],
-    sideTitle: 'Procurement next build',
-    sideItems: ['Supplier scorecards', 'Lead time reporting', 'PO acknowledgement flow', 'Reorder sweeps and alerts'],
-    quickLinks: [
-      { label: 'Purchase Orders', href: '/purchase-orders', detail: 'Supplier POs and matching' },
-      { label: 'Products', href: '/products', detail: 'Low-stock and supplier linkage' },
-      { label: 'Approvals', href: '/approvals', detail: 'Approval path for purchases' }
-    ]
-  },
-  Operations: {
-    stats: [
-      { label: 'Open tasks', value: '26', detail: 'Across teams' },
-      { label: 'Deliveries queued', value: '9', detail: 'Ready to dispatch' },
-      { label: 'Returns in process', value: '4', detail: 'Need decision' },
-      { label: 'Approvals linked', value: '6', detail: 'Operational blockers' }
-    ],
-    focus: ['Job cards and tasks', 'Picking and dispatch', 'Returns flow', 'Proof of completion'],
-    queueTitle: 'Operations board',
-    queueDescription: 'Daily execution lane for jobs, deliveries, and exceptions.',
-    columns: [
-      { key: 'record', label: 'Record' },
-      { key: 'counterparty', label: 'Target' },
-      { key: 'owner', label: 'Owner' },
-      { key: 'status', label: 'Status' }
-    ],
-    rows: [
-      { id: '1', record: 'JOB-882', counterparty: 'Cape Town dispatch', owner: 'Ops lead', status: 'Picking in progress' },
-      { id: '2', record: 'DEL-215', counterparty: 'Aether Group', owner: 'Driver team', status: 'Awaiting proof' },
-      { id: '3', record: 'RET-020', counterparty: 'Northline Stores', owner: 'Warehouse', status: 'Inspection booked' }
-    ],
-    sideTitle: 'Operations next build',
-    sideItems: ['Dispatch board', 'Proof capture', 'Return disposition states', 'Task templates by branch'],
-    quickLinks: [
-      { label: 'Approvals', href: '/approvals', detail: 'Clear blockers and approvals' },
-      { label: 'Inventory', href: '/inventory', detail: 'Move into stock and receiving views' },
-      { label: 'Dashboard', href: '/dashboard', detail: 'Return to branch overview' }
-    ]
-  },
-  Reports: {
-    stats: [
-      { label: 'Saved reports', value: '24', detail: 'Role-based packs' },
-      { label: 'Exports this week', value: '11', detail: 'Finance and management' },
-      { label: 'Forecast runs', value: '3', detail: 'Collections and demand' },
-      { label: 'Branch packs', value: '5', detail: 'Ready every Monday' }
-    ],
-    focus: ['Sales reporting', 'Stock reporting', 'Accounting reporting', 'Forecasting'],
-    queueTitle: 'Reporting hub',
-    queueDescription: 'Decision support views across revenue, stock, finance, and procurement.',
-    columns: [
-      { key: 'record', label: 'Pack / Report' },
-      { key: 'counterparty', label: 'Audience' },
-      { key: 'owner', label: 'Owner' },
-      { key: 'status', label: 'Status' }
-    ],
-    rows: [
-      { id: '1', record: 'Debtor aging pack', counterparty: 'Finance', owner: 'System job', status: 'Scheduled daily' },
-      { id: '2', record: 'Branch performance', counterparty: 'Executive', owner: 'Reporting', status: 'Ready to export' },
-      { id: '3', record: 'Low-stock exceptions', counterparty: 'Procurement', owner: 'Inventory', status: 'Needs review' }
-    ],
-    sideTitle: 'Reports next build',
-    sideItems: ['Trend charts', 'Forecast assumptions', 'Role-specific export packs', 'Scheduled report delivery'],
-    quickLinks: [
-      { label: 'Dashboard', href: '/dashboard', detail: 'Return to summary view' },
-      { label: 'Finance', href: '/accounting', detail: 'Open finance source data' },
-      { label: 'Inventory', href: '/inventory', detail: 'Open stock source data' }
-    ]
-  },
   Admin: {
     stats: [
       { label: 'Active users', value: '18', detail: '6 roles in use' },
-      { label: 'Automation rules', value: '14', detail: 'Email and internal events' },
-      { label: 'Audit events today', value: '132', detail: 'System-wide traceability' },
-      { label: 'Open imports', value: '2', detail: 'Validation needed' }
+      { label: 'Theme modes', value: '3', detail: 'Light, dark, system' },
+      { label: 'Branches', value: '4', detail: 'Role-aware context' },
+      { label: 'Audit events today', value: '132', detail: 'Traceable changes' }
     ],
-    focus: ['Users and roles', 'Branches and defaults', 'Templates and numbering', 'Audit and automations'],
-    queueTitle: 'Administration center',
-    queueDescription: 'Control plane for access, templates, audit, and workspace rules.',
+    focus: ['Settings, themes, and role-aware controls are core Phase 1 deliverables.', 'The shell should stay shared across desktop and mobile.', 'Templates and automation rules deepen after the commerce basics are stable.'],
+    queueTitle: 'Admin queue',
+    queueDescription: 'Workspace controls, appearance, access, and rollout readiness.',
     columns: [
       { key: 'record', label: 'Control item' },
       { key: 'counterparty', label: 'Scope' },
@@ -210,11 +123,11 @@ const moduleConfigs: Record<string, ModuleConfig> = {
     ],
     rows: [
       { id: '1', record: 'Role template update', counterparty: 'Sales', owner: 'Admin', status: 'Awaiting publish' },
-      { id: '2', record: 'Invoice template', counterparty: 'All branches', owner: 'Finance', status: 'Draft revision' },
-      { id: '3', record: 'Import map - Products', counterparty: 'Inventory', owner: 'System', status: 'Validated' }
+      { id: '2', record: 'Theme preference rollout', counterparty: 'All users', owner: 'System', status: 'Live' },
+      { id: '3', record: 'Mobile shell review', counterparty: 'Operations', owner: 'Product', status: 'In test' }
     ],
-    sideTitle: 'Admin next build',
-    sideItems: ['Approver chains', 'Branch-specific numbering', 'Data import mappings', 'Automation audit viewer'],
+    sideTitle: 'Phase roadmap',
+    sideItems: ['Phase 1: Shell and core commerce', 'Phase 2: Inventory and procurement depth', 'Phase 3: Workflow, accounting, automation, and reports'],
     quickLinks: [
       { label: 'Settings', href: '/settings', detail: 'Appearance and system preferences' },
       { label: 'Dashboard', href: '/dashboard', detail: 'Return to control center' },
@@ -224,14 +137,17 @@ const moduleConfigs: Record<string, ModuleConfig> = {
 };
 
 export function ModuleLandingPage({ title, description }: { title: string; description: string }) {
-  const config = moduleConfigs[title] ?? moduleConfigs.Admin;
-  const [view, setView] = useState<'overview' | 'live queue' | 'next up'>('overview');
+  const baseConfig = moduleConfigs[title] ?? moduleConfigs.Admin;
+  const config = title === 'Procurement' || title === 'Operations' || title === 'Reports' ? moduleConfigs.Admin : baseConfig;
+  const [view, setView] = useState<'overview' | 'queue' | 'roadmap'>('overview');
 
   const rows = useMemo(() => {
-    if (view === 'live queue') return config.rows;
-    if (view === 'next up') return [...config.rows].reverse();
+    if (view === 'queue') return config.rows;
+    if (view === 'roadmap') return [...config.rows].reverse();
     return config.rows.slice(0, 2);
   }, [config.rows, view]);
+
+  const sideItems = view === 'roadmap' ? config.sideItems : view === 'queue' ? config.quickLinks.map((item) => item.label) : config.focus;
 
   return (
     <div className="page-stack">
@@ -242,13 +158,13 @@ export function ModuleLandingPage({ title, description }: { title: string; descr
       />
 
       <section className="module-hero glass-panel">
-        <div>
-          <p className="eyebrow">Workspace focus</p>
-          <h2>{title} is now a parent tab</h2>
-          <p className="page-description">The sidebar stays calmer while the detailed tools live inside this workspace where they belong.</p>
+        <div className="module-hero-copy">
+          <p className="eyebrow">Phase 1 focus</p>
+          <h2>{title} workspace</h2>
+          <p className="page-description">{title === 'Sales' || title === 'Inventory' || title === 'Finance' || title === 'Admin' ? 'A cleaner parent workspace with the detailed tools folded inside.' : 'This lane stays mapped to the Phase 1 shell while deeper operational depth lands later.'}</p>
         </div>
         <div className="section-tabs premium-section-tabs" aria-label={`${title} views`}>
-          {(['overview', 'live queue', 'next up'] as const).map((tab) => (
+          {(['overview', 'queue', 'roadmap'] as const).map((tab) => (
             <button key={tab} type="button" className={`section-tab ${view === tab ? 'active' : ''}`} onClick={() => setView(tab)}>
               {tab}
             </button>
@@ -267,19 +183,25 @@ export function ModuleLandingPage({ title, description }: { title: string; descr
       </section>
 
       <section className="stats-grid compact">
-        {config.stats.map((item) => (<StatCard key={item.label} label={item.label} value={item.value} detail={item.detail} />))}
+        {config.stats.map((item) => <StatCard key={item.label} label={item.label} value={item.value} detail={item.detail} />)}
       </section>
 
       <div className="content-split premium-content-split">
         <div className="page-stack">
-          <TableShell title={config.queueTitle} description={view === 'next up' ? 'Priority view arranged around the next handoffs to clear.' : config.queueDescription} columns={config.columns} rows={rows} actions={<span className="eyebrow">{rows.length} visible records</span>} />
-          <PanelCard title={`${title} focus`}>
-            <ul className="clean-list">{(view === 'next up' ? config.sideItems : config.focus).map((item) => (<li key={item}>{item}</li>))}</ul>
+          <TableShell
+            title={config.queueTitle}
+            description={view === 'roadmap' ? 'Roadmap-flavoured slice of the current workspace queue.' : config.queueDescription}
+            columns={config.columns}
+            rows={rows}
+            actions={<span className="eyebrow">{rows.length} visible records</span>}
+          />
+          <PanelCard title={view === 'roadmap' ? 'What lands next' : `${title} principles`}>
+            <ul className="clean-list">{sideItems.map((item) => (<li key={item}>{item}</li>))}</ul>
           </PanelCard>
         </div>
 
-        <PanelCard title={view === 'live queue' ? 'Linked tools' : config.sideTitle}>
-          <ul className="clean-list">{(view === 'live queue' ? config.quickLinks.map((item) => item.label) : config.sideItems).map((item) => (<li key={item}>{item}</li>))}</ul>
+        <PanelCard title={config.sideTitle}>
+          <ul className="clean-list">{config.sideItems.map((item) => (<li key={item}>{item}</li>))}</ul>
         </PanelCard>
       </div>
     </div>

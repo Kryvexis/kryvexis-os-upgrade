@@ -26,9 +26,9 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
             <img src="/kryvexis-brand.png" alt="Kryvexis brand" className="brand-image" />
           </div>
           <div className="brand-copy">
-            <p className="eyebrow">Soft Business</p>
+            <p className="eyebrow">Premium business OS</p>
             <h1>Kryvexis OS</h1>
-            <p className="brand-subcopy">Clearer structure. Fewer tabs. Faster flow.</p>
+            <p className="brand-subcopy">Phase 1 brings the shell, commerce workspaces, settings, and mobile navigation together.</p>
           </div>
         </div>
 
@@ -44,9 +44,8 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
             <div className="nav-links premium-nav-links">
               {section.items.map((item) => (
                 <NavLink key={item.href} to={item.href} className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-                  <div>
+                  <div className="nav-link-copy">
                     <strong>{item.label}</strong>
-                    {item.description ? <p>{item.description}</p> : null}
                   </div>
                   {item.badge ? <span className="nav-badge">{item.badge}</span> : null}
                 </NavLink>
