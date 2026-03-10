@@ -8,6 +8,8 @@ import { QuotesPage } from './pages/QuotesPage';
 import { QuoteDetailPage } from './pages/QuoteDetailPage';
 import { InvoicesPage } from './pages/InvoicesPage';
 import { InvoiceDetailPage } from './pages/InvoiceDetailPage';
+import { QuotePrintPage } from './pages/QuotePrintPage';
+import { InvoicePrintPage } from './pages/InvoicePrintPage';
 import { ProductsPage } from './pages/ProductsPage';
 import { ProductDetailPage } from './pages/ProductDetailPage';
 import { PaymentsPage } from './pages/PaymentsPage';
@@ -21,5 +23,28 @@ export default function App() {
   const [role, setRole] = useState<RoleKey>('admin');
   const [theme, setTheme] = useState<ThemeMode>(getStoredTheme());
   useEffect(() => { applyTheme(theme); }, [theme]);
-  return <Routes><Route element={<AppShell role={role} setRole={setRole} theme={theme} setTheme={setTheme} />}><Route path="/" element={<DashboardPage role={role} />} /><Route path="/customers" element={<CustomersPage />} /><Route path="/customers/:id" element={<CustomerDetailPage />} /><Route path="/quotes" element={<QuotesPage />} /><Route path="/quotes/:id" element={<QuoteDetailPage />} /><Route path="/invoices" element={<InvoicesPage />} /><Route path="/invoices/:id" element={<InvoiceDetailPage />} /><Route path="/products" element={<ProductsPage />} /><Route path="/products/:id" element={<ProductDetailPage />} /><Route path="/payments" element={<PaymentsPage />} /><Route path="/payments/:id" element={<PaymentDetailPage />} /><Route path="/notifications" element={<NotificationsPage />} /><Route path="/roles" element={<RolesPage />} /><Route path="/settings" element={<SettingsPage />} /><Route path="*" element={<Navigate to="/" replace />} /></Route></Routes>;
+
+  return (
+    <Routes>
+      <Route path="/quotes/:id/print" element={<QuotePrintPage />} />
+      <Route path="/invoices/:id/print" element={<InvoicePrintPage />} />
+      <Route element={<AppShell role={role} setRole={setRole} theme={theme} setTheme={setTheme} />}>
+        <Route path="/" element={<DashboardPage role={role} />} />
+        <Route path="/customers" element={<CustomersPage />} />
+        <Route path="/customers/:id" element={<CustomerDetailPage />} />
+        <Route path="/quotes" element={<QuotesPage />} />
+        <Route path="/quotes/:id" element={<QuoteDetailPage />} />
+        <Route path="/invoices" element={<InvoicesPage />} />
+        <Route path="/invoices/:id" element={<InvoiceDetailPage />} />
+        <Route path="/products" element={<ProductsPage />} />
+        <Route path="/products/:id" element={<ProductDetailPage />} />
+        <Route path="/payments" element={<PaymentsPage />} />
+        <Route path="/payments/:id" element={<PaymentDetailPage />} />
+        <Route path="/notifications" element={<NotificationsPage />} />
+        <Route path="/roles" element={<RolesPage />} />
+        <Route path="/settings" element={<SettingsPage />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Route>
+    </Routes>
+  );
 }

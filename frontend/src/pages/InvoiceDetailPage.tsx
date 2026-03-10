@@ -48,6 +48,15 @@ export function InvoiceDetailPage() {
         </Card>
       ) : null}
 
+      <Card title="Phase C actions" subtitle="Open a clean customer-facing print layout for invoice delivery or internal review.">
+        <div className="action-row">
+          <Link className="solid-button" to={`/invoices/${item.id}/print`} target="_blank" rel="noreferrer">
+            Print invoice
+          </Link>
+          <div className="inline-note">This phase prepares quote and invoice output for later one-click PDF saving.</div>
+        </div>
+      </Card>
+
       <div className="kpi-grid compact-kpi-grid">
         <Card className="metric-card"><p className="eyebrow">Subtotal</p><strong>{item.subtotal}</strong><p>Net amount before tax.</p></Card>
         <Card className="metric-card"><p className="eyebrow">Total</p><strong>{item.total}</strong><p>Invoice draft value.</p></Card>

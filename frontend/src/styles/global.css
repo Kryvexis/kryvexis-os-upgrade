@@ -26,3 +26,236 @@
 .success-note { color: var(--success); }
 .error-note { color: var(--danger); }
 .invoice-flash { margin: 0; }
+
+.print-page-shell {
+  min-height: 100vh;
+  padding: 24px;
+  background: linear-gradient(180deg, #edf4ff, #dfe9fb);
+  color: #0f172a;
+}
+
+.print-toolbar {
+  max-width: 1100px;
+  margin: 0 auto 18px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.print-toolbar .ghost-button,
+.print-toolbar .solid-button {
+  background: #fff;
+  color: #0f172a;
+  border-color: rgba(15, 23, 42, 0.12);
+}
+
+.print-toolbar .solid-button {
+  background: linear-gradient(135deg, #7dd3fc, #a78bfa);
+}
+
+.document-sheet {
+  max-width: 1100px;
+  margin: 0 auto;
+  background: #fff;
+  border-radius: 28px;
+  padding: 36px;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.12);
+  display: grid;
+  gap: 22px;
+}
+
+.document-header,
+.document-brand-row,
+.document-summary-row,
+.document-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.document-header h1 {
+  margin: 4px 0 8px;
+  font-size: clamp(2rem, 3vw, 2.8rem);
+}
+
+.document-kicker,
+.document-section-label,
+.document-subtitle,
+.document-footer,
+.document-meta-list span {
+  color: #64748b;
+}
+
+.document-subtitle,
+.document-brand-card p,
+.document-note-card p {
+  margin: 0;
+}
+
+.document-status-block {
+  min-width: 220px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 20px;
+  padding: 18px;
+  display: grid;
+  gap: 8px;
+  justify-items: end;
+  text-align: right;
+  background: linear-gradient(180deg, rgba(125, 211, 252, 0.12), rgba(167, 139, 250, 0.1));
+}
+
+.document-status-block strong {
+  font-size: 1.2rem;
+}
+
+.document-badge {
+  display: inline-flex;
+  padding: 7px 12px;
+  border-radius: 999px;
+  background: #0f172a;
+  color: #fff;
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.document-brand-row,
+.document-meta-grid,
+.document-summary-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.document-brand-card,
+.document-meta-card,
+.document-note-card,
+.document-total-card {
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 22px;
+  padding: 20px;
+  background: #fff;
+}
+
+.document-brand-card h2 {
+  margin: 6px 0;
+}
+
+.document-meta-list {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.document-meta-list div,
+.document-total-card div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+}
+
+.document-table-wrap {
+  overflow: hidden;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 22px;
+}
+
+.document-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.document-table th,
+.document-table td {
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+  text-align: left;
+}
+
+.document-table thead {
+  background: rgba(15, 23, 42, 0.04);
+}
+
+.document-grand-total {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(15, 23, 42, 0.08);
+  font-size: 1.1rem;
+}
+
+.document-footer {
+  padding-top: 6px;
+  border-top: 1px dashed rgba(15, 23, 42, 0.12);
+  font-size: 0.92rem;
+}
+
+.print-loading {
+  max-width: 900px;
+  margin: 48px auto;
+  background: #fff;
+}
+
+@media (max-width: 860px) {
+  .print-page-shell {
+    padding: 14px;
+  }
+
+  .document-sheet {
+    padding: 20px;
+  }
+
+  .document-header,
+  .document-brand-row,
+  .document-summary-row,
+  .document-footer {
+    display: grid;
+  }
+
+  .document-meta-grid,
+  .document-brand-row,
+  .document-summary-row {
+    grid-template-columns: 1fr;
+  }
+
+  .document-status-block {
+    justify-items: start;
+    text-align: left;
+    min-width: 0;
+  }
+}
+
+@media print {
+  :root,
+  :root[data-theme='light'] {
+    color-scheme: light;
+  }
+
+  body {
+    background: #fff !important;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  .print-page-shell {
+    padding: 0;
+    background: #fff;
+  }
+
+  .document-sheet {
+    max-width: none;
+    box-shadow: none;
+    border-radius: 0;
+    padding: 16mm 14mm;
+  }
+
+  .document-brand-card,
+  .document-meta-card,
+  .document-note-card,
+  .document-total-card,
+  .document-table-wrap {
+    break-inside: avoid;
+  }
+}
