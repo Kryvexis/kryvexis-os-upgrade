@@ -11,3 +11,12 @@
 .record-layout { display: grid; gap: 16px; } .record-head, .record-meta, .setting-list div, .detail-stack div, .role-card-head { display: flex; justify-content: space-between; gap: 14px; align-items: center; } .record-meta, .setting-list, .detail-stack { margin-top: 16px; } .record-meta div, .setting-list div, .detail-stack div { padding: 12px 0; border-bottom: 1px solid var(--line); font-size: 0.96rem; } .record-meta span, .setting-list span, .detail-stack span { color: var(--muted); } .timeline { margin: 0; padding-left: 18px; display: grid; gap: 10px; color: var(--muted); } .loading-state { padding: 30px; border: 1px dashed var(--line-strong); border-radius: 22px; color: var(--muted); } .mobile-nav { display: none; }
 @media (max-width: 1100px) { .kpi-grid, .split-grid, .list-grid, .role-grid { grid-template-columns: 1fr 1fr; } }
 @media (max-width: 860px) { .app-shell { grid-template-columns: 1fr; } .sidebar { display: none; } .main-area { padding-bottom: 90px; } .kpi-grid, .split-grid, .list-grid, .role-grid { grid-template-columns: 1fr; } .topbar { flex-direction: column; align-items: stretch; } .mobile-nav { position: fixed; left: 14px; right: 14px; bottom: 14px; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; padding: 10px; border: 1px solid var(--line); background: rgba(8,17,31,0.92); backdrop-filter: blur(16px); border-radius: 22px; } :root[data-theme='light'] .mobile-nav { background: rgba(255,255,255,0.94); } .mobile-link { text-align: center; font-size: 0.78rem; padding: 10px 6px; } .notification-row, .mini-list-row, .record-head, .record-meta, .setting-list div, .detail-stack div, .role-card-head { flex-direction: column; align-items: start; } .align-right { text-align: left; } }
+.page-grid { display: grid; gap: 18px; }
+.compact-kpi-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.metric-card strong { font-size: 1.9rem; display: block; margin: 8px 0 6px; }
+.metric-card p:last-child { margin-bottom: 0; color: var(--muted); }
+.history-table-wrap { overflow-x: auto; }
+.history-table th, .history-table td { white-space: nowrap; }
+.history-table td:last-child, .history-table th:last-child { white-space: normal; min-width: 240px; }
+@media (max-width: 1100px) { .compact-kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 860px) { .compact-kpi-grid { grid-template-columns: 1fr; } }
