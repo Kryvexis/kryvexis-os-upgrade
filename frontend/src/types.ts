@@ -18,12 +18,10 @@ export type Customer = {
   activity: string[];
 };
 export type Product = { id: string; sku: string; name: string; branch: string; status: string; stock: number; reorderAt: number; price: string; cost: string; supplier: string; barcode: string; variants: string; movementSummary: string; nextAction: string; };
-export type QuoteStatus = 'Draft' | 'Pending approval' | 'Approved' | 'Sent to customer' | 'Converted';
 export type Quote = { id: string; customer: string; owner: string; value: string; status: string; validity: string; branch: string; trigger: string; updated: string; notes: string; nextAction: string; };
 export type QuoteLine = { id: string; sku: string; description: string; qty: number; unitPrice: string; total: string; };
 export type QuoteWorkflowEvent = { label: string; detail: string; };
 export type QuoteDetail = Quote & {
-  customerId?: string;
   subtotal: string;
   tax: string;
   total: string;
@@ -34,17 +32,8 @@ export type QuoteDetail = Quote & {
   workflow: QuoteWorkflowEvent[];
 };
 export type Invoice = { id: string; customer: string; amount: string; branch: string; status: string; due: string; source: string; paymentStatus: string; tax: string; reminders: string; nextAction: string; };
-export type InvoiceDetail = Invoice & {
-  sourceCustomerId: string;
-  sourceQuoteId: string | null;
-  subtotal: string;
-  total: string;
-  issuedOn: string;
-  lines: QuoteLine[];
-  workflow: QuoteWorkflowEvent[];
-};
 export type Payment = { id: string; ref: string; party: string; amount: string; method: string; status: string; date: string; appliedTo: string; proof: string; nextAction: string; };
-export type Notification = { id: string; title: string; meta: string; state: string; read: boolean; type: string; };
+export type Notification = { id: string; title: string; meta: string; state: string; read: boolean; type: string; href?: string; actionLabel?: string; sourceRef?: string; };
 export type Settings = { themes: string[]; paymentModes: string[]; density: string[]; supportEmail: string; whatsapp: string; business: { currency: string; taxDefault: string; paymentTerms: string; defaultBranch: string; }; };
 export type Role = { key: RoleKey; label: string; description: string; dashboards: string[]; };
 export type TopClient = { customerId: string; name: string; revenue: string; invoices: number; averageOrderValue: string; overdueBalance: string; trend: string; };
@@ -73,9 +62,4 @@ export type CustomerSummary = {
   recentInvoices: Invoice[];
   recentPayments: Payment[];
   purchaseHistory: PurchaseHistoryEntry[];
-};
-export type QuoteConversionResult = {
-  quote: QuoteDetail;
-  invoice: InvoiceDetail;
-  reused: boolean;
 };

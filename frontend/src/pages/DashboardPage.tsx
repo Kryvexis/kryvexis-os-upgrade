@@ -3,25 +3,41 @@ import { Link } from 'react-router-dom';
 import { Card } from '../components/Card';
 import { KpiCard } from '../components/KpiCard';
 import { api } from '../lib/api';
+import { buildOperationalNotifications, type AlertSummary, type EnrichedNotification } from '../lib/notifications';
 import type { DashboardResponse, RoleKey } from '../types';
 
+type DashboardBundle = {
+  dashboard: DashboardResponse;
+  alerts: EnrichedNotification[];
+  summary: AlertSummary;
+};
+
 export function DashboardPage({ role }: { role: RoleKey }) {
-  const [data, setData] = useState<DashboardResponse | null>(null);
+  const [data, setData] = useState<DashboardBundle | null>(null);
 
   useEffect(() => {
-    api.dashboard(role).then(setData);
+    Promise.all([api.dashboard(role), api.notifications(), api.quotes(), api.invoices(), api.payments()]).then(
+      ([dashboard, notifications, quotes, invoices, payments]) => {
+        const operational = buildOperationalNotifications({ notifications, quotes, invoices, payments });
+        setData({
+          dashboard,
+          alerts: operational.feed.slice(0, 4),
+          summary: operational.summary,
+        });
+      }
+    );
   }, [role]);
 
   if (!data) return <div className="loading-state">Loading dashboard...</div>;
 
   return (
     <div className="page-grid">
-      <section className="kpi-grid">{data.kpis.map((item) => <KpiCard key={item.label} item={item} />)}</section>
+      <section className="kpi-grid">{data.dashboard.kpis.map((item) => <KpiCard key={item.label} item={item} />)}</section>
 
       <div className="split-grid">
-        <Card title="Role focus panels" subtitle={`Active dashboard view: ${data.role}`}>
+        <Card title="Role focus panels" subtitle={`Active dashboard view: ${data.dashboard.role}`}>
           <div className="list-grid">
-            {data.panels.map((panel) => (
+            {data.dashboard.panels.map((panel) => (
               <div className="soft-panel" key={panel.title}>
                 <h4>{panel.title}</h4>
                 <ul>{panel.items.map((item) => <li key={item}>{item}</li>)}</ul>
@@ -30,13 +46,20 @@ export function DashboardPage({ role }: { role: RoleKey }) {
           </div>
         </Card>
 
-        <Card title="Priority inbox" subtitle="Notifications, approvals, and follow-up states">
+        <Card title="Priority inbox" subtitle="Notifications, approvals, collections, and finance exceptions linked back to records.">
+          <div className="detail-stack">
+            <div><span>Unread alerts</span><strong>{data.summary.unread}</strong></div>
+            <div><span>Approvals waiting</span><strong>{data.summary.approvals}</strong></div>
+            <div><span>Collections at risk</span><strong>{data.summary.collections}</strong></div>
+            <div><span>Payment exceptions</span><strong>{data.summary.paymentExceptions}</strong></div>
+          </div>
           <div className="notification-stack">
-            {data.highlights.map((item) => (
+            {data.alerts.map((item) => (
               <article className="notification-row" key={item.id}>
                 <div>
                   <strong>{item.title}</strong>
                   <p>{item.meta}</p>
+                  <Link className="row-link" to={item.href}>{item.actionLabel}</Link>
                 </div>
                 <span className={`badge ${item.read ? 'neutral' : 'warning'}`}>{item.state}</span>
               </article>
@@ -48,7 +71,7 @@ export function DashboardPage({ role }: { role: RoleKey }) {
       <div className="split-grid">
         <Card title="Top sales per client" subtitle="Immediate commercial signal for collections and account growth.">
           <div className="notification-stack">
-            {data.topClients.map((item) => (
+            {data.dashboard.topClients.map((item) => (
               <article key={item.customerId} className="mini-list-row">
                 <div>
                   <strong><Link to={`/customers/${item.customerId}`}>{item.name}</Link></strong>
@@ -64,7 +87,7 @@ export function DashboardPage({ role }: { role: RoleKey }) {
         </Card>
 
         <Card title="Low-stock watch" subtitle="Keeps inventory and procurement in scope from the beginning">
-          {data.lowStockProducts.map((item) => (
+          {data.dashboard.lowStockProducts.map((item) => (
             <article key={item.id} className="mini-list-row">
               <div>
                 <strong>{item.name}</strong>
@@ -81,7 +104,7 @@ export function DashboardPage({ role }: { role: RoleKey }) {
 
       <div className="split-grid">
         <Card title="Recent customers" subtitle="Operational clarity for active accounts">
-          {data.recentCustomers.map((item) => (
+          {data.dashboard.recentCustomers.map((item) => (
             <article key={item.id} className="mini-list-row">
               <div>
                 <strong><Link to={`/customers/${item.id}`}>{item.name}</Link></strong>
@@ -95,11 +118,11 @@ export function DashboardPage({ role }: { role: RoleKey }) {
           ))}
         </Card>
 
-        <Card title="Why this phase first" subtitle="This package builds the commercial backbone before deeper workflow and PDFs.">
+        <Card title="Phase D live layer" subtitle="The workspace now surfaces event-driven action instead of passive records.">
           <div className="detail-stack">
-            <div><span>Added now</span><strong>Top clients, customer analytics, quote line items</strong></div>
-            <div><span>Next package</span><strong>Quote to invoice conversion + print-ready documents</strong></div>
-            <div><span>After that</span><strong>Approval actions, reminders, PDF save pipeline</strong></div>
+            <div><span>Added now</span><strong>Approval alerts, overdue invoice actions, payment exception links</strong></div>
+            <div><span>Operational benefit</span><strong>Every alert now opens the related quote, invoice, or payment record</strong></div>
+            <div><span>Next package</span><strong>Reminder controls, approval decisions, and notification state changes</strong></div>
           </div>
         </Card>
       </div>
