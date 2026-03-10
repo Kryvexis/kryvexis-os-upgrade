@@ -103,6 +103,9 @@ export function QuoteDetailPage() {
           ) : (
             <div className="inline-note">Approve or send this quote before conversion.</div>
           )}
+          <Link className="ghost-button" to={`/quotes/${item.id}/print`} target="_blank" rel="noreferrer">
+            Print quote
+          </Link>
         </div>
         {flash ? <p className="success-note">{flash}</p> : null}
         {error ? <p className="error-note">{error}</p> : null}
