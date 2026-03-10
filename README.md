@@ -1,22 +1,46 @@
-# Kryvexis OS Detail Pages Pass
+# Kryvexis OS Workspace
 
-This package extends the structure pass into more realistic app behavior.
+This package restructures Kryvexis OS into a safer long-term layout:
 
-## Included
-- top-right user area wired to role + branch preferences
-- notifications center route
-- customer detail page
-- product detail page
-- purchase order detail page
-- role-aware sidebar visibility
-- branch selector foundation inside settings
-- theme controls and responsive shell
-- updated Vitest + Testing Library coverage
+- `frontend/` = Vite + React app shell
+- `backend/` = Express API starter
+- root `package.json` = workspace scripts so you can install once from the root
 
-## Commands
+## Fresh start
+
+Delete the old mixed-root app files, then extract this ZIP into the empty folder.
+
+## Install
+
 ```bash
 npm install
-npm run dev
-npm run build
-npm run test
 ```
+
+## Run both frontend and backend
+
+```bash
+npm run dev
+```
+
+## Run only frontend
+
+```bash
+npm run dev:frontend
+```
+
+## Run only backend
+
+```bash
+npm run dev:backend
+```
+
+## Build frontend
+
+```bash
+npm run build
+```
+
+## Vercel note
+
+For Vercel, set the project **Root Directory** to `frontend`.
+The backend can be kept local for now or deployed separately later.
