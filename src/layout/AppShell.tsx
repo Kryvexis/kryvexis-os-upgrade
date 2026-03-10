@@ -12,7 +12,6 @@ const titleMap: Record<string, string> = {
   '/products': 'Product and stock control',
   '/quotes': 'Commercial pipeline workspace',
   '/invoices': 'Billing and collections workspace',
-  '/payments': 'Receipts and settlement workspace',
   '/purchase-orders': 'Procurement control workspace',
   '/approvals': 'Approvals control center',
   '/settings': 'User and workspace settings',

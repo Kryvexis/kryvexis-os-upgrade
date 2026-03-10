@@ -30,31 +30,29 @@ export function Topbar({ subtitle, onMenuClick }: TopbarProps) {
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
-    <header className="topbar glass-panel rebuilt-topbar">
-      <div className="topbar-title-row rebuilt-topbar-title-row">
+    <header className="topbar glass-panel">
+      <div className="topbar-title-row">
         <button className="icon-button mobile-only" type="button" onClick={onMenuClick} aria-label="Open navigation menu">
           ☰
         </button>
         <div>
-          <p className="eyebrow">Phase 1 · Shell and core commerce</p>
+          <p className="eyebrow">Business Operating System</p>
           <h2>{subtitle}</h2>
         </div>
       </div>
 
-      <div className="topbar-actions rebuilt-topbar-actions">
-        <label className="search-shell rebuilt-search-shell" aria-label="Search workspace">
-          <span className="search-icon" aria-hidden="true">⌕</span>
-          <input placeholder="Search customers, invoices, products, suppliers, approvals" />
+      <div className="topbar-actions">
+        <label className="search-shell" aria-label="Search workspace">
+          <span>⌘K</span>
+          <input placeholder="Search customers, invoices, stock, actions..." />
         </label>
-        <div className="desktop-only rebuilt-action-row">
-          <button className="soft-button" type="button" onClick={cycleTheme} aria-label={`Change theme mode. Current mode ${themeLabelMap[theme]}`}>
-            {themeLabelMap[theme]}
-          </button>
-          <NavLink className="soft-button" to="/notifications">Alerts</NavLink>
-          <button className="soft-button primary" type="button">Create</button>
-        </div>
+        <button className="soft-button desktop-only" type="button" onClick={cycleTheme} aria-label={`Change theme mode. Current mode ${themeLabelMap[theme]}`}>
+          Theme: {themeLabelMap[theme]}
+        </button>
+        <NavLink className="soft-button desktop-only" to="/notifications">Notifications</NavLink>
+        <button className="soft-button primary desktop-only" type="button">Quick Create</button>
         <div className="user-menu-wrap">
-          <button className="user-menu-trigger rebuilt-user-trigger" type="button" onClick={() => setMenuOpen((value) => !value)} aria-expanded={menuOpen} aria-label="Open user menu">
+          <button className="user-menu-trigger" type="button" onClick={() => setMenuOpen((value) => !value)} aria-expanded={menuOpen} aria-label="Open user menu">
             <span className="avatar">A</span>
             <span className="desktop-only user-meta">
               <strong>Antonie Meyer</strong>

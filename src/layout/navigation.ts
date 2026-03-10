@@ -1,5 +1,4 @@
 export type RoleKey = 'admin' | 'sales' | 'warehouse' | 'finance' | 'procurement' | 'operations';
-export type NavIconKey = 'dashboard' | 'sales' | 'inventory' | 'finance' | 'settings' | 'alerts';
 
 export type NavItem = {
   label: string;
@@ -7,7 +6,6 @@ export type NavItem = {
   description?: string;
   badge?: string;
   roles?: RoleKey[];
-  icon?: NavIconKey;
 };
 
 export type NavSection = {
@@ -26,23 +24,44 @@ export const roleOptions: Array<{ key: RoleKey; label: string; description: stri
 
 export const sidebarNavigation: NavSection[] = [
   {
-    label: 'Main navigation',
+    label: 'Workspace',
     items: [
-      { label: 'Dashboard', href: '/dashboard', description: 'Overview, alerts, and branch performance', icon: 'dashboard' },
-      { label: 'Sales', href: '/sales', description: 'Customers, quotes, invoices, and pipeline', roles: ['admin', 'sales', 'finance'], icon: 'sales' },
-      { label: 'Inventory', href: '/inventory', description: 'Products, stock, procurement, and receiving', roles: ['admin', 'warehouse', 'procurement', 'operations'], icon: 'inventory' },
-      { label: 'Finance', href: '/accounting', description: 'Invoices, payments, approvals, and controls', roles: ['admin', 'finance', 'sales'], icon: 'finance' },
-      { label: 'Settings', href: '/settings', description: 'Appearance, roles, templates, and preferences', icon: 'settings' }
+      { label: 'Dashboard', href: '/dashboard', description: 'Overview and alerts' },
+      { label: 'Notifications', href: '/notifications', description: 'Approvals, alerts, and activity', badge: '12' },
+      { label: 'Customers', href: '/customers', description: 'Profiles and account health', roles: ['admin', 'sales', 'finance'] },
+      { label: 'Products', href: '/products', description: 'Catalog and stock insight', roles: ['admin', 'warehouse', 'procurement', 'operations'] },
+      { label: 'Quotes', href: '/quotes', description: 'Commercial pipeline', roles: ['admin', 'sales'] },
+      { label: 'Invoices', href: '/invoices', description: 'Billing and collections', roles: ['admin', 'sales', 'finance'] },
+      { label: 'Purchase Orders', href: '/purchase-orders', description: 'Supplier purchasing', roles: ['admin', 'procurement', 'warehouse'] },
+      { label: 'Approvals', href: '/approvals', badge: '5', description: 'Pending decisions' }
+    ]
+  },
+  {
+    label: 'Domains',
+    items: [
+      { label: 'Sales', href: '/sales', description: 'Quotes, invoices, orders, pricing', roles: ['admin', 'sales'] },
+      { label: 'Accounting', href: '/accounting', description: 'Debtors, creditors, payments', roles: ['admin', 'finance'] },
+      { label: 'Inventory', href: '/inventory', description: 'Stock, movements, transfers', roles: ['admin', 'warehouse', 'operations'] },
+      { label: 'Procurement', href: '/procurement', description: 'Suppliers, POs, bills', roles: ['admin', 'procurement'] },
+      { label: 'Operations', href: '/operations', description: 'Tasks, deliveries, returns', roles: ['admin', 'operations', 'warehouse'] },
+      { label: 'Reports', href: '/reports', description: 'Reporting and forecasting' }
+    ]
+  },
+  {
+    label: 'System',
+    items: [
+      { label: 'Settings', href: '/settings', description: 'Theme, role, profile, preferences' },
+      { label: 'Admin', href: '/admin', description: 'Users, roles, templates, audit', roles: ['admin'] }
     ]
   }
 ];
 
 export const bottomNavigation: NavItem[] = [
-  { label: 'Home', href: '/dashboard', icon: 'dashboard' },
-  { label: 'Sales', href: '/sales', icon: 'sales' },
-  { label: 'Stock', href: '/inventory', icon: 'inventory' },
-  { label: 'Finance', href: '/accounting', icon: 'finance' },
-  { label: 'Settings', href: '/settings', icon: 'settings' }
+  { label: 'Home', href: '/dashboard' },
+  { label: 'Alerts', href: '/notifications' },
+  { label: 'Customers', href: '/customers' },
+  { label: 'Approvals', href: '/approvals' },
+  { label: 'Settings', href: '/settings' }
 ];
 
 export const userMenuItems = [
