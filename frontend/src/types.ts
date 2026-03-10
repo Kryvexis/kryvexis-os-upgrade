@@ -1,0 +1,12 @@
+export type RoleKey = 'admin' | 'sales' | 'finance' | 'warehouse' | 'procurement' | 'operations' | 'executive';
+export type KPI = { label: string; value: string; detail: string };
+export type PanelGroup = { title: string; items: string[] };
+export type Customer = { id: string; name: string; owner: string; branch: string; status: string; balance: string; risk: string; creditTerms: string; priceList: string; contact: string; phone: string; notes: string; nextAction: string; activity: string[]; };
+export type Product = { id: string; sku: string; name: string; branch: string; status: string; stock: number; reorderAt: number; price: string; cost: string; supplier: string; barcode: string; variants: string; movementSummary: string; nextAction: string; };
+export type Quote = { id: string; customer: string; owner: string; value: string; status: string; validity: string; branch: string; trigger: string; updated: string; notes: string; nextAction: string; };
+export type Invoice = { id: string; customer: string; amount: string; branch: string; status: string; due: string; source: string; paymentStatus: string; tax: string; reminders: string; nextAction: string; };
+export type Payment = { id: string; ref: string; party: string; amount: string; method: string; status: string; date: string; appliedTo: string; proof: string; nextAction: string; };
+export type Notification = { id: string; title: string; meta: string; state: string; read: boolean; type: string; };
+export type Settings = { themes: string[]; paymentModes: string[]; density: string[]; supportEmail: string; whatsapp: string; business: { currency: string; taxDefault: string; paymentTerms: string; defaultBranch: string; }; };
+export type Role = { key: RoleKey; label: string; description: string; dashboards: string[]; };
+export type DashboardResponse = { role: string; kpis: KPI[]; panels: PanelGroup[]; highlights: Notification[]; recentCustomers: Customer[]; lowStockProducts: Product[]; };

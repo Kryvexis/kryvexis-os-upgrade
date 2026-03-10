@@ -1,26 +1,15 @@
-import { DataTable } from '../components/DataTable';
-import { Panel } from '../components/Panel';
-import { RecordHero } from '../components/RecordHero';
-import { StatusPill } from '../components/StatusPill';
-import { products } from '../data/mock';
 
+import { useEffect, useState } from 'react';
+import { Card } from '../components/Card';
+import { DataGrid, renderStatus } from '../components/DataGrid';
+import { api } from '../lib/api';
+import type { Product } from '../types';
 export function ProductsPage() {
-  return (
-    <div className="page-stack">
-      <RecordHero title="Products" description="SKU, branch stock, reorder thresholds, and pricing foundations for Phase 1." actions={['Add product']} />
-      <Panel title="Stock and pricing snapshot" action="Reorder candidates">
-        <DataTable
-          columns={['SKU', 'Name', 'Stock', 'Reorder at', 'Price', 'Health']}
-          rows={products.map((product) => [
-            product.sku,
-            product.name,
-            product.stock,
-            product.reorderAt,
-            product.price,
-            <StatusPill value={product.stock <= product.reorderAt ? 'Low stock' : 'Healthy'} />
-          ])}
-        />
-      </Panel>
-    </div>
-  );
+  const [items, setItems] = useState<Product[]>([]);
+  useEffect(() => { api.products().then(setItems); }, []);
+  return <Card title="Products" subtitle="SKU, branch stock, reorder thresholds, supplier links, and movement context."><DataGrid items={items} getHref={(item) => `/products/${item.id}`} columns={[{ key: 'name', header: 'Product', render: (item) => item.name },
+          { key: 'sku', header: 'SKU', render: (item) => item.sku },
+          { key: 'stock', header: 'On hand', render: (item) => item.stock },
+          { key: 'status', header: 'Status', render: (item) => renderStatus(item.status) },
+          { key: 'nextAction', header: 'Next action', render: (item) => item.nextAction }]} /></Card>;
 }

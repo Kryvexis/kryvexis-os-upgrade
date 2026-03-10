@@ -1,46 +1,26 @@
-# Kryvexis OS Workspace
+# Kryvexis OS - Phase 1 Completion
 
-This package restructures Kryvexis OS into a safer long-term layout:
+This package completes the practical Phase 1 surface in a cleaner frontend/backend workspace.
 
-- `frontend/` = Vite + React app shell
-- `backend/` = Express API starter
-- root `package.json` = workspace scripts so you can install once from the root
+Included:
+- Shared premium shell
+- Role-aware dashboards
+- Customers, Quotes, Invoices, Products, Payments
+- Detail pages and activity blocks
+- Notifications center
+- Roles and settings
+- Mobile shell foundation
+- Seeded backend API
 
-## Fresh start
+## Run
 
-Delete the old mixed-root app files, then extract this ZIP into the empty folder.
-
-## Install
+From the project root:
 
 ```bash
 npm install
-```
-
-## Run both frontend and backend
-
-```bash
 npm run dev
 ```
 
-## Run only frontend
+## Deploy
 
-```bash
-npm run dev:frontend
-```
-
-## Run only backend
-
-```bash
-npm run dev:backend
-```
-
-## Build frontend
-
-```bash
-npm run build
-```
-
-## Vercel note
-
-For Vercel, set the project **Root Directory** to `frontend`.
-The backend can be kept local for now or deployed separately later.
+Set your Vercel project Root Directory to `frontend`.

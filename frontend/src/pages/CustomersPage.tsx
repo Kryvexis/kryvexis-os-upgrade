@@ -1,26 +1,15 @@
-import { DataTable } from '../components/DataTable';
-import { Panel } from '../components/Panel';
-import { RecordHero } from '../components/RecordHero';
-import { StatusPill } from '../components/StatusPill';
-import { customers } from '../data/mock';
 
+import { useEffect, useState } from 'react';
+import { Card } from '../components/Card';
+import { DataGrid, renderStatus } from '../components/DataGrid';
+import { api } from '../lib/api';
+import type { Customer } from '../types';
 export function CustomersPage() {
-  return (
-    <div className="page-stack">
-      <RecordHero title="Customers" description="Master account health, branch context, balance exposure, and latest actions in one place." actions={['New customer']} />
-      <Panel title="Customer ledger overview" action="Export">
-        <DataTable
-          columns={['Customer', 'Branch', 'Balance', 'Status', 'Risk', 'Latest action']}
-          rows={customers.map((customer) => [
-            <div><strong>{customer.name}</strong><div className="muted small">{customer.id}</div></div>,
-            customer.branch,
-            customer.balance,
-            <StatusPill value={customer.status} />,
-            customer.risk,
-            customer.lastAction
-          ])}
-        />
-      </Panel>
-    </div>
-  );
+  const [items, setItems] = useState<Customer[]>([]);
+  useEffect(() => { api.customers().then(setItems); }, []);
+  return <Card title="Customers" subtitle="Master accounts, credit terms, communication signals, and next actions."><DataGrid items={items} getHref={(item) => `/customers/${item.id}`} columns={[{ key: 'name', header: 'Customer', render: (item) => item.name },
+          { key: 'branch', header: 'Branch', render: (item) => item.branch },
+          { key: 'balance', header: 'Balance', render: (item) => item.balance },
+          { key: 'status', header: 'Status', render: (item) => renderStatus(item.status) },
+          { key: 'nextAction', header: 'Next action', render: (item) => item.nextAction }]} /></Card>;
 }

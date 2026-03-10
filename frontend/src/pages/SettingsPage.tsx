@@ -1,26 +1,10 @@
-import { Panel } from '../components/Panel';
-import { RecordHero } from '../components/RecordHero';
-
+import { useEffect, useState } from 'react';
+import { Card } from '../components/Card';
+import { api } from '../lib/api';
+import type { Settings } from '../types';
 export function SettingsPage() {
-  return (
-    <div className="page-stack">
-      <RecordHero title="Settings" description="Theme, density, branch defaults, numbering logic, and user preferences foundation." actions={['Save preferences']} />
-      <section className="two-column-grid">
-        <Panel title="Appearance" action="Theme sync">
-          <div className="settings-list">
-            <div className="setting-row"><span>Theme</span><strong>Dark / Light / System</strong></div>
-            <div className="setting-row"><span>Density</span><strong>Comfortable</strong></div>
-            <div className="setting-row"><span>Sidebar</span><strong>Pinned</strong></div>
-          </div>
-        </Panel>
-        <Panel title="Business defaults" action="Edit">
-          <div className="settings-list">
-            <div className="setting-row"><span>Currency</span><strong>ZAR</strong></div>
-            <div className="setting-row"><span>Payments</span><strong>EFT + Cash</strong></div>
-            <div className="setting-row"><span>Support contact</span><strong>kryvexissolutions@gmail.com</strong></div>
-          </div>
-        </Panel>
-      </section>
-    </div>
-  );
+  const [settings, setSettings] = useState<Settings | null>(null);
+  useEffect(() => { api.settings().then(setSettings); }, []);
+  if (!settings) return <div className="loading-state">Loading settings...</div>;
+  return <div className="split-grid"><Card title="Appearance" subtitle="Theme, density, sidebar behavior, and mobile shell defaults."><div className="setting-list"><div><span>Theme modes</span><strong>{settings.themes.join(', ')}</strong></div><div><span>Density</span><strong>{settings.density.join(', ')}</strong></div><div><span>Payment modes</span><strong>{settings.paymentModes.join(', ')}</strong></div></div></Card><Card title="Business defaults" subtitle="Currency, tax defaults, numbering logic, and support contact."><div className="setting-list"><div><span>Currency</span><strong>{settings.business.currency}</strong></div><div><span>Tax default</span><strong>{settings.business.taxDefault}</strong></div><div><span>Payment terms</span><strong>{settings.business.paymentTerms}</strong></div><div><span>Default branch</span><strong>{settings.business.defaultBranch}</strong></div><div><span>Support email</span><strong>{settings.supportEmail}</strong></div><div><span>WhatsApp</span><strong>{settings.whatsapp}</strong></div></div></Card></div>;
 }

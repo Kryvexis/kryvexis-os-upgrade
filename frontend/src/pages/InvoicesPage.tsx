@@ -1,19 +1,15 @@
-import { DataTable } from '../components/DataTable';
-import { Panel } from '../components/Panel';
-import { RecordHero } from '../components/RecordHero';
-import { StatusPill } from '../components/StatusPill';
-import { invoices } from '../data/mock';
 
+import { useEffect, useState } from 'react';
+import { Card } from '../components/Card';
+import { DataGrid, renderStatus } from '../components/DataGrid';
+import { api } from '../lib/api';
+import type { Invoice } from '../types';
 export function InvoicesPage() {
-  return (
-    <div className="page-stack">
-      <RecordHero title="Invoices" description="Issued, overdue, and paid invoice records with branch and due-state visibility." actions={['Issue invoice', 'Send statements']} />
-      <Panel title="Receivables register" action="Collections pack">
-        <DataTable
-          columns={['Invoice', 'Customer', 'Amount', 'Due', 'Status', 'Branch']}
-          rows={invoices.map((invoice) => [invoice.id, invoice.customer, invoice.amount, invoice.due, <StatusPill value={invoice.status} />, invoice.branch])}
-        />
-      </Panel>
-    </div>
-  );
+  const [items, setItems] = useState<Invoice[]>([]);
+  useEffect(() => { api.invoices().then(setItems); }, []);
+  return <Card title="Invoices" subtitle="Tax treatment, reminder state, and collections visibility."><DataGrid items={items} getHref={(item) => `/invoices/${item.id}`} columns={[{ key: 'id', header: 'Invoice', render: (item) => item.id },
+          { key: 'customer', header: 'Customer', render: (item) => item.customer },
+          { key: 'amount', header: 'Amount', render: (item) => item.amount },
+          { key: 'status', header: 'Status', render: (item) => renderStatus(item.status) },
+          { key: 'paymentStatus', header: 'Payment state', render: (item) => item.paymentStatus }]} /></Card>;
 }

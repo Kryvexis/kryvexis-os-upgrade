@@ -1,19 +1,15 @@
-import { DataTable } from '../components/DataTable';
-import { Panel } from '../components/Panel';
-import { RecordHero } from '../components/RecordHero';
-import { StatusPill } from '../components/StatusPill';
-import { quotes } from '../data/mock';
 
+import { useEffect, useState } from 'react';
+import { Card } from '../components/Card';
+import { DataGrid, renderStatus } from '../components/DataGrid';
+import { api } from '../lib/api';
+import type { Quote } from '../types';
 export function QuotesPage() {
-  return (
-    <div className="page-stack">
-      <RecordHero title="Quotes" description="Draft, approval, send, and conversion visibility with owner and timeline context." actions={['New quote', 'Approval rules']} />
-      <Panel title="Sales pipeline" action="Board view">
-        <DataTable
-          columns={['Quote', 'Customer', 'Value', 'Owner', 'Status', 'Updated']}
-          rows={quotes.map((quote) => [quote.id, quote.customer, quote.value, quote.owner, <StatusPill value={quote.status} />, quote.updated])}
-        />
-      </Panel>
-    </div>
-  );
+  const [items, setItems] = useState<Quote[]>([]);
+  useEffect(() => { api.quotes().then(setItems); }, []);
+  return <Card title="Quotes" subtitle="Validity, approval triggers, owners, and conversion-oriented follow-up."><DataGrid items={items} getHref={(item) => `/quotes/${item.id}`} columns={[{ key: 'id', header: 'Quote', render: (item) => item.id },
+          { key: 'customer', header: 'Customer', render: (item) => item.customer },
+          { key: 'value', header: 'Value', render: (item) => item.value },
+          { key: 'status', header: 'Status', render: (item) => renderStatus(item.status) },
+          { key: 'nextAction', header: 'Next action', render: (item) => item.nextAction }]} /></Card>;
 }
