@@ -14,6 +14,7 @@ import type {
 } from "../types";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "";
+fetch(`${API_BASE}/api/customers`)
 
 async function request<T>(path: string): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`);

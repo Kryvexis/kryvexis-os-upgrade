@@ -293,3 +293,4 @@ app.get('/api/settings', (_req, res) => res.json(envelope(settings)));
 app.get('/api/roles', (_req, res) => res.json(envelope(roles)));
 
 app.listen(port, () => console.log(`Kryvexis OS Phase 1A backend running on ${port}`));
+
