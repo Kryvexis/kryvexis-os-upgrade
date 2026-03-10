@@ -1,20 +1,72 @@
 import { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Badge } from '../components/Badge';
 import { Card } from '../components/Card';
 import { RecordTimeline } from '../components/RecordTimeline';
 import { api } from '../lib/api';
-import type { QuoteDetail } from '../types';
+import type { QuoteDetail, QuoteStatus } from '../types';
+
+const statusActions: Partial<Record<QuoteStatus, { label: string; next: QuoteStatus }>> = {
+  Draft: { label: 'Submit for approval', next: 'Pending approval' },
+  'Pending approval': { label: 'Approve quote', next: 'Approved' },
+  Approved: { label: 'Mark as sent', next: 'Sent to customer' }
+};
 
 export function QuoteDetailPage() {
   const { id = '' } = useParams();
+  const navigate = useNavigate();
   const [item, setItem] = useState<QuoteDetail | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [flash, setFlash] = useState('');
 
   useEffect(() => {
-    api.quote(id).then(setItem);
+    api.quote(id).then(setItem).catch((err: Error) => setError(err.message));
   }, [id]);
 
+  const handleStatusAdvance = async () => {
+    if (!item) return;
+    const action = statusActions[item.status as QuoteStatus];
+    if (!action) return;
+
+    setBusy(true);
+    setError('');
+    setFlash('');
+    try {
+      const result = await api.updateQuoteStatus(item.id, action.next);
+      setItem(result.quote);
+      setFlash(`Quote moved to ${action.next}.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to update quote status.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleConvert = async () => {
+    if (!item) return;
+
+    setBusy(true);
+    setError('');
+    setFlash('');
+    try {
+      const result = await api.convertQuote(item.id);
+      setItem(result.quote);
+      navigate(`/invoices/${result.invoice.id}`, {
+        state: { flash: result.reused ? `Invoice ${result.invoice.id} already existed for this quote.` : `Invoice ${result.invoice.id} created from ${item.id}.` }
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to convert quote to invoice.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (error && !item) return <div className="loading-state">{error}</div>;
   if (!item) return <div className="loading-state">Loading record...</div>;
+
+  const action = statusActions[item.status as QuoteStatus];
+  const canConvert = item.status === 'Approved' || item.status === 'Sent to customer' || item.status === 'Converted';
 
   return (
     <div className="record-layout">
@@ -33,6 +85,27 @@ export function QuoteDetailPage() {
           <div><span>Total</span><strong>{item.total}</strong></div>
           <div><span>Validity</span><strong>{item.validity}</strong></div>
         </div>
+      </Card>
+
+      <Card title="Phase B actions" subtitle="Advance the quote or convert it into the first invoice draft.">
+        <div className="action-row">
+          {action ? (
+            <button className="solid-button" onClick={handleStatusAdvance} disabled={busy}>
+              {busy ? 'Working...' : action.label}
+            </button>
+          ) : (
+            <div className="inline-note">No further status step is available for this quote.</div>
+          )}
+          {canConvert ? (
+            <button className="ghost-button" onClick={handleConvert} disabled={busy || item.status === 'Converted'}>
+              {item.status === 'Converted' ? 'Already converted' : 'Convert to invoice'}
+            </button>
+          ) : (
+            <div className="inline-note">Approve or send this quote before conversion.</div>
+          )}
+        </div>
+        {flash ? <p className="success-note">{flash}</p> : null}
+        {error ? <p className="error-note">{error}</p> : null}
       </Card>
 
       <div className="kpi-grid compact-kpi-grid">
@@ -85,20 +158,20 @@ export function QuoteDetailPage() {
       </Card>
 
       <div className="split-grid">
-        <Card title="Commercial totals" subtitle="Ready for quote to invoice conversion in the next phase.">
+        <Card title="Commercial totals" subtitle="Now ready for quote to invoice conversion.">
           <div className="detail-stack">
             <div><span>Subtotal</span><strong>{item.subtotal}</strong></div>
             <div><span>Tax</span><strong>{item.tax}</strong></div>
             <div><span>Grand total</span><strong>{item.total}</strong></div>
-            <div><span>Conversion target</span><strong>Invoice draft after approval</strong></div>
+            <div><span>Conversion target</span><strong>{item.status === 'Converted' ? 'Invoice already created' : 'Invoice draft after approval'}</strong></div>
           </div>
         </Card>
 
-        <Card title="Next build hook" subtitle="This quote structure is now ready for the next package.">
+        <Card title="Phase B outcome" subtitle="This quote can now advance into the invoice module.">
           <div className="detail-stack">
-            <div><span>Next step</span><strong>Convert approved quote to invoice</strong></div>
-            <div><span>After that</span><strong>Print-ready quote and invoice views</strong></div>
-            <div><span>Then</span><strong>Auto-save PDF + reminders</strong></div>
+            <div><span>Current state</span><strong>{item.status}</strong></div>
+            <div><span>Ready for print phase</span><strong>Quote and invoice print pages next</strong></div>
+            <div><span>After that</span><strong>Auto-save PDF + reminders</strong></div>
           </div>
         </Card>
       </div>

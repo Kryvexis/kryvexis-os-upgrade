@@ -261,6 +261,40 @@ function envelope(data, extra = {}) {
   return { ok: true, ...extra, data };
 }
 
+function findQuote(id) {
+  return quotes.find((entry) => entry.id === id);
+}
+
+function findInvoice(id) {
+  return invoices.find((entry) => entry.id === id);
+}
+
+function buildInvoiceDetail(invoice) {
+  const sourceQuote = quotes.find((item) => item.id === invoice.source);
+  const lines = sourceQuote?.lines ?? [];
+  const workflow = [
+    { label: 'Created', detail: invoice.status === 'Draft' ? `Invoice draft created from ${invoice.source}` : `Invoice recorded from ${invoice.source}` },
+    { label: 'Payment state', detail: invoice.paymentStatus },
+    { label: 'Reminders', detail: invoice.reminders },
+    { label: 'Next action', detail: invoice.nextAction }
+  ];
+
+  if (sourceQuote) {
+    workflow.unshift({ label: 'Source quote', detail: `${sourceQuote.id} was converted for ${sourceQuote.customer}` });
+  }
+
+  return {
+    ...invoice,
+    sourceCustomerId: invoice.customerId,
+    sourceQuoteId: sourceQuote?.id ?? null,
+    subtotal: sourceQuote?.subtotal ?? invoice.amount,
+    total: sourceQuote?.total ?? invoice.amount,
+    issuedOn: 'Today',
+    lines,
+    workflow
+  };
+}
+
 function listRoute(path, collection) {
   app.get(`/api/${path}`, (_req, res) => res.json(envelope(collection)));
   app.get(`/api/${path}/:id`, (req, res) => {
@@ -270,7 +304,8 @@ function listRoute(path, collection) {
   });
 }
 
-app.get('/health', (_req, res) => res.json({ status: 'ok', phase: '1A', service: 'kryvexis-os-api' }));
+app.get('/', (_req, res) => res.json({ ok: true, service: 'kryvexis-os-api', status: 'running', phase: '1B' }));
+app.get('/health', (_req, res) => res.json({ status: 'ok', phase: '1B', service: 'kryvexis-os-api' }));
 app.get('/api/bootstrap', (_req, res) => res.json(envelope({ roles, themeOptions: settings.themes, support: { email: settings.supportEmail, whatsapp: settings.whatsapp } })));
 app.get('/api/dashboard', (req, res) => {
   const role = req.query.role || 'admin';
@@ -282,15 +317,105 @@ app.get('/api/customers/:id/summary', (req, res) => {
   if (!summary) return res.status(404).json({ ok: false, error: 'customer summary not found' });
   return res.json(envelope(summary));
 });
+app.get('/api/invoices/:id', (req, res) => {
+  const invoice = findInvoice(req.params.id);
+  if (!invoice) return res.status(404).json({ ok: false, error: 'invoice item not found' });
+  return res.json(envelope(buildInvoiceDetail(invoice)));
+});
+app.post('/api/quotes/:id/status', (req, res) => {
+  const quote = findQuote(req.params.id);
+  if (!quote) return res.status(404).json({ ok: false, error: 'quote item not found' });
+
+  const nextStatus = req.body?.status;
+  const allowed = ['Draft', 'Pending approval', 'Approved', 'Sent to customer', 'Converted'];
+  if (!allowed.includes(nextStatus)) {
+    return res.status(400).json({ ok: false, error: 'unsupported quote status' });
+  }
+
+  if (quote.status === 'Converted') {
+    return res.status(400).json({ ok: false, error: 'converted quotes are locked' });
+  }
+
+  quote.status = nextStatus;
+  quote.updated = 'Just now';
+  quote.nextAction = nextStatus === 'Approved'
+    ? 'Mark as sent or convert to invoice'
+    : nextStatus === 'Sent to customer'
+      ? 'Convert to invoice after customer confirmation'
+      : nextStatus === 'Pending approval'
+        ? 'Manager review required before send'
+        : 'Continue internal review';
+
+  quote.workflow.push({
+    label: 'Status update',
+    detail: `Quote moved to ${nextStatus}`
+  });
+
+  return res.json(envelope({ quote }));
+});
+app.post('/api/quotes/:id/convert', (req, res) => {
+  const quote = findQuote(req.params.id);
+  if (!quote) return res.status(404).json({ ok: false, error: 'quote item not found' });
+
+  const existingInvoice = invoices.find((entry) => entry.source === quote.id);
+  if (existingInvoice) {
+    return res.json(envelope({ quote, invoice: buildInvoiceDetail(existingInvoice), reused: true }));
+  }
+
+  if (!['Approved', 'Sent to customer'].includes(quote.status)) {
+    return res.status(400).json({ ok: false, error: 'quote must be approved or sent before conversion' });
+  }
+
+  const nextId = 2200 + invoices.length + 1;
+  const invoice = {
+    id: `INV-${nextId}`,
+    customerId: quote.customerId,
+    customer: quote.customer,
+    amount: quote.total,
+    branch: quote.branch,
+    status: 'Draft',
+    due: 'Due in 30 days',
+    source: quote.id,
+    paymentStatus: 'Unpaid',
+    tax: 'VAT standard',
+    reminders: 'Not started',
+    nextAction: 'Review invoice draft and issue to customer'
+  };
+
+  invoices.unshift(invoice);
+  quote.status = 'Converted';
+  quote.updated = 'Just now';
+  quote.nextAction = `Invoice ${invoice.id} ready for review`;
+  quote.workflow.push({ label: 'Converted', detail: `Invoice ${invoice.id} created from this quote` });
+
+  const summary = customerSummaries[quote.customerId];
+  if (summary) {
+    summary.openQuotes = summary.openQuotes.filter((item) => item.id !== quote.id);
+    summary.recentInvoices = [invoice, ...summary.recentInvoices].slice(0, 3);
+    summary.purchaseHistory = [
+      {
+        id: `PH-${Date.now()}`,
+        date: '2026-03-10',
+        type: 'invoice',
+        reference: invoice.id,
+        amount: invoice.amount,
+        status: invoice.status,
+        note: `Invoice created from ${quote.id}`
+      },
+      ...summary.purchaseHistory
+    ].slice(0, 6);
+  }
+
+  return res.json(envelope({ quote, invoice: buildInvoiceDetail(invoice), reused: false }));
+});
 
 listRoute('customers', customers);
 listRoute('products', products);
 listRoute('quotes', quotes);
-listRoute('invoices', invoices);
+app.get('/api/invoices', (_req, res) => res.json(envelope(invoices)));
 listRoute('payments', payments);
 listRoute('notifications', notifications);
 app.get('/api/settings', (_req, res) => res.json(envelope(settings)));
 app.get('/api/roles', (_req, res) => res.json(envelope(roles)));
 
-app.listen(port, () => console.log(`Kryvexis OS Phase 1A backend running on ${port}`));
-
+app.listen(port, () => console.log(`Kryvexis OS Phase 1B backend running on ${port}`));
