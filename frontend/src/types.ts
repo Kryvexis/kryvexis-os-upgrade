@@ -17,6 +17,27 @@ export type Customer = {
   nextAction: string;
   activity: string[];
 };
+
+export type Supplier = {
+  id: string;
+  name: string;
+  category: string;
+  leadTime: string;
+  status: string;
+  contact: string;
+  nextAction: string;
+};
+export type PurchaseOrder = {
+  id: string;
+  supplier: string;
+  branch: string;
+  status: string;
+  value: string;
+  eta: string;
+  buyer: string;
+  nextAction: string;
+};
+
 export type Product = {
   id: string;
   sku: string;

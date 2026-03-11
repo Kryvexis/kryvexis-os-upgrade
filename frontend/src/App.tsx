@@ -3,6 +3,11 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { AppShell } from './layout/AppShell';
 import { DashboardPage } from './pages/DashboardPage';
 import { CustomersPage } from './pages/CustomersPage';
+import { SalesWorkspacePage } from './pages/SalesWorkspacePage';
+import { InventoryWorkspacePage } from './pages/InventoryWorkspacePage';
+import { ProcurementWorkspacePage } from './pages/ProcurementWorkspacePage';
+import { AccountingWorkspacePage } from './pages/AccountingWorkspacePage';
+import { OperationsWorkspacePage } from './pages/OperationsWorkspacePage';
 import { CustomerDetailPage } from './pages/CustomerDetailPage';
 import { QuotesPage } from './pages/QuotesPage';
 import { QuoteDetailPage } from './pages/QuoteDetailPage';
@@ -31,6 +36,11 @@ export default function App() {
       <Route path="/invoices/:id/print" element={<InvoicePrintPage />} />
       <Route element={<AppShell role={role} setRole={setRole} theme={theme} setTheme={setTheme} />}>
         <Route path="/" element={<DashboardPage role={role} />} />
+        <Route path="/sales" element={<SalesWorkspacePage />} />
+        <Route path="/inventory" element={<InventoryWorkspacePage />} />
+        <Route path="/procurement" element={<ProcurementWorkspacePage />} />
+        <Route path="/accounting" element={<AccountingWorkspacePage />} />
+        <Route path="/operations" element={<OperationsWorkspacePage />} />
         <Route path="/customers" element={<CustomersPage />} />
         <Route path="/customers/:id" element={<CustomerDetailPage />} />
         <Route path="/quotes" element={<QuotesPage />} />

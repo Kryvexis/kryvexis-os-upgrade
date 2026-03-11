@@ -29,6 +29,19 @@ const products = [
   { id: 'PRD-1033', sku: 'SKU-1033', name: 'Warehouse Scanner Dock', branch: 'Johannesburg', status: 'Healthy', stock: 21, reorderAt: 6, price: 'R1,290', cost: 'R790', supplier: 'Prime Devices', barcode: '6001001001033', variants: 'USB-C', movementSummary: 'No movement today', nextAction: 'Monitor top mover trend' }
 ];
 
+
+const suppliers = [
+  { id: 'SUP-001', name: 'Prime Devices', category: 'Hardware', leadTime: '5 days', status: 'On track', contact: 'orders@primedevices.co.za', nextAction: 'Release next scanner dock PO' },
+  { id: 'SUP-002', name: 'Cape Paper Supply', category: 'Consumables', leadTime: '3 days', status: 'Attention', contact: 'dispatch@capepaper.co.za', nextAction: 'Confirm thermal roll replenishment' },
+  { id: 'SUP-003', name: 'Metro Warehouse Goods', category: 'Warehouse', leadTime: '7 days', status: 'On track', contact: 'supply@metrowarehouse.co.za', nextAction: 'Review dock accessory pricing' }
+];
+
+const purchaseOrders = [
+  { id: 'PO-3101', supplier: 'Cape Paper Supply', branch: 'Cape Town', status: 'Pending approval', value: 'R18,240', eta: '2026-03-15', buyer: 'Nadine Smit', nextAction: 'Approve reorder release' },
+  { id: 'PO-3098', supplier: 'Prime Devices', branch: 'Johannesburg', status: 'Issued', value: 'R42,600', eta: '2026-03-17', buyer: 'Alex Morgan', nextAction: 'Track inbound scanner docks' },
+  { id: 'PO-3094', supplier: 'Metro Warehouse Goods', branch: 'Durban', status: 'Goods received', value: 'R9,880', eta: '2026-03-10', buyer: 'Tariq Naidoo', nextAction: 'Match supplier bill to GRN' }
+];
+
 const quotes = [
   {
     id: 'Q-1045', customerId: 'CUS-003', customer: 'Urban Build Supply', owner: 'Alex Morgan', value: 'R62,500', status: 'Pending approval', validity: '2026-03-17', branch: 'Durban', trigger: 'High-value threshold', updated: '22 min ago', notes: 'Requires sales manager approval before sending.', nextAction: 'Finance review at 09:00 tomorrow', subtotal: 'R54,347.83', tax: 'R8,152.17', total: 'R62,500', marginBand: 'Protected margin', approvalOwner: 'Sales Manager',
@@ -569,6 +582,8 @@ Kryvexis Solutions`
 
 listRoute('customers', customers);
 listRoute('products', products);
+listRoute('suppliers', suppliers);
+listRoute('purchase-orders', purchaseOrders);
 
 app.get('/api/emails/:kind/:id', (req, res) => {
   const draft = buildEmailDraft(req.params.kind, req.params.id);
