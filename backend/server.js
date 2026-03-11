@@ -31,23 +31,7 @@ const products = [
 
 const quotes = [
   {
-    id: 'Q-1045',
-    customerId: 'CUS-003',
-    customer: 'Urban Build Supply',
-    owner: 'Alex Morgan',
-    value: 'R62,500',
-    status: 'Pending approval',
-    validity: '2026-03-17',
-    branch: 'Durban',
-    trigger: 'High-value threshold',
-    updated: '22 min ago',
-    notes: 'Requires sales manager approval before sending.',
-    nextAction: 'Finance review at 09:00 tomorrow',
-    subtotal: 'R54,347.83',
-    tax: 'R8,152.17',
-    total: 'R62,500',
-    marginBand: 'Protected margin',
-    approvalOwner: 'Sales Manager',
+    id: 'Q-1045', customerId: 'CUS-003', customer: 'Urban Build Supply', owner: 'Alex Morgan', value: 'R62,500', status: 'Pending approval', validity: '2026-03-17', branch: 'Durban', trigger: 'High-value threshold', updated: '22 min ago', notes: 'Requires sales manager approval before sending.', nextAction: 'Finance review at 09:00 tomorrow', subtotal: 'R54,347.83', tax: 'R8,152.17', total: 'R62,500', marginBand: 'Protected margin', approvalOwner: 'Sales Manager',
     lines: [
       { id: 'QL-1', sku: 'SKU-1001', description: 'Kryvexis Label Printer', qty: 12, unitPrice: 'R2,499', total: 'R29,988' },
       { id: 'QL-2', sku: 'SKU-1021', description: 'Thermal Roll Box', qty: 45, unitPrice: 'R380', total: 'R17,100' },
@@ -61,23 +45,7 @@ const quotes = [
     ]
   },
   {
-    id: 'Q-1042',
-    customerId: 'CUS-001',
-    customer: 'Acme Retail Group',
-    owner: 'Rina Patel',
-    value: 'R18,960',
-    status: 'Sent to customer',
-    validity: '2026-03-15',
-    branch: 'Johannesburg',
-    trigger: 'None',
-    updated: '1 hour ago',
-    notes: 'Bundle pricing applied.',
-    nextAction: 'Await customer response',
-    subtotal: 'R16,486.96',
-    tax: 'R2,473.04',
-    total: 'R18,960',
-    marginBand: 'Standard margin',
-    approvalOwner: 'Not required',
+    id: 'Q-1042', customerId: 'CUS-001', customer: 'Acme Retail Group', owner: 'Rina Patel', value: 'R18,960', status: 'Sent to customer', validity: '2026-03-15', branch: 'Johannesburg', trigger: 'None', updated: '1 hour ago', notes: 'Bundle pricing applied.', nextAction: 'Await customer response', subtotal: 'R16,486.96', tax: 'R2,473.04', total: 'R18,960', marginBand: 'Standard margin', approvalOwner: 'Not required',
     lines: [
       { id: 'QL-4', sku: 'SKU-1001', description: 'Kryvexis Label Printer', qty: 4, unitPrice: 'R2,499', total: 'R9,996' },
       { id: 'QL-5', sku: 'SKU-1021', description: 'Thermal Roll Box', qty: 12, unitPrice: 'R380', total: 'R4,560' },
@@ -90,23 +58,7 @@ const quotes = [
     ]
   },
   {
-    id: 'Q-1039',
-    customerId: 'CUS-002',
-    customer: 'Northline Foods',
-    owner: 'Alex Morgan',
-    value: 'R9,880',
-    status: 'Draft',
-    validity: '2026-03-20',
-    branch: 'Cape Town',
-    trigger: 'Margin review',
-    updated: 'Today 08:42',
-    notes: 'Need final confirmation on line quantities.',
-    nextAction: 'Finish internal note check',
-    subtotal: 'R8,591.30',
-    tax: 'R1,288.70',
-    total: 'R9,880',
-    marginBand: 'Review required',
-    approvalOwner: 'Sales Lead',
+    id: 'Q-1039', customerId: 'CUS-002', customer: 'Northline Foods', owner: 'Alex Morgan', value: 'R9,880', status: 'Draft', validity: '2026-03-20', branch: 'Cape Town', trigger: 'Margin review', updated: 'Today 08:42', notes: 'Need final confirmation on line quantities.', nextAction: 'Finish internal note check', subtotal: 'R8,591.30', tax: 'R1,288.70', total: 'R9,880', marginBand: 'Review required', approvalOwner: 'Sales Lead',
     lines: [
       { id: 'QL-7', sku: 'SKU-1021', description: 'Thermal Roll Box', qty: 20, unitPrice: 'R380', total: 'R7,600' },
       { id: 'QL-8', sku: 'SKU-1033', description: 'Warehouse Scanner Dock', qty: 2, unitPrice: 'R1,140', total: 'R2,280' }
@@ -132,20 +84,16 @@ const payments = [
   { id: 'PAY-7679', ref: 'PAY-7679', customerId: 'CUS-001', party: 'Acme Retail Group', amount: 'R15,640', method: 'EFT', status: 'Allocated', date: '2026-03-04', appliedTo: 'INV-2186', proof: 'Attached', nextAction: 'No action' }
 ];
 
-const notifications = [
-  { id: 'NT-1', title: 'Quote approval required', meta: 'Q-1045 - Sales', state: 'Pending', read: false, type: 'approval' },
-  { id: 'NT-2', title: 'Invoice INV-2201 overdue', meta: 'Acme Retail Group - Finance', state: 'Urgent', read: false, type: 'collection' },
-  { id: 'NT-3', title: 'Low stock threshold reached', meta: 'Thermal Roll Box - Procurement', state: 'Alert', read: true, type: 'stock' },
-  { id: 'NT-4', title: 'Payment proof missing', meta: 'PAY-7693 - Finance', state: 'Action', read: false, type: 'payment' }
+let notifications = [
+  { id: 'NT-1', title: 'Quote approval required', meta: 'Q-1045 - Sales', state: 'Pending', read: false, type: 'approval', dismissed: false, snoozedUntil: null },
+  { id: 'NT-2', title: 'Invoice INV-2201 overdue', meta: 'Acme Retail Group - Finance', state: 'Urgent', read: false, type: 'collection', dismissed: false, snoozedUntil: null },
+  { id: 'NT-3', title: 'Low stock threshold reached', meta: 'Thermal Roll Box - Procurement', state: 'Alert', read: true, type: 'stock', dismissed: false, snoozedUntil: null },
+  { id: 'NT-4', title: 'Payment proof missing', meta: 'PAY-7693 - Finance', state: 'Action', read: false, type: 'payment', dismissed: false, snoozedUntil: null },
+  { id: 'NT-5', title: 'Payment awaiting allocation', meta: 'PAY-7688 - Finance', state: 'Action', read: false, type: 'payment', dismissed: false, snoozedUntil: null }
 ];
 
 const settings = {
-  themes: ['dark', 'light', 'system'],
-  paymentModes: ['EFT', 'Cash'],
-  density: ['comfortable', 'compact'],
-  supportEmail: 'kryvexissolutions@gmail.com',
-  whatsapp: '+27686282874',
-  business: { currency: 'ZAR', taxDefault: 'VAT Standard', paymentTerms: '30 days', defaultBranch: 'Johannesburg' }
+  themes: ['dark', 'light', 'system'], paymentModes: ['EFT', 'Cash'], density: ['comfortable', 'compact'], supportEmail: 'kryvexissolutions@gmail.com', whatsapp: '+27686282874', business: { currency: 'ZAR', taxDefault: 'VAT Standard', paymentTerms: '30 days', defaultBranch: 'Johannesburg' }
 };
 
 const topClients = [
@@ -156,14 +104,7 @@ const topClients = [
 
 const customerSummaries = {
   'CUS-001': {
-    customerId: 'CUS-001',
-    totalSpend: 'R78,240',
-    invoiceCount: 6,
-    averageOrderValue: 'R13,040',
-    overdueBalance: 'R5,040',
-    lastPurchaseDate: '2026-03-09',
-    lastPaymentDate: 'Today 10:42',
-    collectionStatus: '1 overdue invoice needs follow-up',
+    customerId: 'CUS-001', totalSpend: 'R78,240', invoiceCount: 6, averageOrderValue: 'R13,040', overdueBalance: 'R5,040', lastPurchaseDate: '2026-03-09', lastPaymentDate: 'Today 10:42', collectionStatus: '1 overdue invoice needs follow-up',
     topProducts: [
       { sku: 'SKU-1001', name: 'Kryvexis Label Printer', quantity: 18, revenue: 'R44,982' },
       { sku: 'SKU-1021', name: 'Thermal Roll Box', quantity: 56, revenue: 'R21,280' },
@@ -175,20 +116,11 @@ const customerSummaries = {
     purchaseHistory: [
       { id: 'PH-1', date: '2026-03-10', type: 'payment', reference: 'PAY-7701', amount: 'R7,400', status: 'Allocated', note: 'Part-payment allocated to INV-2201' },
       { id: 'PH-2', date: '2026-03-09', type: 'invoice', reference: 'INV-2201', amount: 'R12,440', status: 'Overdue', note: 'Reminder sent and follow-up queued' },
-      { id: 'PH-3', date: '2026-03-08', type: 'quote', reference: 'Q-1042', amount: 'R18,960', status: 'Sent to customer', note: 'Bundle pricing applied and customer opened the quote' },
-      { id: 'PH-4', date: '2026-03-04', type: 'payment', reference: 'PAY-7679', amount: 'R15,640', status: 'Allocated', note: 'Full settlement on INV-2186' },
-      { id: 'PH-5', date: '2026-03-03', type: 'invoice', reference: 'INV-2186', amount: 'R15,640', status: 'Paid', note: 'Converted from prior quote cycle' }
+      { id: 'PH-3', date: '2026-03-08', type: 'quote', reference: 'Q-1042', amount: 'R18,960', status: 'Sent to customer', note: 'Bundle pricing applied and customer opened the quote' }
     ]
   },
   'CUS-002': {
-    customerId: 'CUS-002',
-    totalSpend: 'R41,920',
-    invoiceCount: 5,
-    averageOrderValue: 'R8,384',
-    overdueBalance: 'R0',
-    lastPurchaseDate: '2026-03-10',
-    lastPaymentDate: 'Today 09:17',
-    collectionStatus: 'Awaiting proof for cash receipt',
+    customerId: 'CUS-002', totalSpend: 'R41,920', invoiceCount: 5, averageOrderValue: 'R8,384', overdueBalance: 'R0', lastPurchaseDate: '2026-03-10', lastPaymentDate: 'Today 09:17', collectionStatus: 'Awaiting proof for cash receipt',
     topProducts: [
       { sku: 'SKU-1021', name: 'Thermal Roll Box', quantity: 84, revenue: 'R31,920' },
       { sku: 'SKU-1033', name: 'Warehouse Scanner Dock', quantity: 8, revenue: 'R10,000' }
@@ -197,20 +129,11 @@ const customerSummaries = {
     recentInvoices: invoices.filter((item) => item.customerId === 'CUS-002').slice(0, 3),
     recentPayments: payments.filter((item) => item.customerId === 'CUS-002').slice(0, 3),
     purchaseHistory: [
-      { id: 'PH-6', date: '2026-03-10', type: 'payment', reference: 'PAY-7693', amount: 'R4,980', status: 'Pending proof', note: 'Cash received but proof still outstanding' },
-      { id: 'PH-7', date: '2026-03-10', type: 'invoice', reference: 'INV-2196', amount: 'R4,980', status: 'Issued', note: 'Reminder scheduled at due date' },
-      { id: 'PH-8', date: '2026-03-10', type: 'quote', reference: 'Q-1039', amount: 'R9,880', status: 'Draft', note: 'Quantities under internal review' }
+      { id: 'PH-6', date: '2026-03-10', type: 'payment', reference: 'PAY-7693', amount: 'R4,980', status: 'Pending proof', note: 'Cash received but proof still outstanding' }
     ]
   },
   'CUS-003': {
-    customerId: 'CUS-003',
-    totalSpend: 'R63,580',
-    invoiceCount: 3,
-    averageOrderValue: 'R21,193',
-    overdueBalance: 'R12,000',
-    lastPurchaseDate: '2026-03-09',
-    lastPaymentDate: 'Yesterday 16:10',
-    collectionStatus: 'Receipt received but not yet allocated',
+    customerId: 'CUS-003', totalSpend: 'R63,580', invoiceCount: 3, averageOrderValue: 'R21,193', overdueBalance: 'R12,000', lastPurchaseDate: '2026-03-09', lastPaymentDate: 'Yesterday 16:10', collectionStatus: 'Receipt received but not yet allocated',
     topProducts: [
       { sku: 'SKU-1001', name: 'Kryvexis Label Printer', quantity: 12, revenue: 'R29,988' },
       { sku: 'SKU-1021', name: 'Thermal Roll Box', quantity: 45, revenue: 'R17,100' },
@@ -220,9 +143,7 @@ const customerSummaries = {
     recentInvoices: invoices.filter((item) => item.customerId === 'CUS-003').slice(0, 3),
     recentPayments: payments.filter((item) => item.customerId === 'CUS-003').slice(0, 3),
     purchaseHistory: [
-      { id: 'PH-9', date: '2026-03-10', type: 'quote', reference: 'Q-1045', amount: 'R62,500', status: 'Pending approval', note: 'Waiting on manager approval before customer send' },
-      { id: 'PH-10', date: '2026-03-09', type: 'invoice', reference: 'INV-2192', amount: 'R28,600', status: 'Awaiting allocation', note: 'Payment proof received and allocation pending' },
-      { id: 'PH-11', date: '2026-03-09', type: 'payment', reference: 'PAY-7688', amount: 'R12,000', status: 'Unallocated', note: 'Needs application against open invoice' }
+      { id: 'PH-9', date: '2026-03-10', type: 'quote', reference: 'Q-1045', amount: 'R62,500', status: 'Pending approval', note: 'Waiting on manager approval before customer send' }
     ]
   }
 };
@@ -257,16 +178,17 @@ const dashboardByRole = {
     ] }
 };
 
-function envelope(data, extra = {}) {
-  return { ok: true, ...extra, data };
-}
+function envelope(data, extra = {}) { return { ok: true, ...extra, data }; }
+function findQuote(id) { return quotes.find((entry) => entry.id === id); }
+function findInvoice(id) { return invoices.find((entry) => entry.id === id); }
+function findPayment(id) { return payments.find((entry) => entry.id === id || entry.ref === id); }
+function findNotification(id) { return notifications.find((entry) => entry.id === id); }
+function activeNotifications() { return notifications.filter((item) => !item.dismissed); }
+function stampNow() { return 'Just now'; }
 
-function findQuote(id) {
-  return quotes.find((entry) => entry.id === id);
-}
-
-function findInvoice(id) {
-  return invoices.find((entry) => entry.id === id);
+function pushNotification(notification) {
+  notifications = [notification, ...notifications];
+  return notification;
 }
 
 function buildInvoiceDetail(invoice) {
@@ -304,13 +226,13 @@ function listRoute(path, collection) {
   });
 }
 
-app.get('/', (_req, res) => res.json({ ok: true, service: 'kryvexis-os-api', status: 'running', phase: '1B' }));
-app.get('/health', (_req, res) => res.json({ status: 'ok', phase: '1B', service: 'kryvexis-os-api' }));
+app.get('/', (_req, res) => res.json({ ok: true, service: 'kryvexis-os-api', status: 'running', phase: '1F' }));
+app.get('/health', (_req, res) => res.json({ status: 'ok', phase: '1F', service: 'kryvexis-os-api' }));
 app.get('/api/bootstrap', (_req, res) => res.json(envelope({ roles, themeOptions: settings.themes, support: { email: settings.supportEmail, whatsapp: settings.whatsapp } })));
 app.get('/api/dashboard', (req, res) => {
   const role = req.query.role || 'admin';
   const dashboard = dashboardByRole[role] || dashboardByRole.admin;
-  res.json(envelope({ role, ...dashboard, highlights: notifications.slice(0, 3), recentCustomers: customers.slice(0, 3), lowStockProducts: products.filter((item) => item.stock <= item.reorderAt), topClients }));
+  res.json(envelope({ role, ...dashboard, highlights: activeNotifications().slice(0, 5), recentCustomers: customers.slice(0, 3), lowStockProducts: products.filter((item) => item.stock <= item.reorderAt), topClients }));
 });
 app.get('/api/customers/:id/summary', (req, res) => {
   const summary = customerSummaries[req.params.id];
@@ -322,91 +244,102 @@ app.get('/api/invoices/:id', (req, res) => {
   if (!invoice) return res.status(404).json({ ok: false, error: 'invoice item not found' });
   return res.json(envelope(buildInvoiceDetail(invoice)));
 });
+app.get('/api/notifications', (_req, res) => res.json(envelope(activeNotifications())));
+app.patch('/api/notifications/:id/read', (req, res) => {
+  const notification = findNotification(req.params.id);
+  if (!notification) return res.status(404).json({ ok: false, error: 'notification not found' });
+  notification.read = Boolean(req.body?.read);
+  if (notification.read && notification.state === 'Pending') notification.state = 'Seen';
+  return res.json(envelope(notification));
+});
+app.patch('/api/notifications/:id/snooze', (req, res) => {
+  const notification = findNotification(req.params.id);
+  if (!notification) return res.status(404).json({ ok: false, error: 'notification not found' });
+  notification.read = true;
+  notification.state = 'Snoozed';
+  notification.snoozedUntil = req.body?.until || 'later';
+  notification.meta = `${notification.meta} • snoozed until ${notification.snoozedUntil}`;
+  return res.json(envelope(notification));
+});
+app.patch('/api/notifications/:id/dismiss', (req, res) => {
+  const notification = findNotification(req.params.id);
+  if (!notification) return res.status(404).json({ ok: false, error: 'notification not found' });
+  notification.dismissed = true;
+  return res.json(envelope(notification));
+});
 app.post('/api/quotes/:id/status', (req, res) => {
   const quote = findQuote(req.params.id);
   if (!quote) return res.status(404).json({ ok: false, error: 'quote item not found' });
-
   const nextStatus = req.body?.status;
   const allowed = ['Draft', 'Pending approval', 'Approved', 'Sent to customer', 'Converted'];
-  if (!allowed.includes(nextStatus)) {
-    return res.status(400).json({ ok: false, error: 'unsupported quote status' });
-  }
-
-  if (quote.status === 'Converted') {
-    return res.status(400).json({ ok: false, error: 'converted quotes are locked' });
-  }
-
+  if (!allowed.includes(nextStatus)) return res.status(400).json({ ok: false, error: 'unsupported quote status' });
+  if (quote.status === 'Converted') return res.status(400).json({ ok: false, error: 'converted quotes are locked' });
   quote.status = nextStatus;
-  quote.updated = 'Just now';
-  quote.nextAction = nextStatus === 'Approved'
-    ? 'Mark as sent or convert to invoice'
-    : nextStatus === 'Sent to customer'
-      ? 'Convert to invoice after customer confirmation'
-      : nextStatus === 'Pending approval'
-        ? 'Manager review required before send'
-        : 'Continue internal review';
-
-  quote.workflow.push({
-    label: 'Status update',
-    detail: `Quote moved to ${nextStatus}`
-  });
-
+  quote.updated = stampNow();
+  quote.nextAction = nextStatus === 'Approved' ? 'Mark as sent or convert to invoice' : nextStatus === 'Sent to customer' ? 'Convert to invoice after customer confirmation' : nextStatus === 'Pending approval' ? 'Manager review required before send' : 'Continue internal review';
+  quote.workflow.push({ label: 'Status update', detail: `Quote moved to ${nextStatus}` });
+  return res.json(envelope({ quote }));
+});
+app.post('/api/quotes/:id/approve', (req, res) => {
+  const quote = findQuote(req.params.id);
+  if (!quote) return res.status(404).json({ ok: false, error: 'quote item not found' });
+  quote.status = 'Approved';
+  quote.updated = stampNow();
+  quote.nextAction = 'Mark as sent or convert to invoice';
+  quote.workflow.push({ label: 'Approved', detail: 'Approved from inbox action controls' });
+  pushNotification({ id: `NT-${Date.now()}`, title: `Quote ${quote.id} approved`, meta: `${quote.customer} - Sales`, state: 'New', read: false, type: 'approval', dismissed: false, snoozedUntil: null });
   return res.json(envelope({ quote }));
 });
 app.post('/api/quotes/:id/convert', (req, res) => {
   const quote = findQuote(req.params.id);
   if (!quote) return res.status(404).json({ ok: false, error: 'quote item not found' });
-
   const existingInvoice = invoices.find((entry) => entry.source === quote.id);
-  if (existingInvoice) {
-    return res.json(envelope({ quote, invoice: buildInvoiceDetail(existingInvoice), reused: true }));
-  }
-
+  if (existingInvoice) return res.json(envelope({ quote, invoice: buildInvoiceDetail(existingInvoice), reused: true }));
   if (!['Approved', 'Sent to customer'].includes(quote.status)) {
     return res.status(400).json({ ok: false, error: 'quote must be approved or sent before conversion' });
   }
-
   const nextId = 2200 + invoices.length + 1;
-  const invoice = {
-    id: `INV-${nextId}`,
-    customerId: quote.customerId,
-    customer: quote.customer,
-    amount: quote.total,
-    branch: quote.branch,
-    status: 'Draft',
-    due: 'Due in 30 days',
-    source: quote.id,
-    paymentStatus: 'Unpaid',
-    tax: 'VAT standard',
-    reminders: 'Not started',
-    nextAction: 'Review invoice draft and issue to customer'
-  };
-
+  const invoice = { id: `INV-${nextId}`, customerId: quote.customerId, customer: quote.customer, amount: quote.total, branch: quote.branch, status: 'Draft', due: 'Due in 30 days', source: quote.id, paymentStatus: 'Unpaid', tax: 'VAT standard', reminders: 'Not started', nextAction: 'Review invoice draft and issue to customer' };
   invoices.unshift(invoice);
   quote.status = 'Converted';
-  quote.updated = 'Just now';
+  quote.updated = stampNow();
   quote.nextAction = `Invoice ${invoice.id} ready for review`;
   quote.workflow.push({ label: 'Converted', detail: `Invoice ${invoice.id} created from this quote` });
-
-  const summary = customerSummaries[quote.customerId];
-  if (summary) {
-    summary.openQuotes = summary.openQuotes.filter((item) => item.id !== quote.id);
-    summary.recentInvoices = [invoice, ...summary.recentInvoices].slice(0, 3);
-    summary.purchaseHistory = [
-      {
-        id: `PH-${Date.now()}`,
-        date: '2026-03-10',
-        type: 'invoice',
-        reference: invoice.id,
-        amount: invoice.amount,
-        status: invoice.status,
-        note: `Invoice created from ${quote.id}`
-      },
-      ...summary.purchaseHistory
-    ].slice(0, 6);
-  }
-
   return res.json(envelope({ quote, invoice: buildInvoiceDetail(invoice), reused: false }));
+});
+app.post('/api/invoices/:id/reminder', (req, res) => {
+  const invoice = findInvoice(req.params.id);
+  if (!invoice) return res.status(404).json({ ok: false, error: 'invoice item not found' });
+  invoice.reminders = 'Reminder sent today';
+  invoice.nextAction = 'Await customer payment response';
+  pushNotification({ id: `NT-${Date.now()}`, title: `Reminder sent for ${invoice.id}`, meta: `${invoice.customer} - Finance`, state: 'Done', read: true, type: 'collection', dismissed: false, snoozedUntil: null });
+  return res.json(envelope({ invoice: buildInvoiceDetail(invoice) }));
+});
+app.post('/api/payments/:id/resolve-proof', (req, res) => {
+  const payment = findPayment(req.params.id);
+  if (!payment) return res.status(404).json({ ok: false, error: 'payment item not found' });
+  payment.proof = 'Attached and verified';
+  payment.status = payment.appliedTo && payment.appliedTo !== 'To be assigned' ? 'Ready to allocate' : 'Unallocated';
+  payment.nextAction = payment.status === 'Ready to allocate' ? `Allocate against ${payment.appliedTo}` : 'Allocate to open invoice';
+  pushNotification({ id: `NT-${Date.now()}`, title: `Payment proof resolved`, meta: `${payment.ref} - Finance`, state: 'Done', read: true, type: 'payment', dismissed: false, snoozedUntil: null });
+  return res.json(envelope({ payment }));
+});
+app.post('/api/payments/:id/allocate', (req, res) => {
+  const payment = findPayment(req.params.id);
+  if (!payment) return res.status(404).json({ ok: false, error: 'payment item not found' });
+  const invoiceId = req.body?.invoiceId || invoices.find((entry) => entry.customerId === payment.customerId && entry.status !== 'Paid')?.id;
+  if (!invoiceId) return res.status(400).json({ ok: false, error: 'no invoice available for allocation' });
+  payment.appliedTo = invoiceId;
+  payment.status = 'Allocated';
+  payment.nextAction = 'Allocation complete';
+  const invoice = findInvoice(invoiceId);
+  if (invoice) {
+    invoice.paymentStatus = 'Allocated receipt';
+    invoice.status = invoice.status === 'Overdue' ? 'Collections in progress' : invoice.status;
+    invoice.nextAction = `Payment ${payment.ref} allocated`;
+  }
+  pushNotification({ id: `NT-${Date.now()}`, title: `Payment ${payment.ref} allocated`, meta: `${invoiceId} - Finance`, state: 'Done', read: true, type: 'payment', dismissed: false, snoozedUntil: null });
+  return res.json(envelope({ payment }));
 });
 
 listRoute('customers', customers);
@@ -414,8 +347,7 @@ listRoute('products', products);
 listRoute('quotes', quotes);
 app.get('/api/invoices', (_req, res) => res.json(envelope(invoices)));
 listRoute('payments', payments);
-listRoute('notifications', notifications);
 app.get('/api/settings', (_req, res) => res.json(envelope(settings)));
 app.get('/api/roles', (_req, res) => res.json(envelope(roles)));
 
-app.listen(port, () => console.log(`Kryvexis OS Phase 1B backend running on ${port}`));
+app.listen(port, () => console.log(`Kryvexis OS Phase 1F backend running on ${port}`));

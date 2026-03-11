@@ -54,11 +54,42 @@ export const api = {
     request<QuoteConversionResult>(`/api/quotes/${id}/convert`, {
       method: 'POST'
     }),
+  approveQuote: (id: string) =>
+    request<{ quote: QuoteDetail }>(`/api/quotes/${id}/approve`, {
+      method: 'POST'
+    }),
   invoices: () => request<Invoice[]>('/api/invoices'),
   invoice: (id: string) => request<InvoiceDetail>(`/api/invoices/${id}`),
+  sendInvoiceReminder: (id: string) =>
+    request<{ invoice: InvoiceDetail }>(`/api/invoices/${id}/reminder`, {
+      method: 'POST'
+    }),
   payments: () => request<Payment[]>('/api/payments'),
   payment: (id: string) => request<Payment>(`/api/payments/${id}`),
+  resolvePaymentProof: (id: string) =>
+    request<{ payment: Payment }>(`/api/payments/${id}/resolve-proof`, {
+      method: 'POST'
+    }),
+  allocatePayment: (id: string, invoiceId?: string) =>
+    request<{ payment: Payment }>(`/api/payments/${id}/allocate`, {
+      method: 'POST',
+      body: JSON.stringify({ invoiceId })
+    }),
   notifications: () => request<Notification[]>('/api/notifications'),
+  markNotificationRead: (id: string, read: boolean) =>
+    request<Notification>(`/api/notifications/${id}/read`, {
+      method: 'PATCH',
+      body: JSON.stringify({ read })
+    }),
+  snoozeNotification: (id: string, until: string) =>
+    request<Notification>(`/api/notifications/${id}/snooze`, {
+      method: 'PATCH',
+      body: JSON.stringify({ until })
+    }),
+  dismissNotification: (id: string) =>
+    request<Notification>(`/api/notifications/${id}/dismiss`, {
+      method: 'PATCH'
+    }),
   settings: () => request<Settings>('/api/settings'),
   roles: () => request<Role[]>('/api/roles')
 };

@@ -44,7 +44,17 @@ export type InvoiceDetail = Invoice & {
   workflow: QuoteWorkflowEvent[];
 };
 export type Payment = { id: string; ref: string; party: string; amount: string; method: string; status: string; date: string; appliedTo: string; proof: string; nextAction: string; };
-export type Notification = { id: string; title: string; meta: string; state: string; read: boolean; type: string; };
+export type NotificationType = 'approval' | 'collection' | 'payment' | 'stock' | 'general';
+export type Notification = {
+  id: string;
+  title: string;
+  meta: string;
+  state: string;
+  read: boolean;
+  type: NotificationType | string;
+  dismissed?: boolean;
+  snoozedUntil?: string | null;
+};
 export type Settings = { themes: string[]; paymentModes: string[]; density: string[]; supportEmail: string; whatsapp: string; business: { currency: string; taxDefault: string; paymentTerms: string; defaultBranch: string; }; };
 export type Role = { key: RoleKey; label: string; description: string; dashboards: string[]; };
 export type TopClient = { customerId: string; name: string; revenue: string; invoices: number; averageOrderValue: string; overdueBalance: string; trend: string; };

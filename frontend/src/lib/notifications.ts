@@ -1,9 +1,11 @@
 import type { Notification } from '../types';
 
+export type NotificationCategory = 'approval' | 'collection' | 'payment' | 'general';
+
 export type ActionNotification = Notification & {
   recordPath: string;
   actionLabel: string;
-  category: 'approval' | 'collection' | 'payment' | 'general';
+  category: NotificationCategory;
 };
 
 function extractRecordId(value: string): string | null {
@@ -30,7 +32,7 @@ function inferActionLabel(item: Notification): string {
   return 'Open record';
 }
 
-function inferCategory(item: Notification): ActionNotification['category'] {
+function inferCategory(item: Notification): NotificationCategory {
   const source = `${item.title} ${item.meta}`.toLowerCase();
   if (source.includes('approval') || item.type === 'approval') return 'approval';
   if (source.includes('overdue') || item.type === 'collection') return 'collection';
@@ -48,7 +50,8 @@ export function toActionNotification(item: Notification): ActionNotification {
 }
 
 export function summarizeNotifications(items: Notification[]) {
-  const alerts = items.map(toActionNotification);
+  const visible = items.filter((item) => !item.dismissed);
+  const alerts = visible.map(toActionNotification);
   return {
     alerts,
     unread: alerts.filter((item) => !item.read).length,

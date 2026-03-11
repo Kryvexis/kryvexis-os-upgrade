@@ -15,6 +15,11 @@ export function DashboardPage({ role }: { role: RoleKey }) {
     api.notifications().then(setNotifications).catch(() => setNotifications([]));
   }, [role]);
 
+  async function markRead(id: string, read: boolean) {
+    const updated = await api.markNotificationRead(id, read);
+    setNotifications((current) => current.map((item) => item.id === id ? updated : item));
+  }
+
   if (!data) return <div className="loading-state">Loading dashboard...</div>;
 
   const summary = summarizeNotifications(notifications.length ? notifications : data.highlights);
@@ -50,7 +55,12 @@ export function DashboardPage({ role }: { role: RoleKey }) {
                 <div>
                   <strong>{item.title}</strong>
                   <p>{item.meta}</p>
-                  <Link className="action-link" to={item.recordPath}>{item.actionLabel}</Link>
+                  <div className="notification-actions-row">
+                    <Link className="action-link" to={item.recordPath}>{item.actionLabel}</Link>
+                    <button className="text-button" onClick={() => markRead(item.id, !item.read)}>
+                      {item.read ? 'Mark unread' : 'Mark read'}
+                    </button>
+                  </div>
                 </div>
                 <span className={`badge ${item.read ? 'neutral' : 'warning'}`}>{item.state}</span>
               </article>
