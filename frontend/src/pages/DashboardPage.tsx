@@ -42,8 +42,8 @@ export function DashboardPage({ role }: { role: RoleKey }) {
   if (!data) return <div className="loading-state">Loading dashboard...</div>;
 
   const summary = summarizeNotifications(notifications.length ? notifications : data.highlights);
-  const priorityItems = summary.alerts.slice(0, 5);
-  const actionItems = data.actionCenter.actionQueue.slice(0, 4);
+  const priorityItems = summary.alerts.slice(0, 4);
+  const actionItems = data.actionCenter.actionQueue.slice(0, 3);
   const clientLead = data.topClients[0];
   const openInvoices = data.kpis.find((item) => /invoice/i.test(item.label));
   const approvals = data.kpis.find((item) => /approval/i.test(item.label));
