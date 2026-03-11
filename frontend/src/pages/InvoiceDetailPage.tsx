@@ -69,6 +69,9 @@ export function InvoiceDetailPage() {
           <button className="solid-button" onClick={handleReminder} disabled={busy}>
             {busy ? 'Sending...' : 'Send reminder'}
           </button>
+          <Link className="ghost-button" to={`/emails/invoice-reminder/${item.id}`}>
+            Generate email
+          </Link>
           <Link className="ghost-button" to={`/invoices/${item.id}/print`} target="_blank" rel="noreferrer">
             Print invoice
           </Link>

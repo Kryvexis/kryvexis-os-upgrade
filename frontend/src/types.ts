@@ -17,7 +17,22 @@ export type Customer = {
   nextAction: string;
   activity: string[];
 };
-export type Product = { id: string; sku: string; name: string; branch: string; status: string; stock: number; reorderAt: number; price: string; cost: string; supplier: string; barcode: string; variants: string; movementSummary: string; nextAction: string; };
+export type Product = {
+  id: string;
+  sku: string;
+  name: string;
+  branch: string;
+  status: string;
+  stock: number;
+  reorderAt: number;
+  price: string;
+  cost: string;
+  supplier: string;
+  barcode: string;
+  variants: string;
+  movementSummary: string;
+  nextAction: string;
+};
 export type QuoteStatus = 'Draft' | 'Pending approval' | 'Approved' | 'Sent to customer' | 'Converted';
 export type Quote = { id: string; customer: string; owner: string; value: string; status: string; validity: string; branch: string; trigger: string; updated: string; notes: string; nextAction: string; };
 export type QuoteLine = { id: string; sku: string; description: string; qty: number; unitPrice: string; total: string; };
@@ -146,4 +161,16 @@ export type QuoteConversionResult = {
   quote: QuoteDetail;
   invoice: InvoiceDetail;
   reused: boolean;
+};
+export type EmailTemplateKind = 'quote-send' | 'invoice-reminder' | 'payment-proof';
+export type EmailDraft = {
+  kind: EmailTemplateKind;
+  subject: string;
+  to: string;
+  cc?: string;
+  recordId: string;
+  customerName: string;
+  intro: string;
+  body: string[];
+  closing: string;
 };

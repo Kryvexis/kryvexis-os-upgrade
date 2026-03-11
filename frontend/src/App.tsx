@@ -17,6 +17,7 @@ import { PaymentDetailPage } from './pages/PaymentDetailPage';
 import { NotificationsPage } from './pages/NotificationsPage';
 import { RolesPage } from './pages/RolesPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { EmailComposerPage } from './pages/EmailComposerPage';
 import { applyTheme, getStoredTheme, type ThemeMode } from './lib/theme';
 import type { RoleKey } from './types';
 export default function App() {
@@ -43,6 +44,7 @@ export default function App() {
         <Route path="/notifications" element={<NotificationsPage />} />
         <Route path="/roles" element={<RolesPage />} />
         <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/emails/:kind/:id" element={<EmailComposerPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

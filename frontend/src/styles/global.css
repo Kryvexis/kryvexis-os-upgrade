@@ -512,3 +512,63 @@ button, select { font: inherit; }
 .sales-bar-copy p { font-size: 0.9rem; }
 .hero-footer-card { padding: 12px 14px; }
 .watchlist-card strong { font-size: 1.3rem; }
+
+/* dashboard third pass + inventory + email foundation */
+.dashboard-v3 .panel,
+.dashboard-v3 .card { min-height: 0; }
+.compact-dashboard-kpis .kpi-card { padding: 16px 18px; min-height: 96px; }
+.compact-dashboard-kpis .kpi-card strong { font-size: 2rem; }
+.dashboard-primary-grid-tight { grid-template-columns: minmax(0, 1.7fr) minmax(320px, 0.95fr); gap: 14px; align-items: start; }
+.hero-card-compact { padding: 16px 18px; }
+.compact-hero-row { margin-bottom: 12px; }
+.compact-hero-value { font-size: 3rem; line-height: 1; }
+.horizontal-chips { flex-direction: row; gap: 8px; }
+.small-chip { padding: 8px 12px; font-size: 0.88rem; }
+.compact-sales-bars-card { gap: 8px; padding: 12px 0 4px; }
+.compact-sales-bar-row { gap: 14px; padding: 8px 0; }
+.compact-sales-copy strong { font-size: 1rem; }
+.compact-sales-copy p { margin-top: 2px; font-size: 0.87rem; }
+.compact-sales-track { height: 8px; }
+.compact-hero-footer-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 14px; }
+.compact-footer-card { padding: 14px 16px; min-height: 86px; }
+.dashboard-side-stack-tight { gap: 12px; }
+.tighter-panel-card { padding: 14px 16px; }
+.compact-summary-strip { margin-bottom: 10px; }
+.compact-summary-strip div { padding: 10px 12px; min-height: 70px; }
+.compact-priority-card { padding: 12px 14px; }
+.compact-priority-card p { margin: 4px 0 0; }
+.compact-action-stack { gap: 10px; }
+.compact-action-row { padding: 10px 12px; }
+.compact-secondary-grid { grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr); gap: 14px; }
+.compact-secondary-card { padding: 14px 16px; }
+.compact-workspace-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.compact-workspace-tile { padding: 18px 12px; min-height: 110px; }
+.compact-watchlist-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.compact-watch-card { padding: 14px 16px; min-height: 96px; }
+.brand-block { min-height: 86px; padding: 14px 16px; }
+.brand-block p { line-height: 1.25; }
+.sidebar { gap: 14px; }
+.inventory-page-grid { gap: 14px; }
+.inventory-hero-card { padding: 16px 18px; }
+.inventory-hero-grid { display: flex; justify-content: space-between; gap: 12px; align-items: center; margin-bottom: 14px; }
+.inventory-tile-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.inventory-module-tile { border: 1px solid var(--line); border-radius: 18px; background: rgba(255,255,255,0.02); padding: 16px; min-height: 128px; display: flex; flex-direction: column; gap: 8px; }
+.inventory-module-tile p { margin: 0; color: var(--muted); font-size: 0.9rem; }
+.inventory-secondary-grid { align-items: start; }
+.inventory-watch-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.inventory-table td, .inventory-table th { white-space: nowrap; }
+.table-link { color: var(--text); text-decoration: none; font-weight: 700; }
+.table-link:hover { color: var(--accent); }
+.compact-record-hero { padding: 16px 18px; }
+.email-page-layout { gap: 14px; }
+.email-grid { grid-template-columns: minmax(0, 1.4fr) minmax(320px, 0.7fr); }
+.email-preview-sheet { border: 1px solid var(--line); border-radius: 18px; background: rgba(255,255,255,0.03); padding: 18px; display: flex; flex-direction: column; gap: 10px; }
+.email-preview-sheet p { margin: 0; line-height: 1.55; }
+.email-meta-grid { display: grid; gap: 10px; margin-bottom: 12px; }
+.email-meta-grid div { border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; }
+.email-meta-grid span { display: block; color: var(--muted); font-size: 0.78rem; margin-bottom: 6px; }
+.tight-detail-stack div { padding: 10px 0; }
+@media (max-width: 1180px) {
+  .dashboard-primary-grid-tight, .compact-secondary-grid, .email-grid, .inventory-tile-grid { grid-template-columns: 1fr; }
+  .compact-workspace-grid, .compact-watchlist-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

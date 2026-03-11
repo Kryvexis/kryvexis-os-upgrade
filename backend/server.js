@@ -496,8 +496,86 @@ app.post('/api/payments/:id/allocate', (req, res) => {
   return res.json(envelope({ payment: buildPaymentDetail(payment) }));
 });
 
+
+function buildEmailDraft(kind, id) {
+  if (kind === 'quote-send') {
+    const quote = findQuote(id);
+    if (!quote) return null;
+    const customer = findCustomer(quote.customerId);
+    return {
+      kind,
+      subject: `Quote ${quote.id} from Kryvexis OS`,
+      to: customer?.contact || 'client@example.com',
+      recordId: quote.id,
+      customerName: quote.customer,
+      intro: `Hi ${quote.customer},`,
+      body: [
+        `Please find quote ${quote.id} prepared for your review with a total value of ${quote.total}.`,
+        `The quote is valid until ${quote.validity} and covers the requested items for the ${quote.branch} branch workflow.`,
+        `Reply to this email if you would like us to proceed or adjust any line items before confirmation.`
+      ],
+      closing: `Regards,
+${quote.owner}
+Kryvexis Solutions`
+    };
+  }
+
+  if (kind === 'invoice-reminder') {
+    const invoice = findInvoice(id);
+    if (!invoice) return null;
+    const customer = findCustomer(invoice.customerId);
+    return {
+      kind,
+      subject: `Reminder: invoice ${invoice.id} is due`,
+      to: customer?.contact || 'accounts@example.com',
+      recordId: invoice.id,
+      customerName: invoice.customer,
+      intro: `Hi ${invoice.customer},`,
+      body: [
+        `This is a friendly reminder regarding invoice ${invoice.id} for ${invoice.amount}.`,
+        `The invoice is currently marked as ${invoice.status.toLowerCase()} and the due status is ${invoice.due}.`,
+        `If payment has already been made, please send proof of payment so our finance team can update the record immediately.`
+      ],
+      closing: `Regards,
+Finance Team
+Kryvexis Solutions`
+    };
+  }
+
+  if (kind === 'payment-proof') {
+    const payment = findPayment(id);
+    if (!payment) return null;
+    const customer = findCustomer(payment.customerId);
+    return {
+      kind,
+      subject: `Follow-up: payment ${payment.ref} proof required`,
+      to: customer?.contact || 'finance@example.com',
+      recordId: payment.id,
+      customerName: payment.party,
+      intro: `Hi ${payment.party},`,
+      body: [
+        `We have recorded payment ${payment.ref} for ${payment.amount} via ${payment.method}.`,
+        `Our team still needs the supporting proof so we can complete allocation against ${payment.appliedTo}.`,
+        `Please reply with the payment confirmation at your earliest convenience so we can close the finance action.`
+      ],
+      closing: `Regards,
+Finance Team
+Kryvexis Solutions`
+    };
+  }
+
+  return null;
+}
+
 listRoute('customers', customers);
 listRoute('products', products);
+
+app.get('/api/emails/:kind/:id', (req, res) => {
+  const draft = buildEmailDraft(req.params.kind, req.params.id);
+  if (!draft) return res.status(404).json({ ok: false, error: 'email draft not found' });
+  return res.json(envelope(draft));
+});
+
 app.get('/api/settings', (_req, res) => res.json(envelope(settings)));
 app.get('/api/roles', (_req, res) => res.json(envelope(roles)));
 

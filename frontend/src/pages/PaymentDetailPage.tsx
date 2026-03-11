@@ -91,6 +91,9 @@ export function PaymentDetailPage() {
           ) : (
             <div className="inline-note">Payment is already allocated.</div>
           )}
+          <Link className="ghost-button" to={`/emails/payment-proof/${item.id}`}>
+            Generate email
+          </Link>
           <Link className="ghost-button" to={`/customers/${item.customerId}`}>
             Open customer
           </Link>

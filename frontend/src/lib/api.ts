@@ -2,6 +2,8 @@ import type {
   Customer,
   CustomerSummary,
   DashboardResponse,
+  EmailDraft,
+  EmailTemplateKind,
   Invoice,
   InvoiceDetail,
   Notification,
@@ -90,6 +92,8 @@ export const api = {
     request<Notification>(`/api/notifications/${id}/dismiss`, {
       method: 'PATCH'
     }),
+  emailDraft: (kind: EmailTemplateKind, id: string) =>
+    request<EmailDraft>(`/api/emails/${kind}/${id}`),
   settings: () => request<Settings>('/api/settings'),
   roles: () => request<Role[]>('/api/roles')
 };

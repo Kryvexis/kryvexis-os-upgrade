@@ -118,6 +118,9 @@ export function QuoteDetailPage() {
           ) : (
             <div className="inline-note">Approve or send this quote before conversion.</div>
           )}
+          <Link className="ghost-button" to={`/emails/quote-send/${item.id}`}>
+            Generate email
+          </Link>
           <Link className="ghost-button" to={`/quotes/${item.id}/print`} target="_blank" rel="noreferrer">
             Print quote
           </Link>
