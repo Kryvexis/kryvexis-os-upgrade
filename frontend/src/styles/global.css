@@ -43,3 +43,11 @@
   .toolbar-actions, .notification-actions-row, .quick-action-group { flex-direction: column; align-items: stretch; }
   .notification-side { justify-items: start; }
 }
+
+.action-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.wrap-actions { align-items: flex-start; }
+.inline-note { color: var(--muted); font-size: 0.92rem; }
+.success-note, .error-note { margin: 14px 0 0; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--line); }
+.success-note { color: var(--success); background: rgba(52, 211, 153, 0.08); }
+.error-note { color: var(--danger); background: rgba(251, 113, 133, 0.08); }
+.ghost-button:disabled, .solid-button:disabled { opacity: 0.65; cursor: not-allowed; }

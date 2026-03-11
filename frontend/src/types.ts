@@ -43,7 +43,7 @@ export type InvoiceDetail = Invoice & {
   lines: QuoteLine[];
   workflow: QuoteWorkflowEvent[];
 };
-export type Payment = { id: string; ref: string; party: string; amount: string; method: string; status: string; date: string; appliedTo: string; proof: string; nextAction: string; };
+export type Payment = { id: string; ref: string; customerId: string; party: string; amount: string; method: string; status: string; date: string; appliedTo: string; proof: string; nextAction: string; };
 export type NotificationType = 'approval' | 'collection' | 'payment' | 'stock' | 'general';
 export type Notification = {
   id: string;

@@ -8,7 +8,6 @@ import type { QuoteDetail, QuoteStatus } from '../types';
 
 const statusActions: Partial<Record<QuoteStatus, { label: string; next: QuoteStatus }>> = {
   Draft: { label: 'Submit for approval', next: 'Pending approval' },
-  'Pending approval': { label: 'Approve quote', next: 'Approved' },
   Approved: { label: 'Mark as sent', next: 'Sent to customer' }
 };
 
@@ -16,7 +15,7 @@ export function QuoteDetailPage() {
   const { id = '' } = useParams();
   const navigate = useNavigate();
   const [item, setItem] = useState<QuoteDetail | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [busyAction, setBusyAction] = useState('');
   const [error, setError] = useState('');
   const [flash, setFlash] = useState('');
 
@@ -24,48 +23,58 @@ export function QuoteDetailPage() {
     api.quote(id).then(setItem).catch((err: Error) => setError(err.message));
   }, [id]);
 
+  const runAction = async (actionKey: string, runner: () => Promise<void>) => {
+    setBusyAction(actionKey);
+    setError('');
+    setFlash('');
+    try {
+      await runner();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to complete quote action.');
+    } finally {
+      setBusyAction('');
+    }
+  };
+
   const handleStatusAdvance = async () => {
     if (!item) return;
     const action = statusActions[item.status as QuoteStatus];
     if (!action) return;
 
-    setBusy(true);
-    setError('');
-    setFlash('');
-    try {
+    await runAction('status', async () => {
       const result = await api.updateQuoteStatus(item.id, action.next);
       setItem(result.quote);
       setFlash(`Quote moved to ${action.next}.`);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to update quote status.');
-    } finally {
-      setBusy(false);
-    }
+    });
+  };
+
+  const handleApprove = async () => {
+    if (!item || item.status !== 'Pending approval') return;
+
+    await runAction('approve', async () => {
+      const result = await api.approveQuote(item.id);
+      setItem(result.quote);
+      setFlash(`Quote ${item.id} approved.`);
+    });
   };
 
   const handleConvert = async () => {
     if (!item) return;
 
-    setBusy(true);
-    setError('');
-    setFlash('');
-    try {
+    await runAction('convert', async () => {
       const result = await api.convertQuote(item.id);
       setItem(result.quote);
       navigate(`/invoices/${result.invoice.id}`, {
         state: { flash: result.reused ? `Invoice ${result.invoice.id} already existed for this quote.` : `Invoice ${result.invoice.id} created from ${item.id}.` }
       });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to convert quote to invoice.');
-    } finally {
-      setBusy(false);
-    }
+    });
   };
 
   if (error && !item) return <div className="loading-state">{error}</div>;
   if (!item) return <div className="loading-state">Loading record...</div>;
 
   const action = statusActions[item.status as QuoteStatus];
+  const canApprove = item.status === 'Pending approval';
   const canConvert = item.status === 'Approved' || item.status === 'Sent to customer' || item.status === 'Converted';
 
   return (
@@ -87,18 +96,23 @@ export function QuoteDetailPage() {
         </div>
       </Card>
 
-      <Card title="Phase B actions" subtitle="Advance the quote or convert it into the first invoice draft.">
-        <div className="action-row">
+      <Card title="Record actions" subtitle="Run quote workflow directly from the record page.">
+        <div className="action-row wrap-actions">
           {action ? (
-            <button className="solid-button" onClick={handleStatusAdvance} disabled={busy}>
-              {busy ? 'Working...' : action.label}
+            <button className="solid-button" onClick={handleStatusAdvance} disabled={Boolean(busyAction)}>
+              {busyAction === 'status' ? 'Working...' : action.label}
             </button>
           ) : (
             <div className="inline-note">No further status step is available for this quote.</div>
           )}
+          {canApprove ? (
+            <button className="ghost-button" onClick={handleApprove} disabled={Boolean(busyAction)}>
+              {busyAction === 'approve' ? 'Approving...' : 'Approve quote'}
+            </button>
+          ) : null}
           {canConvert ? (
-            <button className="ghost-button" onClick={handleConvert} disabled={busy || item.status === 'Converted'}>
-              {item.status === 'Converted' ? 'Already converted' : 'Convert to invoice'}
+            <button className="ghost-button" onClick={handleConvert} disabled={Boolean(busyAction) || item.status === 'Converted'}>
+              {busyAction === 'convert' ? 'Converting...' : item.status === 'Converted' ? 'Already converted' : 'Convert to invoice'}
             </button>
           ) : (
             <div className="inline-note">Approve or send this quote before conversion.</div>
@@ -170,11 +184,11 @@ export function QuoteDetailPage() {
           </div>
         </Card>
 
-        <Card title="Phase B outcome" subtitle="This quote can now advance into the invoice module.">
+        <Card title="Operational outcome" subtitle="Quote actions are now available directly on this record.">
           <div className="detail-stack">
             <div><span>Current state</span><strong>{item.status}</strong></div>
-            <div><span>Ready for print phase</span><strong>Quote and invoice print pages next</strong></div>
-            <div><span>After that</span><strong>Auto-save PDF + reminders</strong></div>
+            <div><span>Print ready</span><strong>Use Print quote for customer output</strong></div>
+            <div><span>Next module</span><strong>Invoice reminders and payment follow-through</strong></div>
           </div>
         </Card>
       </div>

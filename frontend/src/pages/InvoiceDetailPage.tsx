@@ -11,17 +11,38 @@ export function InvoiceDetailPage() {
   const location = useLocation();
   const [item, setItem] = useState<InvoiceDetail | null>(null);
   const [error, setError] = useState('');
+  const [flash, setFlash] = useState('');
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     api.invoice(id).then(setItem).catch((err: Error) => setError(err.message));
   }, [id]);
 
+  useEffect(() => {
+    const stateFlash = location.state && typeof location.state === 'object' && 'flash' in location.state
+      ? String(location.state.flash)
+      : '';
+    if (stateFlash) setFlash(stateFlash);
+  }, [location.state]);
+
+  const handleReminder = async () => {
+    if (!item) return;
+    setBusy(true);
+    setError('');
+    setFlash('');
+    try {
+      const result = await api.sendInvoiceReminder(item.id);
+      setItem(result.invoice);
+      setFlash(`Reminder sent for ${item.id}.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to send reminder.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   if (error && !item) return <div className="loading-state">{error}</div>;
   if (!item) return <div className="loading-state">Loading record...</div>;
-
-  const flash = location.state && typeof location.state === 'object' && 'flash' in location.state
-    ? String(location.state.flash)
-    : '';
 
   return (
     <div className="record-layout">
@@ -42,11 +63,26 @@ export function InvoiceDetailPage() {
         </div>
       </Card>
 
-      {flash ? (
-        <Card>
-          <p className="success-note invoice-flash">{flash}</p>
-        </Card>
-      ) : null}
+      <Card title="Record actions" subtitle="Run finance follow-up directly from the invoice page.">
+        <div className="action-row wrap-actions">
+          <button className="solid-button" onClick={handleReminder} disabled={busy}>
+            {busy ? 'Sending...' : 'Send reminder'}
+          </button>
+          <Link className="ghost-button" to={`/invoices/${item.id}/print`} target="_blank" rel="noreferrer">
+            Print invoice
+          </Link>
+          {item.sourceQuoteId ? (
+            <Link className="ghost-button" to={`/quotes/${item.sourceQuoteId}`}>
+              Open source quote
+            </Link>
+          ) : null}
+          <Link className="ghost-button" to={`/customers/${item.sourceCustomerId}`}>
+            Open customer
+          </Link>
+        </div>
+        {flash ? <p className="success-note">{flash}</p> : null}
+        {error ? <p className="error-note">{error}</p> : null}
+      </Card>
 
       <div className="kpi-grid compact-kpi-grid">
         <Card className="metric-card"><p className="eyebrow">Subtotal</p><strong>{item.subtotal}</strong><p>Net amount before tax.</p></Card>
@@ -69,7 +105,7 @@ export function InvoiceDetailPage() {
         </Card>
       </div>
 
-      <Card title="Invoice line items" subtitle="Mirrors the quote lines so print-ready work in the next phase stays consistent.">
+      <Card title="Invoice line items" subtitle="Mirrors the quote lines so customer print output stays consistent.">
         <div className="history-table-wrap">
           <table className="data-grid history-table">
             <thead>
