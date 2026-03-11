@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
+import { ActivityFeed } from '../components/ActivityFeed';
 import { Badge } from '../components/Badge';
 import { Card } from '../components/Card';
-import { RecordTimeline } from '../components/RecordTimeline';
 import { api } from '../lib/api';
 import type { Payment } from '../types';
 
@@ -54,7 +54,7 @@ export function PaymentDetailPage() {
 
   const canResolveProof = item.proof !== 'Attached and verified';
   const canAllocate = item.status !== 'Allocated';
-  const linkedInvoice = item.appliedTo.startsWith('INV-') ? item.appliedTo : null;
+  const linkedInvoice = item.linkedInvoiceId || (item.appliedTo.startsWith('INV-') ? item.appliedTo : null);
 
   return (
     <div className="record-layout">
@@ -100,6 +100,10 @@ export function PaymentDetailPage() {
             </Link>
           ) : null}
         </div>
+        <div className="record-link-strip">
+          <span className="record-chip muted-chip">Proof: {item.proof}</span>
+          <span className="record-chip muted-chip">Next action: {item.nextAction}</span>
+        </div>
         {flash ? <p className="success-note">{flash}</p> : null}
         {error ? <p className="error-note">{error}</p> : null}
       </Card>
@@ -112,15 +116,8 @@ export function PaymentDetailPage() {
             <div><span>Allocation target</span><strong>{item.appliedTo}</strong></div>
           </div>
         </Card>
-        <Card title="Activity and collaboration" subtitle="Operational context for finance follow-through.">
-          <RecordTimeline
-            items={[
-              `Method: ${item.method}`,
-              `Proof: ${item.proof}`,
-              `Status: ${item.status}`,
-              `Next action: ${item.nextAction}`
-            ]}
-          />
+        <Card title="Audit trail" subtitle="Operational context for finance follow-through.">
+          <ActivityFeed items={item.activityLog || []} />
         </Card>
       </div>
     </div>

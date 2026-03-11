@@ -93,7 +93,12 @@ let notifications = [
 ];
 
 const settings = {
-  themes: ['dark', 'light', 'system'], paymentModes: ['EFT', 'Cash'], density: ['comfortable', 'compact'], supportEmail: 'kryvexissolutions@gmail.com', whatsapp: '+27686282874', business: { currency: 'ZAR', taxDefault: 'VAT Standard', paymentTerms: '30 days', defaultBranch: 'Johannesburg' }
+  themes: ['dark', 'light', 'system'],
+  paymentModes: ['EFT', 'Cash'],
+  density: ['comfortable', 'compact'],
+  supportEmail: 'kryvexissolutions@gmail.com',
+  whatsapp: '+27686282874',
+  business: { currency: 'ZAR', taxDefault: 'VAT Standard', paymentTerms: '30 days', defaultBranch: 'Johannesburg' }
 };
 
 const topClients = [
@@ -102,7 +107,7 @@ const topClients = [
   { customerId: 'CUS-002', name: 'Northline Foods', revenue: 'R41,920', invoices: 5, averageOrderValue: 'R8,384', overdueBalance: 'R0', trend: 'Healthy collections' }
 ];
 
-const customerSummaries = {
+const baseCustomerSummaries = {
   'CUS-001': {
     customerId: 'CUS-001', totalSpend: 'R78,240', invoiceCount: 6, averageOrderValue: 'R13,040', overdueBalance: 'R5,040', lastPurchaseDate: '2026-03-09', lastPaymentDate: 'Today 10:42', collectionStatus: '1 overdue invoice needs follow-up',
     topProducts: [
@@ -110,9 +115,6 @@ const customerSummaries = {
       { sku: 'SKU-1021', name: 'Thermal Roll Box', quantity: 56, revenue: 'R21,280' },
       { sku: 'SKU-1033', name: 'Warehouse Scanner Dock', quantity: 9, revenue: 'R11,610' }
     ],
-    openQuotes: quotes.filter((item) => item.customerId === 'CUS-001' && item.status !== 'Converted'),
-    recentInvoices: invoices.filter((item) => item.customerId === 'CUS-001').slice(0, 3),
-    recentPayments: payments.filter((item) => item.customerId === 'CUS-001').slice(0, 3),
     purchaseHistory: [
       { id: 'PH-1', date: '2026-03-10', type: 'payment', reference: 'PAY-7701', amount: 'R7,400', status: 'Allocated', note: 'Part-payment allocated to INV-2201' },
       { id: 'PH-2', date: '2026-03-09', type: 'invoice', reference: 'INV-2201', amount: 'R12,440', status: 'Overdue', note: 'Reminder sent and follow-up queued' },
@@ -125,9 +127,6 @@ const customerSummaries = {
       { sku: 'SKU-1021', name: 'Thermal Roll Box', quantity: 84, revenue: 'R31,920' },
       { sku: 'SKU-1033', name: 'Warehouse Scanner Dock', quantity: 8, revenue: 'R10,000' }
     ],
-    openQuotes: quotes.filter((item) => item.customerId === 'CUS-002'),
-    recentInvoices: invoices.filter((item) => item.customerId === 'CUS-002').slice(0, 3),
-    recentPayments: payments.filter((item) => item.customerId === 'CUS-002').slice(0, 3),
     purchaseHistory: [
       { id: 'PH-6', date: '2026-03-10', type: 'payment', reference: 'PAY-7693', amount: 'R4,980', status: 'Pending proof', note: 'Cash received but proof still outstanding' }
     ]
@@ -139,9 +138,6 @@ const customerSummaries = {
       { sku: 'SKU-1021', name: 'Thermal Roll Box', quantity: 45, revenue: 'R17,100' },
       { sku: 'SKU-1033', name: 'Warehouse Scanner Dock', quantity: 12, revenue: 'R15,480' }
     ],
-    openQuotes: quotes.filter((item) => item.customerId === 'CUS-003'),
-    recentInvoices: invoices.filter((item) => item.customerId === 'CUS-003').slice(0, 3),
-    recentPayments: payments.filter((item) => item.customerId === 'CUS-003').slice(0, 3),
     purchaseHistory: [
       { id: 'PH-9', date: '2026-03-10', type: 'quote', reference: 'Q-1045', amount: 'R62,500', status: 'Pending approval', note: 'Waiting on manager approval before customer send' }
     ]
@@ -149,46 +145,146 @@ const customerSummaries = {
 };
 
 const dashboardByRole = {
-  admin: { kpis: [
+  admin: {
+    kpis: [
       { label: 'System activity', value: '342', detail: 'Events in the last 24h' },
       { label: 'Pending approvals', value: '6', detail: 'Quotes and exceptions' },
       { label: 'Branch health', value: '92%', detail: 'Operational completion score' },
       { label: 'Unread notifications', value: '11', detail: 'Across all roles' }
-    ], panels: [
+    ],
+    panels: [
       { title: 'Approvals queue', items: ['Q-1045 high-value quote', 'Payment exception PAY-7693', 'Role change request for Cape Town'] },
       { title: 'Audit highlights', items: ['Theme changed to system', 'Invoice template updated', 'Branch settings edited'] }
-    ] },
-  sales: { kpis: [
+    ]
+  },
+  sales: {
+    kpis: [
       { label: 'Quotes awaiting action', value: '9', detail: '3 need approval' },
       { label: 'Invoices due', value: 'R45,230', detail: '12 active invoices' },
       { label: 'Customer balances', value: 'R98,120', detail: 'Across key accounts' },
       { label: 'Personal target', value: '74%', detail: 'Month-to-date progress' }
-    ], panels: [
+    ],
+    panels: [
       { title: 'Follow-up focus', items: ['Call Acme Retail Group', 'Send revised quote to Northline', 'Approve Urban Build pricing note'] },
       { title: 'Recent communications', items: ['Invoice reminder sent', 'Quote viewed by customer', 'Statement export completed'] }
-    ] },
-  finance: { kpis: [
+    ]
+  },
+  finance: {
+    kpis: [
       { label: 'Debtor aging', value: 'R184,900', detail: '31+ days: R42,300' },
       { label: 'Receipts today', value: 'R18,400', detail: '3 collections booked' },
       { label: 'Overdue accounts', value: '12', detail: '5 need escalation' },
       { label: 'Cash-up alerts', value: '1', detail: 'Cape Town variance pending' }
-    ], panels: [
+    ],
+    panels: [
       { title: 'Collection actions', items: ['INV-2201 follow-up', 'Allocate PAY-7688', 'Send first reminder batch'] },
       { title: 'Approvals and exceptions', items: ['Unallocated EFT review', 'Missing proof on PAY-7693', 'Tax override awaiting confirmation'] }
-    ] }
+    ]
+  }
 };
+
+let auditLog = [
+  { id: 'AUD-1', title: 'Quote drafted', detail: 'Q-1045 prepared for Urban Build Supply with protected margin review.', actor: 'Alex Morgan', timestamp: 'Today 08:12', recordType: 'quote', recordId: 'Q-1045', recordPath: '/quotes/Q-1045', customerId: 'CUS-003', status: 'Drafted' },
+  { id: 'AUD-2', title: 'Quote sent to customer', detail: 'Q-1042 delivered to Acme Retail Group and tracked in audit.', actor: 'Rina Patel', timestamp: 'Today 09:06', recordType: 'quote', recordId: 'Q-1042', recordPath: '/quotes/Q-1042', customerId: 'CUS-001', status: 'Sent to customer' },
+  { id: 'AUD-3', title: 'Invoice overdue follow-up', detail: 'INV-2201 remains overdue and is queued for collections follow-up.', actor: 'Finance Bot', timestamp: 'Today 10:10', recordType: 'invoice', recordId: 'INV-2201', recordPath: '/invoices/INV-2201', customerId: 'CUS-001', status: 'Overdue' },
+  { id: 'AUD-4', title: 'Payment proof requested', detail: 'PAY-7693 still needs proof before final allocation.', actor: 'Finance Team', timestamp: 'Today 10:18', recordType: 'payment', recordId: 'PAY-7693', recordPath: '/payments/PAY-7693', customerId: 'CUS-002', status: 'Pending proof' },
+  { id: 'AUD-5', title: 'Receipt awaiting allocation', detail: 'PAY-7688 received for Urban Build Supply and is waiting for invoice allocation.', actor: 'Finance Team', timestamp: 'Today 10:24', recordType: 'payment', recordId: 'PAY-7688', recordPath: '/payments/PAY-7688', customerId: 'CUS-003', status: 'Unallocated' },
+  { id: 'AUD-6', title: 'Dashboard theme changed', detail: 'System theme preference updated to system mode.', actor: 'Admin', timestamp: 'Yesterday 16:00', recordType: 'system', recordId: 'settings', recordPath: '/settings', customerId: null, status: 'Applied' }
+];
 
 function envelope(data, extra = {}) { return { ok: true, ...extra, data }; }
 function findQuote(id) { return quotes.find((entry) => entry.id === id); }
 function findInvoice(id) { return invoices.find((entry) => entry.id === id); }
 function findPayment(id) { return payments.find((entry) => entry.id === id || entry.ref === id); }
 function findNotification(id) { return notifications.find((entry) => entry.id === id); }
+function findCustomer(id) { return customers.find((entry) => entry.id === id); }
 function activeNotifications() { return notifications.filter((item) => !item.dismissed); }
 function stampNow() { return 'Just now'; }
+function numericAmount(value) { return Number(String(value || '').replace(/[^\d.-]/g, '')) || 0; }
+function recordPathFor(type, id) {
+  if (type === 'quote') return `/quotes/${id}`;
+  if (type === 'invoice') return `/invoices/${id}`;
+  if (type === 'payment') return `/payments/${id}`;
+  if (type === 'customer') return `/customers/${id}`;
+  return '/';
+}
 
 function pushNotification(notification) {
   notifications = [notification, ...notifications];
   return notification;
+}
+
+function pushAudit(entry) {
+  const normalized = { id: `AUD-${Date.now()}-${Math.floor(Math.random() * 1000)}`, ...entry };
+  auditLog = [normalized, ...auditLog];
+  return normalized;
+}
+
+function operationalActionForNotification(item) {
+  const source = `${item.title} ${item.meta}`.toLowerCase();
+  const recordMatch = `${item.title} ${item.meta}`.match(/(Q-\d+|INV-\d+|PAY-\d+)/i);
+  const recordId = recordMatch ? recordMatch[1].toUpperCase() : '';
+  let recordType = 'system';
+  if (recordId.startsWith('Q-')) recordType = 'quote';
+  if (recordId.startsWith('INV-')) recordType = 'invoice';
+  if (recordId.startsWith('PAY-')) recordType = 'payment';
+  const recordPath = recordId ? recordPathFor(recordType, recordId) : '/notifications';
+  const actionLabel = source.includes('approval') ? 'Review approval' : source.includes('overdue') ? 'Collect now' : source.includes('proof') ? 'Resolve proof' : source.includes('allocate') ? 'Allocate payment' : 'Open record';
+  const priority = item.state === 'Urgent' ? 'high' : item.state === 'Pending' || item.state === 'Action' ? 'medium' : 'low';
+  return {
+    id: item.id,
+    title: item.title,
+    detail: item.meta,
+    owner: recordType === 'quote' ? 'Sales' : recordType === 'invoice' || recordType === 'payment' ? 'Finance' : 'Operations',
+    branch: recordId.startsWith('Q-') ? findQuote(recordId)?.branch || 'Unassigned' : recordId.startsWith('INV-') ? findInvoice(recordId)?.branch || 'Unassigned' : recordId.startsWith('PAY-') ? findCustomer(findPayment(recordId)?.customerId || '')?.branch || 'Unassigned' : 'System',
+    priority,
+    recordPath,
+    actionLabel,
+    status: item.state
+  };
+}
+
+function buildBranchSnapshots() {
+  const branches = [...new Set(customers.map((item) => item.branch))];
+  return branches.map((branch) => ({
+    branch,
+    approvals: quotes.filter((item) => item.branch === branch && item.status === 'Pending approval').length,
+    collections: invoices.filter((item) => item.branch === branch && /overdue|collections/i.test(item.status)).length,
+    exceptions: payments.filter((item) => findCustomer(item.customerId)?.branch === branch && (item.status === 'Pending proof' || item.status === 'Unallocated')).length
+  }));
+}
+
+function buildDashboard(role) {
+  const dashboard = dashboardByRole[role] || dashboardByRole.admin;
+  const highlights = activeNotifications().slice(0, 5);
+  return {
+    role,
+    ...dashboard,
+    highlights,
+    recentCustomers: customers.slice(0, 3),
+    lowStockProducts: products.filter((item) => item.stock <= item.reorderAt),
+    topClients,
+    actionCenter: {
+      branchSnapshots: buildBranchSnapshots(),
+      actionQueue: activeNotifications().slice(0, 6).map(operationalActionForNotification),
+      auditHighlights: auditLog.slice(0, 6)
+    }
+  };
+}
+
+function collectActivity({ recordType, recordId, customerId }) {
+  return auditLog
+    .filter((entry) => (recordType ? entry.recordType === recordType && entry.recordId === recordId : false) || (customerId ? entry.customerId === customerId : false))
+    .filter((entry, index, list) => list.findIndex((check) => check.id === entry.id) === index)
+    .slice(0, 8);
+}
+
+function buildQuoteDetail(quote) {
+  return {
+    ...quote,
+    sourceCustomerId: quote.customerId,
+    activityLog: collectActivity({ recordType: 'quote', recordId: quote.id, customerId: quote.customerId })
+  };
 }
 
 function buildInvoiceDetail(invoice) {
@@ -213,7 +309,43 @@ function buildInvoiceDetail(invoice) {
     total: sourceQuote?.total ?? invoice.amount,
     issuedOn: 'Today',
     lines,
-    workflow
+    workflow,
+    activityLog: collectActivity({ recordType: 'invoice', recordId: invoice.id, customerId: invoice.customerId })
+  };
+}
+
+function buildPaymentDetail(payment) {
+  const linkedInvoiceId = payment.appliedTo.startsWith('INV-') ? payment.appliedTo : null;
+  return {
+    ...payment,
+    linkedInvoiceId,
+    sourceCustomerId: payment.customerId,
+    activityLog: collectActivity({ recordType: 'payment', recordId: payment.id, customerId: payment.customerId })
+  };
+}
+
+function buildCustomerSummary(id) {
+  const base = baseCustomerSummaries[id];
+  const customer = findCustomer(id);
+  if (!base || !customer) return null;
+  const recentInvoices = invoices.filter((item) => item.customerId === id).slice(0, 3);
+  const recentPayments = payments.filter((item) => item.customerId === id).slice(0, 3);
+  const openQuotes = quotes.filter((item) => item.customerId === id && item.status !== 'Converted');
+  const overdueInvoices = invoices.filter((item) => item.customerId === id && /overdue|collections/i.test(item.status)).length;
+  const overdueAmount = numericAmount(base.overdueBalance);
+  const openBalance = customer.balance;
+  const health = overdueAmount > 10000 ? 'At risk' : customer.risk === 'Low' ? 'Healthy' : 'Needs attention';
+  const linkedActivity = collectActivity({ customerId: id }).slice(0, 10);
+
+  return {
+    ...base,
+    openQuotes,
+    recentInvoices,
+    recentPayments,
+    overdueInvoices,
+    openBalance,
+    accountHealth: health,
+    linkedActivity
   };
 }
 
@@ -226,23 +358,35 @@ function listRoute(path, collection) {
   });
 }
 
-app.get('/', (_req, res) => res.json({ ok: true, service: 'kryvexis-os-api', status: 'running', phase: '1F' }));
-app.get('/health', (_req, res) => res.json({ status: 'ok', phase: '1F', service: 'kryvexis-os-api' }));
+app.get('/', (_req, res) => res.json({ ok: true, service: 'kryvexis-os-api', status: 'running', phase: 'HL' }));
+app.get('/health', (_req, res) => res.json({ status: 'ok', phase: 'HL', service: 'kryvexis-os-api' }));
 app.get('/api/bootstrap', (_req, res) => res.json(envelope({ roles, themeOptions: settings.themes, support: { email: settings.supportEmail, whatsapp: settings.whatsapp } })));
 app.get('/api/dashboard', (req, res) => {
   const role = req.query.role || 'admin';
-  const dashboard = dashboardByRole[role] || dashboardByRole.admin;
-  res.json(envelope({ role, ...dashboard, highlights: activeNotifications().slice(0, 5), recentCustomers: customers.slice(0, 3), lowStockProducts: products.filter((item) => item.stock <= item.reorderAt), topClients }));
+  res.json(envelope(buildDashboard(role)));
 });
 app.get('/api/customers/:id/summary', (req, res) => {
-  const summary = customerSummaries[req.params.id];
+  const summary = buildCustomerSummary(req.params.id);
   if (!summary) return res.status(404).json({ ok: false, error: 'customer summary not found' });
   return res.json(envelope(summary));
 });
+app.get('/api/quotes', (_req, res) => res.json(envelope(quotes)));
+app.get('/api/quotes/:id', (req, res) => {
+  const quote = findQuote(req.params.id);
+  if (!quote) return res.status(404).json({ ok: false, error: 'quote item not found' });
+  return res.json(envelope(buildQuoteDetail(quote)));
+});
+app.get('/api/invoices', (_req, res) => res.json(envelope(invoices)));
 app.get('/api/invoices/:id', (req, res) => {
   const invoice = findInvoice(req.params.id);
   if (!invoice) return res.status(404).json({ ok: false, error: 'invoice item not found' });
   return res.json(envelope(buildInvoiceDetail(invoice)));
+});
+app.get('/api/payments', (_req, res) => res.json(envelope(payments)));
+app.get('/api/payments/:id', (req, res) => {
+  const payment = findPayment(req.params.id);
+  if (!payment) return res.status(404).json({ ok: false, error: 'payment item not found' });
+  return res.json(envelope(buildPaymentDetail(payment)));
 });
 app.get('/api/notifications', (_req, res) => res.json(envelope(activeNotifications())));
 app.patch('/api/notifications/:id/read', (req, res) => {
@@ -259,12 +403,14 @@ app.patch('/api/notifications/:id/snooze', (req, res) => {
   notification.state = 'Snoozed';
   notification.snoozedUntil = req.body?.until || 'later';
   notification.meta = `${notification.meta} • snoozed until ${notification.snoozedUntil}`;
+  pushAudit({ title: 'Notification snoozed', detail: `${notification.title} snoozed until ${notification.snoozedUntil}.`, actor: 'Ops Desk', timestamp: stampNow(), recordType: 'system', recordId: notification.id, recordPath: '/notifications', customerId: null, status: 'Snoozed' });
   return res.json(envelope(notification));
 });
 app.patch('/api/notifications/:id/dismiss', (req, res) => {
   const notification = findNotification(req.params.id);
   if (!notification) return res.status(404).json({ ok: false, error: 'notification not found' });
   notification.dismissed = true;
+  pushAudit({ title: 'Notification dismissed', detail: `${notification.title} removed from active inbox.`, actor: 'Ops Desk', timestamp: stampNow(), recordType: 'system', recordId: notification.id, recordPath: '/notifications', customerId: null, status: 'Dismissed' });
   return res.json(envelope(notification));
 });
 app.post('/api/quotes/:id/status', (req, res) => {
@@ -278,7 +424,8 @@ app.post('/api/quotes/:id/status', (req, res) => {
   quote.updated = stampNow();
   quote.nextAction = nextStatus === 'Approved' ? 'Mark as sent or convert to invoice' : nextStatus === 'Sent to customer' ? 'Convert to invoice after customer confirmation' : nextStatus === 'Pending approval' ? 'Manager review required before send' : 'Continue internal review';
   quote.workflow.push({ label: 'Status update', detail: `Quote moved to ${nextStatus}` });
-  return res.json(envelope({ quote }));
+  pushAudit({ title: 'Quote status changed', detail: `${quote.id} moved to ${nextStatus}.`, actor: quote.owner, timestamp: stampNow(), recordType: 'quote', recordId: quote.id, recordPath: recordPathFor('quote', quote.id), customerId: quote.customerId, status: nextStatus });
+  return res.json(envelope({ quote: buildQuoteDetail(quote) }));
 });
 app.post('/api/quotes/:id/approve', (req, res) => {
   const quote = findQuote(req.params.id);
@@ -286,15 +433,16 @@ app.post('/api/quotes/:id/approve', (req, res) => {
   quote.status = 'Approved';
   quote.updated = stampNow();
   quote.nextAction = 'Mark as sent or convert to invoice';
-  quote.workflow.push({ label: 'Approved', detail: 'Approved from inbox action controls' });
+  quote.workflow.push({ label: 'Approved', detail: 'Approved from inbox or record action controls' });
+  pushAudit({ title: 'Quote approved', detail: `${quote.id} approved for ${quote.customer}.`, actor: 'Sales Manager', timestamp: stampNow(), recordType: 'quote', recordId: quote.id, recordPath: recordPathFor('quote', quote.id), customerId: quote.customerId, status: 'Approved' });
   pushNotification({ id: `NT-${Date.now()}`, title: `Quote ${quote.id} approved`, meta: `${quote.customer} - Sales`, state: 'New', read: false, type: 'approval', dismissed: false, snoozedUntil: null });
-  return res.json(envelope({ quote }));
+  return res.json(envelope({ quote: buildQuoteDetail(quote) }));
 });
 app.post('/api/quotes/:id/convert', (req, res) => {
   const quote = findQuote(req.params.id);
   if (!quote) return res.status(404).json({ ok: false, error: 'quote item not found' });
   const existingInvoice = invoices.find((entry) => entry.source === quote.id);
-  if (existingInvoice) return res.json(envelope({ quote, invoice: buildInvoiceDetail(existingInvoice), reused: true }));
+  if (existingInvoice) return res.json(envelope({ quote: buildQuoteDetail(quote), invoice: buildInvoiceDetail(existingInvoice), reused: true }));
   if (!['Approved', 'Sent to customer'].includes(quote.status)) {
     return res.status(400).json({ ok: false, error: 'quote must be approved or sent before conversion' });
   }
@@ -305,13 +453,16 @@ app.post('/api/quotes/:id/convert', (req, res) => {
   quote.updated = stampNow();
   quote.nextAction = `Invoice ${invoice.id} ready for review`;
   quote.workflow.push({ label: 'Converted', detail: `Invoice ${invoice.id} created from this quote` });
-  return res.json(envelope({ quote, invoice: buildInvoiceDetail(invoice), reused: false }));
+  pushAudit({ title: 'Quote converted', detail: `${quote.id} converted to invoice ${invoice.id}.`, actor: quote.owner, timestamp: stampNow(), recordType: 'quote', recordId: quote.id, recordPath: recordPathFor('quote', quote.id), customerId: quote.customerId, status: 'Converted' });
+  pushAudit({ title: 'Invoice created', detail: `${invoice.id} created from quote ${quote.id}.`, actor: quote.owner, timestamp: stampNow(), recordType: 'invoice', recordId: invoice.id, recordPath: recordPathFor('invoice', invoice.id), customerId: quote.customerId, status: 'Draft' });
+  return res.json(envelope({ quote: buildQuoteDetail(quote), invoice: buildInvoiceDetail(invoice), reused: false }));
 });
 app.post('/api/invoices/:id/reminder', (req, res) => {
   const invoice = findInvoice(req.params.id);
   if (!invoice) return res.status(404).json({ ok: false, error: 'invoice item not found' });
   invoice.reminders = 'Reminder sent today';
   invoice.nextAction = 'Await customer payment response';
+  pushAudit({ title: 'Reminder sent', detail: `Reminder sent for ${invoice.id}.`, actor: 'Finance Team', timestamp: stampNow(), recordType: 'invoice', recordId: invoice.id, recordPath: recordPathFor('invoice', invoice.id), customerId: invoice.customerId, status: invoice.status });
   pushNotification({ id: `NT-${Date.now()}`, title: `Reminder sent for ${invoice.id}`, meta: `${invoice.customer} - Finance`, state: 'Done', read: true, type: 'collection', dismissed: false, snoozedUntil: null });
   return res.json(envelope({ invoice: buildInvoiceDetail(invoice) }));
 });
@@ -321,8 +472,9 @@ app.post('/api/payments/:id/resolve-proof', (req, res) => {
   payment.proof = 'Attached and verified';
   payment.status = payment.appliedTo && payment.appliedTo !== 'To be assigned' ? 'Ready to allocate' : 'Unallocated';
   payment.nextAction = payment.status === 'Ready to allocate' ? `Allocate against ${payment.appliedTo}` : 'Allocate to open invoice';
+  pushAudit({ title: 'Payment proof resolved', detail: `${payment.ref} proof verified and ready for next finance step.`, actor: 'Finance Team', timestamp: stampNow(), recordType: 'payment', recordId: payment.id, recordPath: recordPathFor('payment', payment.id), customerId: payment.customerId, status: payment.status });
   pushNotification({ id: `NT-${Date.now()}`, title: `Payment proof resolved`, meta: `${payment.ref} - Finance`, state: 'Done', read: true, type: 'payment', dismissed: false, snoozedUntil: null });
-  return res.json(envelope({ payment }));
+  return res.json(envelope({ payment: buildPaymentDetail(payment) }));
 });
 app.post('/api/payments/:id/allocate', (req, res) => {
   const payment = findPayment(req.params.id);
@@ -337,17 +489,16 @@ app.post('/api/payments/:id/allocate', (req, res) => {
     invoice.paymentStatus = 'Allocated receipt';
     invoice.status = invoice.status === 'Overdue' ? 'Collections in progress' : invoice.status;
     invoice.nextAction = `Payment ${payment.ref} allocated`;
+    pushAudit({ title: 'Invoice updated from payment', detail: `${invoice.id} now reflects allocation from ${payment.ref}.`, actor: 'Finance Team', timestamp: stampNow(), recordType: 'invoice', recordId: invoice.id, recordPath: recordPathFor('invoice', invoice.id), customerId: invoice.customerId, status: invoice.status });
   }
+  pushAudit({ title: 'Payment allocated', detail: `${payment.ref} allocated to ${invoiceId}.`, actor: 'Finance Team', timestamp: stampNow(), recordType: 'payment', recordId: payment.id, recordPath: recordPathFor('payment', payment.id), customerId: payment.customerId, status: 'Allocated' });
   pushNotification({ id: `NT-${Date.now()}`, title: `Payment ${payment.ref} allocated`, meta: `${invoiceId} - Finance`, state: 'Done', read: true, type: 'payment', dismissed: false, snoozedUntil: null });
-  return res.json(envelope({ payment }));
+  return res.json(envelope({ payment: buildPaymentDetail(payment) }));
 });
 
 listRoute('customers', customers);
 listRoute('products', products);
-listRoute('quotes', quotes);
-app.get('/api/invoices', (_req, res) => res.json(envelope(invoices)));
-listRoute('payments', payments);
 app.get('/api/settings', (_req, res) => res.json(envelope(settings)));
 app.get('/api/roles', (_req, res) => res.json(envelope(roles)));
 
-app.listen(port, () => console.log(`Kryvexis OS Phase 1F backend running on ${port}`));
+app.listen(port, () => console.log(`Kryvexis OS Phase HL backend running on ${port}`));

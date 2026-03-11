@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
+import { ActivityFeed } from '../components/ActivityFeed';
 import { Badge } from '../components/Badge';
 import { Card } from '../components/Card';
 import { RecordTimeline } from '../components/RecordTimeline';
@@ -80,6 +81,10 @@ export function InvoiceDetailPage() {
             Open customer
           </Link>
         </div>
+        <div className="record-link-strip">
+          <span className="record-chip muted-chip">Payment state: {item.paymentStatus}</span>
+          <span className="record-chip muted-chip">Reminders: {item.reminders}</span>
+        </div>
         {flash ? <p className="success-note">{flash}</p> : null}
         {error ? <p className="error-note">{error}</p> : null}
       </Card>
@@ -100,10 +105,14 @@ export function InvoiceDetailPage() {
             <div><span>Next action</span><strong>{item.nextAction}</strong></div>
           </div>
         </Card>
-        <Card title="Activity and collaboration" subtitle="Audit trail from source quote into invoice creation.">
+        <Card title="Workflow history" subtitle="Audit trail from source quote into invoice creation.">
           <RecordTimeline items={item.workflow.map((event) => `${event.label}: ${event.detail}`)} />
         </Card>
       </div>
+
+      <Card title="Audit trail" subtitle="Collections, reminders, and linked commercial changes recorded over time.">
+        <ActivityFeed items={item.activityLog} />
+      </Card>
 
       <Card title="Invoice line items" subtitle="Mirrors the quote lines so customer print output stays consistent.">
         <div className="history-table-wrap">

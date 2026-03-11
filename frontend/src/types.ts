@@ -22,6 +22,18 @@ export type QuoteStatus = 'Draft' | 'Pending approval' | 'Approved' | 'Sent to c
 export type Quote = { id: string; customer: string; owner: string; value: string; status: string; validity: string; branch: string; trigger: string; updated: string; notes: string; nextAction: string; };
 export type QuoteLine = { id: string; sku: string; description: string; qty: number; unitPrice: string; total: string; };
 export type QuoteWorkflowEvent = { label: string; detail: string; };
+export type ActivityEntry = {
+  id: string;
+  title: string;
+  detail: string;
+  actor: string;
+  timestamp: string;
+  recordType: 'quote' | 'invoice' | 'payment' | 'system' | string;
+  recordId: string;
+  recordPath: string;
+  customerId?: string | null;
+  status?: string;
+};
 export type QuoteDetail = Quote & {
   customerId?: string;
   subtotal: string;
@@ -32,8 +44,9 @@ export type QuoteDetail = Quote & {
   sourceCustomerId: string;
   lines: QuoteLine[];
   workflow: QuoteWorkflowEvent[];
+  activityLog: ActivityEntry[];
 };
-export type Invoice = { id: string; customer: string; amount: string; branch: string; status: string; due: string; source: string; paymentStatus: string; tax: string; reminders: string; nextAction: string; };
+export type Invoice = { id: string; customerId?: string; customer: string; amount: string; branch: string; status: string; due: string; source: string; paymentStatus: string; tax: string; reminders: string; nextAction: string; };
 export type InvoiceDetail = Invoice & {
   sourceCustomerId: string;
   sourceQuoteId: string | null;
@@ -42,8 +55,24 @@ export type InvoiceDetail = Invoice & {
   issuedOn: string;
   lines: QuoteLine[];
   workflow: QuoteWorkflowEvent[];
+  activityLog: ActivityEntry[];
 };
-export type Payment = { id: string; ref: string; customerId: string; party: string; amount: string; method: string; status: string; date: string; appliedTo: string; proof: string; nextAction: string; };
+export type Payment = {
+  id: string;
+  ref: string;
+  customerId: string;
+  party: string;
+  amount: string;
+  method: string;
+  status: string;
+  date: string;
+  appliedTo: string;
+  proof: string;
+  nextAction: string;
+  linkedInvoiceId?: string | null;
+  sourceCustomerId?: string;
+  activityLog?: ActivityEntry[];
+};
 export type NotificationType = 'approval' | 'collection' | 'payment' | 'stock' | 'general';
 export type Notification = {
   id: string;
@@ -58,7 +87,32 @@ export type Notification = {
 export type Settings = { themes: string[]; paymentModes: string[]; density: string[]; supportEmail: string; whatsapp: string; business: { currency: string; taxDefault: string; paymentTerms: string; defaultBranch: string; }; };
 export type Role = { key: RoleKey; label: string; description: string; dashboards: string[]; };
 export type TopClient = { customerId: string; name: string; revenue: string; invoices: number; averageOrderValue: string; overdueBalance: string; trend: string; };
-export type DashboardResponse = { role: string; kpis: KPI[]; panels: PanelGroup[]; highlights: Notification[]; recentCustomers: Customer[]; lowStockProducts: Product[]; topClients: TopClient[]; };
+export type OperationalActionItem = {
+  id: string;
+  title: string;
+  detail: string;
+  owner: string;
+  branch: string;
+  priority: 'high' | 'medium' | 'low' | string;
+  recordPath: string;
+  actionLabel: string;
+  status: string;
+};
+export type BranchSnapshot = { branch: string; approvals: number; collections: number; exceptions: number };
+export type DashboardResponse = {
+  role: string;
+  kpis: KPI[];
+  panels: PanelGroup[];
+  highlights: Notification[];
+  recentCustomers: Customer[];
+  lowStockProducts: Product[];
+  topClients: TopClient[];
+  actionCenter: {
+    branchSnapshots: BranchSnapshot[];
+    actionQueue: OperationalActionItem[];
+    auditHighlights: ActivityEntry[];
+  };
+};
 export type PurchaseHistoryEntry = {
   id: string;
   date: string;
@@ -83,6 +137,10 @@ export type CustomerSummary = {
   recentInvoices: Invoice[];
   recentPayments: Payment[];
   purchaseHistory: PurchaseHistoryEntry[];
+  overdueInvoices: number;
+  openBalance: string;
+  accountHealth: string;
+  linkedActivity: ActivityEntry[];
 };
 export type QuoteConversionResult = {
   quote: QuoteDetail;

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { ActivityFeed } from '../components/ActivityFeed';
 import { Card } from '../components/Card';
 import { KpiCard } from '../components/KpiCard';
 import { api } from '../lib/api';
@@ -69,6 +70,42 @@ export function DashboardPage({ role }: { role: RoleKey }) {
         </Card>
       </div>
 
+      <div className="split-grid three-up-grid">
+        <Card title="Operational action center" subtitle="Branch workload, queue ownership, and priority actions across roles.">
+          <div className="notification-stack">
+            {data.actionCenter.actionQueue.map((item) => (
+              <article key={item.id} className="mini-list-row action-center-row">
+                <div>
+                  <strong>{item.title}</strong>
+                  <p>{item.owner} • {item.branch} • {item.detail}</p>
+                </div>
+                <div className="align-right action-center-side">
+                  <span className={`badge ${item.priority === 'high' ? 'danger' : item.priority === 'medium' ? 'warning' : 'neutral'}`}>{item.priority}</span>
+                  <Link className="action-link" to={item.recordPath}>{item.actionLabel}</Link>
+                </div>
+              </article>
+            ))}
+          </div>
+        </Card>
+
+        <Card title="Branch action summary" subtitle="Approvals, collections, and finance exceptions by branch.">
+          <div className="notification-stack">
+            {data.actionCenter.branchSnapshots.map((item) => (
+              <article key={item.branch} className="mini-list-row">
+                <div>
+                  <strong>{item.branch}</strong>
+                  <p>Approvals {item.approvals} • Collections {item.collections}</p>
+                </div>
+                <div className="align-right">
+                  <strong>{item.exceptions}</strong>
+                  <p>Exceptions</p>
+                </div>
+              </article>
+            ))}
+          </div>
+        </Card>
+      </div>
+
       <div className="split-grid">
         <Card title="Top sales per client" subtitle="Immediate commercial signal for collections and account growth.">
           <div className="notification-stack">
@@ -87,19 +124,8 @@ export function DashboardPage({ role }: { role: RoleKey }) {
           </div>
         </Card>
 
-        <Card title="Low-stock watch" subtitle="Keeps inventory and procurement in scope from the beginning">
-          {data.lowStockProducts.map((item) => (
-            <article key={item.id} className="mini-list-row">
-              <div>
-                <strong>{item.name}</strong>
-                <p>{item.branch} • reorder at {item.reorderAt}</p>
-              </div>
-              <div className="align-right">
-                <strong>{item.stock} on hand</strong>
-                <p>{item.nextAction}</p>
-              </div>
-            </article>
-          ))}
+        <Card title="Cross-record audit highlights" subtitle="Latest operational actions across quote, invoice, payment, and system flows.">
+          <ActivityFeed items={data.actionCenter.auditHighlights} />
         </Card>
       </div>
     </div>

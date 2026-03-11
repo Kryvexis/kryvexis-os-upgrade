@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import { ActivityFeed } from '../components/ActivityFeed';
 import { Badge } from '../components/Badge';
 import { Card } from '../components/Card';
 import { RecordTimeline } from '../components/RecordTimeline';
@@ -121,6 +122,11 @@ export function QuoteDetailPage() {
             Print quote
           </Link>
         </div>
+        <div className="record-link-strip">
+          <Link className="record-chip" to={`/customers/${item.sourceCustomerId}`}>Customer account</Link>
+          <span className="record-chip muted-chip">Approval owner: {item.approvalOwner}</span>
+          <span className="record-chip muted-chip">Margin: {item.marginBand}</span>
+        </div>
         {flash ? <p className="success-note">{flash}</p> : null}
         {error ? <p className="error-note">{error}</p> : null}
       </Card>
@@ -146,6 +152,10 @@ export function QuoteDetailPage() {
           <RecordTimeline items={item.workflow.map((event) => `${event.label}: ${event.detail}`)} />
         </Card>
       </div>
+
+      <Card title="Audit trail" subtitle="Enterprise-style traceability for quote actions and linked customer activity.">
+        <ActivityFeed items={item.activityLog} />
+      </Card>
 
       <Card title="Quote line items" subtitle="The foundation for conversion, print templates, and later PDF output.">
         <div className="history-table-wrap">
@@ -173,25 +183,6 @@ export function QuoteDetailPage() {
           </table>
         </div>
       </Card>
-
-      <div className="split-grid">
-        <Card title="Commercial totals" subtitle="Now ready for quote to invoice conversion.">
-          <div className="detail-stack">
-            <div><span>Subtotal</span><strong>{item.subtotal}</strong></div>
-            <div><span>Tax</span><strong>{item.tax}</strong></div>
-            <div><span>Grand total</span><strong>{item.total}</strong></div>
-            <div><span>Conversion target</span><strong>{item.status === 'Converted' ? 'Invoice already created' : 'Invoice draft after approval'}</strong></div>
-          </div>
-        </Card>
-
-        <Card title="Operational outcome" subtitle="Quote actions are now available directly on this record.">
-          <div className="detail-stack">
-            <div><span>Current state</span><strong>{item.status}</strong></div>
-            <div><span>Print ready</span><strong>Use Print quote for customer output</strong></div>
-            <div><span>Next module</span><strong>Invoice reminders and payment follow-through</strong></div>
-          </div>
-        </Card>
-      </div>
     </div>
   );
 }

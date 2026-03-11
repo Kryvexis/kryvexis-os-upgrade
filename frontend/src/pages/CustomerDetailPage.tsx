@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
+import { ActivityFeed } from '../components/ActivityFeed';
 import { Badge } from '../components/Badge';
 import { Card } from '../components/Card';
 import { RecordTimeline } from '../components/RecordTimeline';
@@ -40,8 +41,8 @@ export function CustomerDetailPage() {
       <div className="kpi-grid compact-kpi-grid">
         <Card className="metric-card"><p className="eyebrow">Total spend</p><strong>{summary.totalSpend}</strong><p>{summary.invoiceCount} invoices booked</p></Card>
         <Card className="metric-card"><p className="eyebrow">Average order value</p><strong>{summary.averageOrderValue}</strong><p>Last purchase {summary.lastPurchaseDate}</p></Card>
-        <Card className="metric-card"><p className="eyebrow">Overdue balance</p><strong>{summary.overdueBalance}</strong><p>{summary.collectionStatus}</p></Card>
-        <Card className="metric-card"><p className="eyebrow">Last payment</p><strong>{summary.lastPaymentDate}</strong><p>{item.creditTerms} • {item.priceList}</p></Card>
+        <Card className="metric-card"><p className="eyebrow">Open balance</p><strong>{summary.openBalance}</strong><p>{summary.collectionStatus}</p></Card>
+        <Card className="metric-card"><p className="eyebrow">Account health</p><strong>{summary.accountHealth}</strong><p>{summary.overdueInvoices} overdue invoices • last payment {summary.lastPaymentDate}</p></Card>
       </div>
 
       <div className="split-grid">
@@ -61,7 +62,16 @@ export function CustomerDetailPage() {
         </Card>
       </div>
 
-      <div className="split-grid">
+      <div className="split-grid three-up-grid">
+        <Card title="Account health snapshot" subtitle="Linked commercial posture across sales and finance.">
+          <div className="detail-stack">
+            <div><span>Collection status</span><strong>{summary.collectionStatus}</strong></div>
+            <div><span>Open quotes</span><strong>{summary.openQuotes.length}</strong></div>
+            <div><span>Recent invoices</span><strong>{summary.recentInvoices.length}</strong></div>
+            <div><span>Recent payments</span><strong>{summary.recentPayments.length}</strong></div>
+          </div>
+        </Card>
+
         <Card title="Top products bought" subtitle="The first layer of client purchase intelligence.">
           <div className="notification-stack">
             {summary.topProducts.map((product) => (
@@ -78,15 +88,6 @@ export function CustomerDetailPage() {
             ))}
           </div>
         </Card>
-
-        <Card title="Open commercial records" subtitle="Quotes, invoices, and collection posture at a glance.">
-          <div className="detail-stack">
-            <div><span>Open quotes</span><strong>{summary.openQuotes.length}</strong></div>
-            <div><span>Recent invoices</span><strong>{summary.recentInvoices.length}</strong></div>
-            <div><span>Recent payments</span><strong>{summary.recentPayments.length}</strong></div>
-            <div><span>Collection status</span><strong>{summary.collectionStatus}</strong></div>
-          </div>
-        </Card>
       </div>
 
       <div className="split-grid">
@@ -95,7 +96,7 @@ export function CustomerDetailPage() {
             {summary.recentInvoices.map((invoice) => (
               <article key={invoice.id} className="mini-list-row">
                 <div>
-                  <strong>{invoice.id}</strong>
+                  <strong><Link to={`/invoices/${invoice.id}`}>{invoice.id}</Link></strong>
                   <p>{invoice.status} • {invoice.due}</p>
                 </div>
                 <div className="align-right">
@@ -112,7 +113,7 @@ export function CustomerDetailPage() {
             {summary.recentPayments.map((payment) => (
               <article key={payment.id} className="mini-list-row">
                 <div>
-                  <strong>{payment.ref}</strong>
+                  <strong><Link to={`/payments/${payment.id}`}>{payment.ref}</Link></strong>
                   <p>{payment.method} • {payment.status}</p>
                 </div>
                 <div className="align-right">
@@ -124,6 +125,10 @@ export function CustomerDetailPage() {
           </div>
         </Card>
       </div>
+
+      <Card title="Linked account activity" subtitle="Unified quote, invoice, payment, and system actions tied back to this customer.">
+        <ActivityFeed items={summary.linkedActivity} />
+      </Card>
 
       <Card title="Purchase history summary" subtitle="Chronological customer story across quote, invoice, and payment events.">
         <div className="history-table-wrap">
