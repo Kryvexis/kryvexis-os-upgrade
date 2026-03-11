@@ -24,18 +24,19 @@ export function DashboardPage({ role }: { role: RoleKey }) {
 
   async function markRead(id: string, read: boolean) {
     const updated = await api.markNotificationRead(id, read);
-    setNotifications((current) => current.map((item) => item.id === id ? updated : item));
+    setNotifications((current) => current.map((item) => (item.id === id ? updated : item)));
   }
 
   const salesOverview = useMemo(() => {
     if (!data) return [];
-    const clientValues = data.topClients.map((item) => Number(item.revenue.replace(/[^\d.]/g, '')) || 0);
+    const clientValues = data.topClients.map((item) => Number(item.revenue.replace(/[^
+\d.]/g, '')) || 0);
     const maxValue = Math.max(...clientValues, 1);
 
     return data.topClients.map((item, index) => ({
       ...item,
-      percent: Math.max(24, Math.round(((Number(item.revenue.replace(/[^\d.]/g, '')) || 0) / maxValue) * 100)),
-      targetPercent: Math.max(18, 80 - index * 12)
+      percent: Math.max(26, Math.round(((Number(item.revenue.replace(/[^\d.]/g, '')) || 0) / maxValue) * 100)),
+      targetPercent: Math.max(22, 78 - index * 12)
     }));
   }, [data]);
 
@@ -49,14 +50,14 @@ export function DashboardPage({ role }: { role: RoleKey }) {
   const approvals = data.kpis.find((item) => /approval/i.test(item.label));
 
   return (
-    <div className="page-grid dashboard-v3">
-      <section className="kpi-grid dashboard-kpi-grid compact-dashboard-kpis">
+    <div className="page-grid dashboard-v4">
+      <section className="kpi-grid dashboard-kpi-grid compact-dashboard-kpis mockup-kpis">
         {data.kpis.map((item) => <KpiCard key={item.label} item={item} />)}
       </section>
 
-      <section className="dashboard-primary-grid dashboard-primary-grid-tight">
-        <Card title="Sales overview" subtitle="A tighter command view for approvals, collections, and revenue movement." className="hero-card hero-card-compact">
-          <div className="dashboard-hero-value-row compact-hero-row">
+      <section className="dashboard-primary-grid dashboard-primary-grid-tight mockup-primary-grid">
+        <Card title="Sales overview" subtitle="A tighter command view for approvals, collections, and revenue movement." className="hero-card hero-card-compact mockup-hero-card">
+          <div className="dashboard-hero-topline">
             <div>
               <strong className="hero-value compact-hero-value">{clientLead?.revenue ?? openInvoices?.value ?? 'R0'}</strong>
               <p className="hero-support">Top client this cycle • {clientLead?.name ?? 'No client selected yet'}</p>
@@ -67,10 +68,10 @@ export function DashboardPage({ role }: { role: RoleKey }) {
             </div>
           </div>
 
-          <div className="sales-bars-card compact-sales-bars-card">
+          <div className="sales-bars-card mockup-sales-bars-card compact-sales-bars-card">
             {salesOverview.map((item) => (
-              <div className="sales-bar-row compact-sales-bar-row" key={item.customerId}>
-                <div className="sales-bar-copy compact-sales-copy">
+              <div className="sales-bar-row compact-sales-bar-row mockup-sales-row" key={item.customerId}>
+                <div className="sales-bar-copy compact-sales-copy mockup-sales-copy">
                   <strong>{item.name}</strong>
                   <p>{item.trend}</p>
                 </div>
@@ -88,28 +89,30 @@ export function DashboardPage({ role }: { role: RoleKey }) {
             ))}
           </div>
 
-          <div className="hero-footer-grid compact-hero-footer-grid">
-            <div className="hero-footer-card compact-footer-card">
+          <div className="hero-footer-grid compact-hero-footer-grid mockup-footer-grid">
+            <div className="hero-footer-card compact-footer-card slim-footer-card">
               <span className="eyebrow">Open invoices</span>
               <strong>{openInvoices?.value ?? 'R0'}</strong>
+              <p>Collections will appear here.</p>
             </div>
-            <div className="hero-footer-card compact-footer-card">
+            <div className="hero-footer-card compact-footer-card slim-footer-card">
               <span className="eyebrow">Top client</span>
               <strong>{clientLead?.name ?? '—'}</strong>
+              <p>{clientLead ? `${clientLead.invoices} invoices • overdue ${clientLead.overdueBalance}` : 'No sales signal yet'}</p>
             </div>
           </div>
         </Card>
 
-        <div className="dashboard-side-stack dashboard-side-stack-tight">
-          <Card title="Priority inbox" subtitle="Only the sharpest urgency stays above the fold." className="priority-compact-card tighter-panel-card">
-            <div className="priority-summary-strip compact-summary-strip">
+        <div className="dashboard-side-stack dashboard-side-stack-tight mockup-side-stack">
+          <Card title="Priority inbox" subtitle="Only the sharpest urgency stays above the fold." className="priority-compact-card tighter-panel-card mockup-side-card">
+            <div className="priority-summary-strip compact-summary-strip mockup-summary-strip">
               <div><span>Unread</span><strong>{summary.unread}</strong></div>
               <div><span>Approvals</span><strong>{summary.approvals}</strong></div>
               <div><span>Collections</span><strong>{summary.collections}</strong></div>
             </div>
             <div className="notification-stack priority-stack compact-priority-stack">
               {priorityItems.map((item) => (
-                <article className="notification-row priority-card compact-priority-card" key={item.id}>
+                <article className="notification-row priority-card compact-priority-card mockup-priority-card" key={item.id}>
                   <div>
                     <strong>{item.title}</strong>
                     <p>{item.meta}</p>
@@ -126,10 +129,10 @@ export function DashboardPage({ role }: { role: RoleKey }) {
             </div>
           </Card>
 
-          <Card title="Today's actions" subtitle="Two fast moves to keep the cycle moving." className="tighter-panel-card">
+          <Card title="Today's actions" subtitle="Two fast moves to keep the cycle moving." className="tighter-panel-card mockup-side-card">
             <div className="action-focus-stack compact-action-stack">
               {actionItems.map((item) => (
-                <article key={item.id} className="action-focus-row compact-action-row">
+                <article key={item.id} className="action-focus-row compact-action-row mockup-action-row">
                   <div>
                     <strong>{item.title}</strong>
                     <p>{item.owner} • {item.branch}</p>
@@ -142,31 +145,31 @@ export function DashboardPage({ role }: { role: RoleKey }) {
         </div>
       </section>
 
-      <section className="dashboard-secondary-grid compact-secondary-grid">
-        <Card title="Workspace tiles" subtitle="Jump straight into the operating modules." className="compact-secondary-card">
-          <div className="workspace-tile-grid compact-workspace-grid">
+      <section className="dashboard-bottom-band">
+        <Card title="Workspace shortcuts" subtitle="Jump straight into the operating modules." className="compact-secondary-card compact-shortcuts-card">
+          <div className="workspace-pill-grid">
             {workspaceTiles.map((tile) => (
-              <Link key={tile.path} to={tile.path} className="workspace-tile compact-workspace-tile">
-                <span className="workspace-tile-icon" />
+              <Link key={tile.path} to={tile.path} className="workspace-pill">
+                <span className="workspace-pill-icon" />
                 <strong>{tile.label}</strong>
               </Link>
             ))}
           </div>
         </Card>
 
-        <Card title="Watchlist" subtitle="The three compact signals worth keeping visible." className="compact-secondary-card">
-          <div className="watchlist-grid compact-watchlist-grid">
-            <div className="watchlist-card compact-watch-card">
+        <Card title="Watchlist" subtitle="The three compact signals worth keeping visible." className="compact-secondary-card compact-watch-card-shell">
+          <div className="watchlist-grid compact-watchlist-grid mockup-watch-grid">
+            <div className="watchlist-card compact-watch-card slim-watch-card">
               <span className="eyebrow">Low stock</span>
               <strong>{data.lowStockProducts.length}</strong>
               <p>{data.lowStockProducts[0] ? data.lowStockProducts[0].name : 'No immediate stock alerts'}</p>
             </div>
-            <div className="watchlist-card compact-watch-card">
+            <div className="watchlist-card compact-watch-card slim-watch-card">
               <span className="eyebrow">Branch focus</span>
               <strong>{data.actionCenter.branchSnapshots[0]?.branch ?? '—'}</strong>
               <p>{data.actionCenter.branchSnapshots[0] ? `${data.actionCenter.branchSnapshots[0].exceptions} exceptions` : 'Waiting for branch data'}</p>
             </div>
-            <div className="watchlist-card compact-watch-card">
+            <div className="watchlist-card compact-watch-card slim-watch-card">
               <span className="eyebrow">Top client</span>
               <strong>{clientLead?.name ?? '—'}</strong>
               <p>{clientLead ? clientLead.revenue : 'No sales signal yet'}</p>

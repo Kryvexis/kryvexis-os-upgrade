@@ -572,3 +572,46 @@ button, select { font: inherit; }
   .dashboard-primary-grid-tight, .compact-secondary-grid, .email-grid, .inventory-tile-grid { grid-template-columns: 1fr; }
   .compact-workspace-grid, .compact-watchlist-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+
+/* mockup polish pass */
+.dashboard-v4 { gap: 14px; }
+.mockup-kpis .kpi-card { min-height: 86px; padding: 14px 16px; border-radius: 20px; }
+.mockup-kpis .kpi-card strong { font-size: 1.78rem; margin-top: 6px; }
+.mockup-primary-grid { gap: 10px; grid-template-columns: minmax(0, 1.78fr) minmax(320px, 0.92fr); }
+.mockup-hero-card { padding: 14px 16px; }
+.dashboard-hero-topline { display:flex; justify-content:space-between; gap:12px; align-items:flex-start; margin-bottom: 10px; }
+.mockup-sales-bars-card { gap: 4px; padding: 8px 0 0; }
+.mockup-sales-row { padding: 6px 0; grid-template-columns: 170px minmax(0, 1fr); }
+.mockup-sales-copy strong { font-size: 0.96rem; }
+.mockup-sales-copy p { font-size: 0.84rem; }
+.mockup-footer-grid { margin-top: 10px; }
+.slim-footer-card { min-height: 72px; padding: 12px 14px; }
+.slim-footer-card p { margin: 4px 0 0; color: var(--muted); font-size: 0.88rem; }
+.mockup-side-stack { gap: 10px; }
+.mockup-side-card { padding: 12px 14px; }
+.mockup-summary-strip div { min-height: 60px; padding: 8px 10px; }
+.mockup-priority-card { padding: 10px 12px; border-radius: 16px; }
+.mockup-priority-card strong { font-size: 0.98rem; }
+.mockup-priority-card p { font-size: 0.9rem; }
+.mockup-action-row { padding: 10px 12px; border-radius: 16px; }
+.dashboard-bottom-band { display:grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr); gap: 10px; }
+.compact-shortcuts-card, .compact-watch-card-shell { padding: 12px 14px; }
+.workspace-pill-grid { display:grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.workspace-pill { display:flex; align-items:center; gap:10px; border:1px solid var(--line); border-radius: 18px; padding: 12px 14px; min-height: 60px; background: rgba(255,255,255,0.02); }
+.workspace-pill:hover { border-color: var(--line-strong); transform: translateY(-1px); }
+.workspace-pill-icon { width: 26px; height: 26px; border-radius: 10px; border:1px solid var(--line); background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02)); box-shadow: inset 0 1px 0 rgba(255,255,255,0.08); }
+.mockup-watch-grid { gap: 8px; }
+.slim-watch-card { min-height: 82px; padding: 12px 14px; }
+.slim-watch-card strong { font-size: 1.18rem; }
+.brand-block { min-height: 76px; border-radius: 22px; }
+.brand-mark { width: 38px; height: 38px; border-radius: 14px; }
+.nav-link { padding: 10px 12px; }
+.sidebar-foot { gap: 10px; }
+.stack-field select { padding: 10px 12px; }
+.topbar-shell { padding: 14px 16px; }
+.user-chip { padding: 8px 12px; }
+.page-body { padding-top: 12px; }
+@media (max-width: 1180px) {
+  .dashboard-bottom-band, .workspace-pill-grid { grid-template-columns: 1fr; }
+}
