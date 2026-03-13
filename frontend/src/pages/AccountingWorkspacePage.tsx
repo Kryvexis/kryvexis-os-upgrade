@@ -1,38 +1,32 @@
-import { Link } from 'react-router-dom';
-
-const items = [
-  { title: 'Debtors', subtitle: 'Open balances, reminders, and collections.', to: '/invoices' },
-  { title: 'Creditors', subtitle: 'Supplier-side obligations and controls.', to: '/notifications' },
-  { title: 'Statements', subtitle: 'Statement generation and account view.', to: '/invoices' },
-  { title: 'Expenses', subtitle: 'Expense capture and review.', to: '/notifications' },
-  { title: 'Cash Up', subtitle: 'Cash-up reconciliation and exceptions.', to: '/payments' }
-];
+import { ModuleWorkspace } from '../components/ModuleWorkspace';
 
 export function AccountingWorkspacePage() {
   return (
-    <div className="module-page">
-      <section className="module-shell">
-        <div className="module-shell-head">
-          <div>
-            <span className="eyebrow">Accounting workspace</span>
-            <h2>Accounting</h2>
-            <p>Debtors, creditors, statements, expenses, and cash-up controls grouped into one finance workspace.</p>
-          </div>
-          <div className="module-shell-stat">
-            <strong>5</strong>
-            <span>Control blocks</span>
-          </div>
-        </div>
-        <div className="workspace-block-grid workspace-block-grid-five">
-          {items.map((item) => (
-            <Link key={item.title} to={item.to} className="workspace-block">
-              <span className="workspace-block-icon" />
-              <strong>{item.title}</strong>
-              <p>{item.subtitle}</p>
-            </Link>
-          ))}
-        </div>
-      </section>
-    </div>
+    <ModuleWorkspace
+      eyebrow="Accounting workspace"
+      title="Accounting"
+      description="Debtors, creditors, statements, expenses, and cash-up controls grouped into one finance workspace."
+      heroValue="5"
+      heroLabel="Accounting blocks"
+      chips={['12 overdue accounts', '1 cash-up alert', 'R184,900 aging']}
+      items={[
+        { title: 'Debtors', subtitle: 'Open balances, reminders, and collections.', to: '/invoices', icon: '💰', meta: 'Receivables' },
+        { title: 'Creditors', subtitle: 'Supplier-side obligations and controls.', to: '/notifications', icon: '💸', meta: 'Payables' },
+        { title: 'Statements', subtitle: 'Statement generation and account view.', to: '/invoices', icon: '📚', meta: 'Account summaries' },
+        { title: 'Expenses', subtitle: 'Expense capture and review.', to: '/notifications', icon: '🧾', meta: 'Spend control' },
+        { title: 'Cash Up', subtitle: 'Cash-up reconciliation and exceptions.', to: '/payments', icon: '🧮', meta: 'Till close' }
+      ]}
+      heroStats={[
+        { label: 'Debtor aging', value: 'R184,900', tone: 'warning' },
+        { label: 'Receipts today', value: 'R18,400', tone: 'success' },
+        { label: 'Open alerts', value: '5' }
+      ]}
+      footerTitle="Finance watchlist"
+      footerRows={[
+        { label: 'Collection risk', value: 'INV-2201', hint: 'Acme Retail Group · urgent follow-up' },
+        { label: 'Cash-up alert', value: 'Cape Town', hint: 'Variance pending review' },
+        { label: 'Payment proof', value: 'PAY-7693', hint: 'Proof still missing' }
+      ]}
+    />
   );
 }

@@ -1,37 +1,31 @@
-import { Link } from 'react-router-dom';
-
-const items = [
-  { title: 'Tasks', subtitle: 'Day-to-day work queue and ownership.', to: '/notifications' },
-  { title: 'Approvals', subtitle: 'Review gates and approval control.', to: '/notifications' },
-  { title: 'Deliveries', subtitle: 'Operational movement to customers.', to: '/payments' },
-  { title: 'Returns', subtitle: 'Returned goods and corrective flow.', to: '/products' }
-];
+import { ModuleWorkspace } from '../components/ModuleWorkspace';
 
 export function OperationsWorkspacePage() {
   return (
-    <div className="module-page">
-      <section className="module-shell">
-        <div className="module-shell-head">
-          <div>
-            <span className="eyebrow">Operations workspace</span>
-            <h2>Operations</h2>
-            <p>Tasks, approvals, deliveries, and returns grouped into a cleaner operational control surface.</p>
-          </div>
-          <div className="module-shell-stat">
-            <strong>4</strong>
-            <span>Control blocks</span>
-          </div>
-        </div>
-        <div className="workspace-block-grid workspace-block-grid-four">
-          {items.map((item) => (
-            <Link key={item.title} to={item.to} className="workspace-block">
-              <span className="workspace-block-icon" />
-              <strong>{item.title}</strong>
-              <p>{item.subtitle}</p>
-            </Link>
-          ))}
-        </div>
-      </section>
-    </div>
+    <ModuleWorkspace
+      eyebrow="Operations workspace"
+      title="Operations"
+      description="Tasks, approvals, deliveries, and returns grouped into a cleaner operational control surface."
+      heroValue="4"
+      heroLabel="Operations blocks"
+      chips={['4 tasks due', '2 approvals', '3 deliveries queued']}
+      items={[
+        { title: 'Tasks', subtitle: 'Day-to-day work queue and ownership.', to: '/notifications', icon: '✓', meta: 'Work queue' },
+        { title: 'Approvals', subtitle: 'Review gates and approval control.', to: '/notifications', icon: '☑', meta: 'Decision points' },
+        { title: 'Deliveries', subtitle: 'Operational movement to customers.', to: '/payments', icon: '🚚', meta: 'Dispatch flow' },
+        { title: 'Returns', subtitle: 'Returned goods and corrective flow.', to: '/products', icon: '↩', meta: 'Reverse logistics' }
+      ]}
+      heroStats={[
+        { label: 'Open tasks', value: '4' },
+        { label: 'Pending approvals', value: '2', tone: 'warning' },
+        { label: 'Deliveries queued', value: '3', tone: 'success' }
+      ]}
+      footerTitle="Operations watchlist"
+      footerRows={[
+        { label: 'Warehouse A', value: 'Restock today', hint: 'Threshold breached this morning' },
+        { label: 'Dispatch focus', value: 'Durban route', hint: 'Three deliveries scheduled' },
+        { label: 'Approval queue', value: 'Q-1045', hint: 'Sales manager sign-off still pending' }
+      ]}
+    />
   );
 }
