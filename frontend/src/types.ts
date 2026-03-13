@@ -1,4 +1,4 @@
-export type RoleKey = 'admin' | 'sales' | 'finance' | 'warehouse' | 'procurement' | 'operations' | 'executive';
+export type RoleKey = 'admin' | 'manager' | 'sales' | 'finance' | 'warehouse' | 'procurement' | 'operations' | 'executive';
 export type KPI = { label: string; value: string; detail: string };
 export type PanelGroup = { title: string; items: string[] };
 export type Customer = {
@@ -135,6 +135,53 @@ export type OperationalActionItem = {
   status: string;
 };
 export type BranchSnapshot = { branch: string; approvals: number; collections: number; exceptions: number };
+
+export type SalesTrendPoint = { label: string; actual: number; target: number };
+export type UserPerformance = {
+  actorName: string;
+  scopeLabel: string;
+  branch: string;
+  yesterdaySales: string;
+  dailyTarget: string;
+  monthToDateSales: string;
+  monthlyTarget: string;
+  attainmentPercent: number;
+  pipelineValue: string;
+  approvalsWaiting: number;
+  trend: SalesTrendPoint[];
+};
+export type BranchDailySales = {
+  branch: string;
+  yesterdaySales: string;
+  dailyTarget: string;
+  attainmentPercent: number;
+  owner: string;
+};
+export type SellerPerformance = {
+  name: string;
+  branch: string;
+  sales: string;
+  target: string;
+  attainmentPercent: number;
+};
+export type DailyEmailPreview = {
+  recipients: string[];
+  subject: string;
+  lines: string[];
+};
+export type ReportsResponse = {
+  scope: string;
+  totals: {
+    yesterdaySales: string;
+    monthToDateSales: string;
+    monthlyTarget: string;
+    attainmentPercent: number;
+  };
+  branches: BranchDailySales[];
+  sellers: SellerPerformance[];
+  emailPreview: DailyEmailPreview;
+};
+
 export type DashboardResponse = {
   role: string;
   kpis: KPI[];
@@ -143,6 +190,7 @@ export type DashboardResponse = {
   recentCustomers: Customer[];
   lowStockProducts: Product[];
   topClients: TopClient[];
+  performance: UserPerformance;
   actionCenter: {
     branchSnapshots: BranchSnapshot[];
     actionQueue: OperationalActionItem[];

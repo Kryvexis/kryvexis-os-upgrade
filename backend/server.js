@@ -9,6 +9,7 @@ app.use(express.json());
 
 const roles = [
   { key: 'admin', label: 'Admin', description: 'Full platform visibility, settings, templates, automation rules, user management, audit access.', dashboards: ['system activity', 'approvals', 'branch health', 'audit highlights'] },
+  { key: 'manager', label: 'Manager', description: 'Branch sales control, approvals, reporting, and daily summary visibility.', dashboards: ['branch sales', 'team target', 'daily summary', 'exceptions'] },
   { key: 'sales', label: 'Sales', description: 'Customers, quotes, invoices, statements, selected reports.', dashboards: ['quotes awaiting action', 'invoices due', 'customer balances', 'personal targets'] },
   { key: 'finance', label: 'Finance', description: 'Payments, debtors, creditors, statements, expenses, cash up.', dashboards: ['debtor aging', 'receipts today', 'overdue accounts', 'cash-up alerts'] },
   { key: 'warehouse', label: 'Warehouse', description: 'Stock, movements, transfers, low stock, goods received.', dashboards: ['low stock', 'pending transfers', 'awaiting receipt', 'delivery queue'] },
@@ -120,6 +121,114 @@ const topClients = [
   { customerId: 'CUS-002', name: 'Northline Foods', revenue: 'R41,920', invoices: 5, averageOrderValue: 'R8,384', overdueBalance: 'R0', trend: 'Healthy collections' }
 ];
 
+const salesPerformanceByRole = {
+  sales: {
+    actorName: 'Alex Morgan',
+    scopeLabel: 'Your sales vs target',
+    branch: 'Johannesburg',
+    yesterdaySales: 'R58,400',
+    dailyTarget: 'R50,000',
+    monthToDateSales: 'R782,400',
+    monthlyTarget: 'R1,050,000',
+    attainmentPercent: 74,
+    pipelineValue: 'R126,900',
+    approvalsWaiting: 3,
+    trend: [
+      { label: 'Week 1', actual: 172000, target: 190000 },
+      { label: 'Week 2', actual: 205000, target: 210000 },
+      { label: 'Week 3', actual: 188000, target: 215000 },
+      { label: 'Week 4', actual: 217400, target: 225000 }
+    ]
+  },
+  manager: {
+    actorName: 'Alex Morgan',
+    scopeLabel: 'Branch sales vs target',
+    branch: 'Johannesburg',
+    yesterdaySales: 'R200,000',
+    dailyTarget: 'R180,000',
+    monthToDateSales: 'R2,480,000',
+    monthlyTarget: 'R3,100,000',
+    attainmentPercent: 80,
+    pipelineValue: 'R340,500',
+    approvalsWaiting: 6,
+    trend: [
+      { label: 'Week 1', actual: 590000, target: 650000 },
+      { label: 'Week 2', actual: 635000, target: 700000 },
+      { label: 'Week 3', actual: 612000, target: 720000 },
+      { label: 'Week 4', actual: 643000, target: 730000 }
+    ]
+  },
+  executive: {
+    actorName: 'Executive desk',
+    scopeLabel: 'Company sales vs target',
+    branch: 'All branches',
+    yesterdaySales: 'R448,000',
+    dailyTarget: 'R420,000',
+    monthToDateSales: 'R5,860,000',
+    monthlyTarget: 'R7,200,000',
+    attainmentPercent: 81,
+    pipelineValue: 'R910,000',
+    approvalsWaiting: 9,
+    trend: [
+      { label: 'Week 1', actual: 1410000, target: 1650000 },
+      { label: 'Week 2', actual: 1475000, target: 1750000 },
+      { label: 'Week 3', actual: 1412000, target: 1800000 },
+      { label: 'Week 4', actual: 1763000, target: 2000000 }
+    ]
+  },
+  admin: {
+    actorName: 'Admin desk',
+    scopeLabel: 'Company sales vs target',
+    branch: 'All branches',
+    yesterdaySales: 'R448,000',
+    dailyTarget: 'R420,000',
+    monthToDateSales: 'R5,860,000',
+    monthlyTarget: 'R7,200,000',
+    attainmentPercent: 81,
+    pipelineValue: 'R910,000',
+    approvalsWaiting: 9,
+    trend: [
+      { label: 'Week 1', actual: 1410000, target: 1650000 },
+      { label: 'Week 2', actual: 1475000, target: 1750000 },
+      { label: 'Week 3', actual: 1412000, target: 1800000 },
+      { label: 'Week 4', actual: 1763000, target: 2000000 }
+    ]
+  }
+};
+
+const branchDailySales = [
+  { branch: 'Johannesburg', yesterdaySales: 'R200,000', dailyTarget: 'R180,000', attainmentPercent: 111, owner: 'Alex Morgan' },
+  { branch: 'Cape Town', yesterdaySales: 'R150,000', dailyTarget: 'R145,000', attainmentPercent: 103, owner: 'Rina Patel' },
+  { branch: 'Durban', yesterdaySales: 'R98,000', dailyTarget: 'R120,000', attainmentPercent: 82, owner: 'Tariq Naidoo' }
+];
+
+const sellerPerformance = [
+  { name: 'Alex Morgan', branch: 'Johannesburg', sales: 'R782,400', target: 'R1,050,000', attainmentPercent: 74 },
+  { name: 'Rina Patel', branch: 'Cape Town', sales: 'R694,200', target: 'R980,000', attainmentPercent: 71 },
+  { name: 'Tariq Naidoo', branch: 'Durban', sales: 'R541,800', target: 'R760,000', attainmentPercent: 71 }
+];
+
+const reportsSnapshot = {
+  scope: 'manager-executive',
+  totals: {
+    yesterdaySales: 'R448,000',
+    monthToDateSales: 'R5,860,000',
+    monthlyTarget: 'R7,200,000',
+    attainmentPercent: 81
+  },
+  branches: branchDailySales,
+  sellers: sellerPerformance,
+  emailPreview: {
+    recipients: ['manager@kryvexis.local', 'boss@kryvexis.local'],
+    subject: 'Daily branch sales summary',
+    lines: [
+      'Johannesburg branch made R200,000 yesterday against a target of R180,000.',
+      'Cape Town branch made R150,000 yesterday against a target of R145,000.',
+      'Durban branch made R98,000 yesterday against a target of R120,000.'
+    ]
+  }
+};
+
 const baseCustomerSummaries = {
   'CUS-001': {
     customerId: 'CUS-001', totalSpend: 'R78,240', invoiceCount: 6, averageOrderValue: 'R13,040', overdueBalance: 'R5,040', lastPurchaseDate: '2026-03-09', lastPaymentDate: 'Today 10:42', collectionStatus: '1 overdue invoice needs follow-up',
@@ -168,6 +277,18 @@ const dashboardByRole = {
     panels: [
       { title: 'Approvals queue', items: ['Q-1045 high-value quote', 'Payment exception PAY-7693', 'Role change request for Cape Town'] },
       { title: 'Audit highlights', items: ['Theme changed to system', 'Invoice template updated', 'Branch settings edited'] }
+    ]
+  },
+  manager: {
+    kpis: [
+      { label: 'Branch sales yesterday', value: 'R200,000', detail: 'Johannesburg vs R180,000 target' },
+      { label: 'Month-to-date sales', value: 'R2,480,000', detail: '80% of monthly branch target' },
+      { label: 'Approvals waiting', value: '6', detail: 'Quotes and branch exceptions' },
+      { label: 'Branch leaderboard', value: '#1', detail: 'Top branch yesterday' }
+    ],
+    panels: [
+      { title: 'Manager focus', items: ['Review branch target gap', 'Approve large quotes', 'Share yesterday summary with leadership'] },
+      { title: 'Daily branch highlights', items: ['Johannesburg beat target', 'Cape Town slightly ahead', 'Durban needs follow-up'] }
     ]
   },
   sales: {
@@ -267,6 +388,10 @@ function buildBranchSnapshots() {
   }));
 }
 
+function buildPerformance(role) {
+  return salesPerformanceByRole[role] || salesPerformanceByRole.sales;
+}
+
 function buildDashboard(role) {
   const dashboard = dashboardByRole[role] || dashboardByRole.admin;
   const highlights = activeNotifications().slice(0, 5);
@@ -277,12 +402,18 @@ function buildDashboard(role) {
     recentCustomers: customers.slice(0, 3),
     lowStockProducts: products.filter((item) => item.stock <= item.reorderAt),
     topClients,
+    performance: buildPerformance(role),
     actionCenter: {
       branchSnapshots: buildBranchSnapshots(),
       actionQueue: activeNotifications().slice(0, 6).map(operationalActionForNotification),
       auditHighlights: auditLog.slice(0, 6)
     }
   };
+}
+
+function buildReports(role) {
+  if (!['admin', 'manager', 'executive'].includes(role)) return null;
+  return reportsSnapshot;
 }
 
 function collectActivity({ recordType, recordId, customerId }) {
@@ -377,6 +508,12 @@ app.get('/api/bootstrap', (_req, res) => res.json(envelope({ roles, themeOptions
 app.get('/api/dashboard', (req, res) => {
   const role = req.query.role || 'admin';
   res.json(envelope(buildDashboard(role)));
+});
+app.get('/api/reports', (req, res) => {
+  const role = req.query.role || 'admin';
+  const reports = buildReports(role);
+  if (!reports) return res.status(403).json({ ok: false, error: 'reports access denied' });
+  return res.json(envelope(reports));
 });
 app.get('/api/customers/:id/summary', (req, res) => {
   const summary = buildCustomerSummary(req.params.id);

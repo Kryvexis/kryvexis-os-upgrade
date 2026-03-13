@@ -23,12 +23,19 @@ import { InventoryWorkspacePage } from './pages/InventoryWorkspacePage';
 import { ProcurementWorkspacePage } from './pages/ProcurementWorkspacePage';
 import { AccountingWorkspacePage } from './pages/AccountingWorkspacePage';
 import { OperationsWorkspacePage } from './pages/OperationsWorkspacePage';
-import { PosPage } from './pages/PosPage';
+import { ReportsPage } from './pages/ReportsPage';
 import { applyTheme, getStoredTheme, type ThemeMode } from './lib/theme';
 import type { RoleKey } from './types';
 
+function ReportsGate({ role }: { role: RoleKey }) {
+  if (!['admin', 'manager', 'executive'].includes(role)) {
+    return <Navigate to="/" replace />;
+  }
+  return <ReportsPage role={role} />;
+}
+
 export default function App() {
-  const [role, setRole] = useState<RoleKey>('admin');
+  const [role, setRole] = useState<RoleKey>('manager');
   const [theme, setTheme] = useState<ThemeMode>(getStoredTheme());
 
   useEffect(() => {
@@ -41,12 +48,12 @@ export default function App() {
       <Route path="/invoices/:id/print" element={<InvoicePrintPage />} />
       <Route element={<AppShell role={role} setRole={setRole} theme={theme} setTheme={setTheme} />}>
         <Route path="/" element={<DashboardPage role={role} />} />
+        <Route path="/reports" element={<ReportsGate role={role} />} />
         <Route path="/sales" element={<SalesWorkspacePage />} />
         <Route path="/inventory" element={<InventoryWorkspacePage />} />
         <Route path="/procurement" element={<ProcurementWorkspacePage />} />
         <Route path="/accounting" element={<AccountingWorkspacePage />} />
         <Route path="/operations" element={<OperationsWorkspacePage />} />
-        <Route path="/pos" element={<PosPage />} />
         <Route path="/customers" element={<CustomersPage />} />
         <Route path="/customers/:id" element={<CustomerDetailPage />} />
         <Route path="/quotes" element={<QuotesPage />} />
