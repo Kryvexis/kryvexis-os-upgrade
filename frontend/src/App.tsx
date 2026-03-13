@@ -23,6 +23,7 @@ import { InventoryWorkspacePage } from './pages/InventoryWorkspacePage';
 import { ProcurementWorkspacePage } from './pages/ProcurementWorkspacePage';
 import { AccountingWorkspacePage } from './pages/AccountingWorkspacePage';
 import { OperationsWorkspacePage } from './pages/OperationsWorkspacePage';
+import { PosPage } from './pages/PosPage';
 import { applyTheme, getStoredTheme, type ThemeMode } from './lib/theme';
 import type { RoleKey } from './types';
 
@@ -45,6 +46,7 @@ export default function App() {
         <Route path="/procurement" element={<ProcurementWorkspacePage />} />
         <Route path="/accounting" element={<AccountingWorkspacePage />} />
         <Route path="/operations" element={<OperationsWorkspacePage />} />
+        <Route path="/pos" element={<PosPage />} />
         <Route path="/customers" element={<CustomersPage />} />
         <Route path="/customers/:id" element={<CustomerDetailPage />} />
         <Route path="/quotes" element={<QuotesPage />} />
