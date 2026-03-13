@@ -3,11 +3,6 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { AppShell } from './layout/AppShell';
 import { DashboardPage } from './pages/DashboardPage';
 import { CustomersPage } from './pages/CustomersPage';
-import { SalesWorkspacePage } from './pages/SalesWorkspacePage';
-import { InventoryWorkspacePage } from './pages/InventoryWorkspacePage';
-import { ProcurementWorkspacePage } from './pages/ProcurementWorkspacePage';
-import { AccountingWorkspacePage } from './pages/AccountingWorkspacePage';
-import { OperationsWorkspacePage } from './pages/OperationsWorkspacePage';
 import { CustomerDetailPage } from './pages/CustomerDetailPage';
 import { QuotesPage } from './pages/QuotesPage';
 import { QuoteDetailPage } from './pages/QuoteDetailPage';
@@ -22,12 +17,22 @@ import { PaymentDetailPage } from './pages/PaymentDetailPage';
 import { NotificationsPage } from './pages/NotificationsPage';
 import { RolesPage } from './pages/RolesPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { EmailComposerPage } from './pages/EmailComposerPage';
+import { SalesWorkspacePage } from './pages/SalesWorkspacePage';
+import { InventoryWorkspacePage } from './pages/InventoryWorkspacePage';
+import { ProcurementWorkspacePage } from './pages/ProcurementWorkspacePage';
+import { AccountingWorkspacePage } from './pages/AccountingWorkspacePage';
+import { OperationsWorkspacePage } from './pages/OperationsWorkspacePage';
 import { applyTheme, getStoredTheme, type ThemeMode } from './lib/theme';
 import type { RoleKey } from './types';
+
 export default function App() {
   const [role, setRole] = useState<RoleKey>('admin');
   const [theme, setTheme] = useState<ThemeMode>(getStoredTheme());
-  useEffect(() => { applyTheme(theme); }, [theme]);
+
+  useEffect(() => {
+    applyTheme(theme);
+  }, [theme]);
 
   return (
     <Routes>
@@ -53,6 +58,7 @@ export default function App() {
         <Route path="/notifications" element={<NotificationsPage />} />
         <Route path="/roles" element={<RolesPage />} />
         <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/emails/:kind/:id" element={<EmailComposerPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>
