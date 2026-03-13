@@ -120,7 +120,8 @@ export type Notification = {
   dismissed?: boolean;
   snoozedUntil?: string | null;
 };
-export type Settings = { themes: string[]; paymentModes: string[]; density: string[]; supportEmail: string; whatsapp: string; business: { currency: string; taxDefault: string; paymentTerms: string; defaultBranch: string; }; };
+export type AutomationConfig = { closeTime: string; triggerMode: string; sendToManager: boolean; sendToExecutive: boolean; managerEmails: string[]; executiveEmails: string[]; branchManagerMap: Record<string, string>; lastRunAt: string; lastLockedDate: string; };
+export type Settings = { themes: string[]; paymentModes: string[]; density: string[]; supportEmail: string; whatsapp: string; business: { currency: string; taxDefault: string; paymentTerms: string; defaultBranch: string; }; automation: AutomationConfig; };
 export type Role = { key: RoleKey; label: string; description: string; dashboards: string[]; };
 export type TopClient = { customerId: string; name: string; revenue: string; invoices: number; averageOrderValue: string; overdueBalance: string; trend: string; };
 export type OperationalActionItem = {
@@ -191,6 +192,33 @@ export type EmailDispatchLog = {
   status: string;
   summary: string;
 };
+export type AutomationCloseRow = {
+  branch: string;
+  date: string;
+  lockedAt: string;
+  salesTotal: string;
+  status: string;
+  emailStatus: string;
+  recipients: string[];
+};
+export type AutomationPanel = {
+  config: AutomationConfig;
+  latestClose: {
+    branch: string;
+    lockedAt: string;
+    businessDate: string;
+    emailStatus: string;
+    triggerMode: string;
+    recipients: string[];
+    branchesClosed: number;
+  } | null;
+  closures: AutomationCloseRow[];
+};
+export type DayCloseDispatchResponse = {
+  dispatch: EmailDispatchLog;
+  emailPreview: DailyEmailPreview;
+  automation: AutomationPanel;
+};
 export type ReportsResponse = {
   scope: string;
   selectedBranch: string;
@@ -207,6 +235,7 @@ export type ReportsResponse = {
   emailPreview: DailyEmailPreview;
   emailDispatches: EmailDispatchLog[];
   availableBranches: string[];
+  automation: AutomationPanel;
 };
 
 export type DashboardResponse = {

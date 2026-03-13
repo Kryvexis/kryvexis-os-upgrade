@@ -112,8 +112,32 @@ const settings = {
   density: ['comfortable', 'compact'],
   supportEmail: 'kryvexissolutions@gmail.com',
   whatsapp: '+27686282874',
-  business: { currency: 'ZAR', taxDefault: 'VAT Standard', paymentTerms: '30 days', defaultBranch: 'Johannesburg' }
+  business: { currency: 'ZAR', taxDefault: 'VAT Standard', paymentTerms: '30 days', defaultBranch: 'Johannesburg' },
+  automation: {
+    closeTime: '18:00',
+    triggerMode: 'cash-up close',
+    sendToManager: true,
+    sendToExecutive: true,
+    managerEmails: ['manager@kryvexis.local'],
+    executiveEmails: ['boss@kryvexis.local'],
+    branchManagerMap: {
+      Johannesburg: 'jhb.manager@kryvexis.local',
+      'Cape Town': 'cpt.manager@kryvexis.local',
+      Durban: 'dbn.manager@kryvexis.local'
+    },
+    lastRunAt: '2026-03-13 06:05',
+    lastLockedDate: '2026-03-12'
+  }
 };
+
+let automationConfig = JSON.parse(JSON.stringify(settings.automation));
+let persistedDailyClosures = dailySummaryRows.map((row) => ({
+  ...row,
+  lockedAt: `${row.date} 18:05`,
+  status: 'Locked',
+  emailStatus: 'Delivered',
+  recipients: [automationConfig.branchManagerMap[row.branch], ...automationConfig.executiveEmails]
+}));
 
 const topClients = [
   { customerId: 'CUS-001', name: 'Acme Retail Group', revenue: 'R78,240', invoices: 6, averageOrderValue: 'R13,040', overdueBalance: 'R5,040', trend: 'Growing this month' },
@@ -219,6 +243,135 @@ const emailDispatchLog = [
   { id: 'MAIL-1002', sentAt: 'Yesterday 06:04', audience: 'Manager summary', recipients: ['manager@kryvexis.local'], status: 'Delivered', summary: 'Branch-only rollup sent after cash-up lock.' },
   { id: 'MAIL-1001', sentAt: '2 days ago 06:07', audience: 'Executive summary', recipients: ['boss@kryvexis.local'], status: 'Delivered', summary: 'Company-wide trend summary sent with branch leaderboard.' }
 ];
+
+function branchRecipients(branch, includeExecutive = automationConfig.sendToExecutive) {
+  const recipients = [];
+  if (automationConfig.sendToManager) {
+    recipients.push(automationConfig.branchManagerMap[branch] || automationConfig.managerEmails[0]);
+  }
+  if (includeExecutive) {
+    recipients.push(...automationConfig.executiveEmails);
+  }
+  return recipients.filter((value, index, list) => value && list.indexOf(value) === index);
+}
+
+function buildClosureRows(selectedBranch = 'All branches') {
+  const rows = selectedBranch === 'All branches'
+    ? persistedDailyClosures
+    : persistedDailyClosures.filter((row) => row.branch === selectedBranch);
+  return rows.map(({ lockedAt, status, emailStatus, recipients, ...rest }) => rest);
+}
+
+function buildAutomationPanel(selectedBranch = 'All branches') {
+  const closures = selectedBranch === 'All branches'
+    ? persistedDailyClosures
+    : persistedDailyClosures.filter((row) => row.branch === selectedBranch);
+  const lastClosure = closures[0] || persistedDailyClosures[0] || null;
+  return {
+    config: automationConfig,
+    latestClose: lastClosure
+      ? {
+          branch: selectedBranch,
+          lockedAt: lastClosure.lockedAt,
+          businessDate: lastClosure.date,
+          emailStatus: lastClosure.emailStatus,
+          triggerMode: automationConfig.triggerMode,
+          recipients: selectedBranch === 'All branches'
+            ? [...automationConfig.managerEmails, ...automationConfig.executiveEmails]
+            : branchRecipients(lastClosure.branch),
+          branchesClosed: closures.length
+        }
+      : null,
+    closures: closures.map((row) => ({
+      branch: row.branch,
+      date: row.date,
+      lockedAt: row.lockedAt,
+      salesTotal: row.salesTotal,
+      status: row.status,
+      emailStatus: row.emailStatus,
+      recipients: row.recipients
+    }))
+  };
+}
+
+function executeDayClose(role, requestedBranch = 'All branches') {
+  if (!['admin', 'manager', 'executive'].includes(role)) return null;
+  const effectiveBranch = role === 'manager' ? 'Johannesburg' : requestedBranch;
+  const targets = effectiveBranch === 'All branches' ? dailySummaryRows : dailySummaryRows.filter((row) => row.branch === effectiveBranch);
+  const now = '2026-03-13 18:05';
+  const date = '2026-03-13';
+
+  targets.forEach((row) => {
+    const recipients = branchRecipients(row.branch, effectiveBranch === 'All branches');
+    const closure = {
+      ...row,
+      date,
+      lockedAt: now,
+      status: 'Locked',
+      emailStatus: 'Pending send',
+      recipients
+    };
+    const existingIndex = persistedDailyClosures.findIndex((item) => item.branch === row.branch && item.date === date);
+    if (existingIndex >= 0) persistedDailyClosures[existingIndex] = closure;
+    else persistedDailyClosures.unshift(closure);
+  });
+
+  automationConfig.lastRunAt = now;
+  automationConfig.lastLockedDate = date;
+  return buildAutomationPanel(effectiveBranch);
+}
+
+function dispatchDayCloseSummary(role, requestedBranch = 'All branches') {
+  if (!['admin', 'manager', 'executive'].includes(role)) return null;
+  const effectiveBranch = role === 'manager' ? 'Johannesburg' : requestedBranch;
+  const targets = effectiveBranch === 'All branches'
+    ? persistedDailyClosures.filter((row) => row.date === automationConfig.lastLockedDate)
+    : persistedDailyClosures.filter((row) => row.branch === effectiveBranch && row.date === automationConfig.lastLockedDate);
+  if (!targets.length) return null;
+
+  const recipients = effectiveBranch === 'All branches'
+    ? [...automationConfig.managerEmails, ...automationConfig.executiveEmails]
+    : branchRecipients(effectiveBranch);
+  const summary = targets.map((row) => `${row.branch} made ${row.salesTotal} on ${row.date}`).join(' | ');
+  const dispatch = {
+    id: `MAIL-${1000 + emailDispatchLog.length + 1}`,
+    sentAt: 'Today 18:06',
+    audience: effectiveBranch === 'All branches' ? 'Manager + executive summary' : `${effectiveBranch} manager summary`,
+    recipients,
+    status: 'Delivered',
+    summary
+  };
+  emailDispatchLog.unshift(dispatch);
+  persistedDailyClosures = persistedDailyClosures.map((row) => {
+    if (targets.some((target) => target.branch === row.branch && target.date === row.date)) {
+      return { ...row, emailStatus: 'Delivered' };
+    }
+    return row;
+  });
+  return {
+    dispatch,
+    emailPreview: {
+      recipients,
+      subject: `Daily sales summary - ${effectiveBranch}`,
+      lines: targets.map((row) => `${row.branch} branch made ${row.salesTotal} yesterday against a target of ${row.target}. POS ${row.posSales}, invoices ${row.invoiceSales}, variance ${row.variance}.`)
+    },
+    automation: buildAutomationPanel(effectiveBranch)
+  };
+}
+
+function updateAutomationConfig(payload = {}) {
+  automationConfig = {
+    ...automationConfig,
+    sendToManager: payload.sendToManager ?? automationConfig.sendToManager,
+    sendToExecutive: payload.sendToExecutive ?? automationConfig.sendToExecutive,
+    closeTime: payload.closeTime || automationConfig.closeTime,
+    triggerMode: payload.triggerMode || automationConfig.triggerMode,
+    managerEmails: Array.isArray(payload.managerEmails) ? payload.managerEmails : automationConfig.managerEmails,
+    executiveEmails: Array.isArray(payload.executiveEmails) ? payload.executiveEmails : automationConfig.executiveEmails
+  };
+  settings.automation = automationConfig;
+  return automationConfig;
+}
 
 const baseCustomerSummaries = {
   'CUS-001': {
@@ -416,9 +569,7 @@ function buildReports(role, requestedBranch = 'All branches') {
 
   const forcedBranch = role === 'manager' ? roleBranchScope(role) : requestedBranch || 'All branches';
   const selectedBranch = forcedBranch === 'All branches' ? 'All branches' : forcedBranch;
-  const filteredDaily = selectedBranch === 'All branches'
-    ? dailySummaryRows
-    : dailySummaryRows.filter((row) => row.branch === selectedBranch);
+  const filteredDaily = buildClosureRows(selectedBranch);
   const filteredBranches = selectedBranch === 'All branches'
     ? branchDailySales
     : branchDailySales.filter((row) => row.branch === selectedBranch);
@@ -451,7 +602,8 @@ function buildReports(role, requestedBranch = 'All branches') {
     dailySummaries: filteredDaily,
     emailDispatches: selectedBranch === 'All branches'
       ? emailDispatchLog
-      : emailDispatchLog.filter((entry) => /manager/i.test(entry.audience)),
+      : emailDispatchLog.filter((entry) => /manager/i.test(entry.audience) || entry.audience.includes(selectedBranch)),
+    automation: buildAutomationPanel(selectedBranch),
     emailPreview: {
       recipients: emailRecipients,
       subject: `Daily sales summary - ${selectedBranch === 'All branches' ? 'All branches' : selectedBranch}`,
@@ -560,6 +712,22 @@ app.get('/api/reports', (req, res) => {
   const reports = buildReports(role, req.query.branch || 'All branches');
   if (!reports) return res.status(403).json({ ok: false, error: 'reports access denied' });
   return res.json(envelope(reports));
+});
+app.post('/api/day-close/run', (req, res) => {
+  const role = req.body?.role || 'admin';
+  const result = executeDayClose(role, req.body?.branch || 'All branches');
+  if (!result) return res.status(403).json({ ok: false, error: 'day close access denied' });
+  return res.json(envelope(result));
+});
+app.post('/api/day-close/send-summary', (req, res) => {
+  const role = req.body?.role || 'admin';
+  const result = dispatchDayCloseSummary(role, req.body?.branch || 'All branches');
+  if (!result) return res.status(403).json({ ok: false, error: 'summary email access denied or no locked close found' });
+  return res.json(envelope(result));
+});
+app.patch('/api/settings/automation', (req, res) => {
+  const config = updateAutomationConfig(req.body || {});
+  return res.json(envelope(config));
 });
 app.get('/api/customers/:id/summary', (req, res) => {
   const summary = buildCustomerSummary(req.params.id);

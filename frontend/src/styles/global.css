@@ -1825,3 +1825,132 @@ body {
     grid-template-columns: 1fr 1fr;
   }
 }
+
+.phase4-reports-page,
+.phase4-settings-page {
+  gap: 18px;
+}
+
+.phase4-automation-card {
+  display: grid;
+  gap: 16px;
+}
+
+.phase4-automation-summary,
+.phase4-settings-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.phase4-automation-metric,
+.phase4-field,
+.phase4-toggle {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 14px 16px;
+  background: rgba(255,255,255,0.03);
+}
+
+.phase4-automation-metric span,
+.phase4-field span,
+.phase4-action-state,
+.phase4-toggle p,
+.phase4-settings-actions small {
+  color: var(--muted);
+}
+
+.phase4-automation-metric strong,
+.phase4-field strong,
+.phase4-toggle strong {
+  display: block;
+  margin-top: 6px;
+}
+
+.phase4-field {
+  display: grid;
+  gap: 10px;
+}
+
+.phase4-field input,
+.phase4-field select {
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,0.04);
+  color: var(--text);
+  padding: 10px 12px;
+}
+
+.phase4-toggle {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 12px;
+  align-items: start;
+}
+
+.phase4-toggle input {
+  margin-top: 3px;
+}
+
+.phase4-toggle p {
+  margin: 4px 0 0;
+}
+
+.phase4-action-row,
+.phase4-settings-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.phase4-close-log,
+.phase4-branch-map {
+  display: grid;
+  gap: 10px;
+}
+
+.phase4-close-row,
+.phase4-branch-map-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 12px;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 14px 16px;
+  background: rgba(255,255,255,0.02);
+}
+
+.phase4-close-row p,
+.phase4-branch-map-row span {
+  margin: 4px 0 0;
+  color: var(--muted);
+}
+
+.phase4-branch-map-row {
+  grid-template-columns: minmax(140px, 180px) 1fr;
+}
+
+.phase4-field-wide {
+  grid-column: span 2;
+}
+
+@media (max-width: 1180px) {
+  .phase4-automation-summary,
+  .phase4-settings-grid,
+  .phase4-reports-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 860px) {
+  .phase4-close-row,
+  .phase4-branch-map-row {
+    grid-template-columns: 1fr;
+  }
+
+  .phase4-field-wide {
+    grid-column: auto;
+  }
+}

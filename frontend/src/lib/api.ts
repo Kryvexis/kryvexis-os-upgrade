@@ -18,7 +18,10 @@ import type {
   Role,
   RoleKey,
   ReportsResponse,
-  Settings
+  Settings,
+  AutomationConfig,
+  AutomationPanel,
+  DayCloseDispatchResponse
 } from '../types';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
@@ -44,6 +47,18 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export const api = {
   dashboard: (role: RoleKey) => request<DashboardResponse>(`/api/dashboard?role=${role}`),
   reports: (role: RoleKey, branch?: string) => request<ReportsResponse>(`/api/reports?role=${role}${branch ? `&branch=${encodeURIComponent(branch)}` : ''}`),
+  runDayClose: (role: RoleKey, branch?: string) => request<AutomationPanel>('/api/day-close/run', {
+    method: 'POST',
+    body: JSON.stringify({ role, branch })
+  }),
+  sendDailySummary: (role: RoleKey, branch?: string) => request<DayCloseDispatchResponse>('/api/day-close/send-summary', {
+    method: 'POST',
+    body: JSON.stringify({ role, branch })
+  }),
+  updateAutomationSettings: (payload: Partial<AutomationConfig>) => request<AutomationConfig>('/api/settings/automation', {
+    method: 'PATCH',
+    body: JSON.stringify(payload)
+  }),
   customers: () => request<Customer[]>('/api/customers'),
   customer: (id: string) => request<Customer>(`/api/customers/${id}`),
   customerSummary: (id: string) => request<CustomerSummary>(`/api/customers/${id}/summary`),
