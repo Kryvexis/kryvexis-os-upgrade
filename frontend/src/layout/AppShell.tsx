@@ -1,7 +1,7 @@
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import type { RoleKey } from '../types';
 
-const coreNav = [
+const moduleItems = [
   ['/', 'Dashboard'],
   ['/sales', 'Sales'],
   ['/inventory', 'Inventory'],
@@ -11,50 +11,45 @@ const coreNav = [
   ['/notifications', 'Inbox']
 ] as const;
 
-const adminNav = [
+const adminItems = [
   ['/roles', 'Roles'],
   ['/settings', 'Settings']
 ] as const;
 
-const activeRouteLabels = [
-  ...coreNav,
-  ...adminNav,
-  ['/customers', 'Sales'],
-  ['/quotes', 'Sales'],
-  ['/invoices', 'Sales'],
-  ['/payments', 'Sales'],
-  ['/products', 'Inventory']
-] as const;
+function getPageTitle(pathname: string) {
+  if (pathname.startsWith('/sales')) return 'Sales';
+  if (pathname.startsWith('/inventory')) return 'Inventory';
+  if (pathname.startsWith('/procurement')) return 'Procurement';
+  if (pathname.startsWith('/accounting')) return 'Accounting';
+  if (pathname.startsWith('/operations')) return 'Operations';
+  if (pathname.startsWith('/notifications')) return 'Inbox';
+  if (pathname.startsWith('/customers')) return 'Customers';
+  if (pathname.startsWith('/quotes')) return 'Quotes';
+  if (pathname.startsWith('/invoices')) return 'Invoices';
+  if (pathname.startsWith('/products')) return 'Products';
+  if (pathname.startsWith('/payments')) return 'Payments';
+  if (pathname.startsWith('/roles')) return 'Roles';
+  if (pathname.startsWith('/settings')) return 'Settings';
+  return 'Dashboard';
+}
 
-const roleLabels: Record<RoleKey, string> = {
-  admin: 'Admin',
-  sales: 'Sales',
-  finance: 'Finance',
-  warehouse: 'Warehouse',
-  procurement: 'Procurement',
-  operations: 'Operations',
-  executive: 'Executive'
-};
-
-function NavGroup({ title, items }: { title: string; items: readonly (readonly [string, string])[] }) {
+function SidebarLink({ to, label }: { to: string; label: string }) {
   return (
-    <div className="sidebar-group">
-      <p className="sidebar-group-label">{title}</p>
-      <div className="nav-list">
-        {items.map(([to, label]) => (
-          <NavLink key={to} to={to} end={to === '/'} className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-            <span className="nav-link-dot" />
-            <span>{label}</span>
-          </NavLink>
-        ))}
-      </div>
-    </div>
+    <NavLink key={to} to={to} end={to === '/'} className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
+      <span className="nav-dot" />
+      <span>{label}</span>
+    </NavLink>
   );
 }
 
-export function AppShell({ role, setRole, theme, setTheme }: { role: RoleKey; setRole: (role: RoleKey) => void; theme: 'dark' | 'light' | 'system'; setTheme: (theme: 'dark' | 'light' | 'system') => void; }) {
+export function AppShell({ role, setRole, theme, setTheme }: {
+  role: RoleKey;
+  setRole: (role: RoleKey) => void;
+  theme: 'dark' | 'light' | 'system';
+  setTheme: (theme: 'dark' | 'light' | 'system') => void;
+}) {
   const location = useLocation();
-  const activeLabel = activeRouteLabels.find(([to]) => to === '/' ? location.pathname === '/' : location.pathname.startsWith(to))?.[1] ?? 'Workspace';
+  const pageTitle = getPageTitle(location.pathname);
 
   return (
     <div className="app-shell">
@@ -63,12 +58,19 @@ export function AppShell({ role, setRole, theme, setTheme }: { role: RoleKey; se
           <span className="brand-mark">K</span>
           <div>
             <strong>Kryvexis OS</strong>
-            <p>{roleLabels[role]} workspace</p>
+            <p>{role === 'executive' ? 'Executive' : role[0].toUpperCase() + role.slice(1)} workspace</p>
           </div>
         </div>
 
-        <NavGroup title="Core modules" items={coreNav} />
-        <NavGroup title="Admin" items={adminNav} />
+        <div className="nav-group">
+          <p className="nav-group-label">Core modules</p>
+          <nav className="nav-list">{moduleItems.map(([to, label]) => <SidebarLink key={to} to={to} label={label} />)}</nav>
+        </div>
+
+        <div className="nav-group admin-nav-group">
+          <p className="nav-group-label">Admin</p>
+          <nav className="nav-list">{adminItems.map(([to, label]) => <SidebarLink key={to} to={to} label={label} />)}</nav>
+        </div>
 
         <div className="sidebar-foot">
           <label className="stack-field">
@@ -83,7 +85,6 @@ export function AppShell({ role, setRole, theme, setTheme }: { role: RoleKey; se
               <option value="executive">Executive</option>
             </select>
           </label>
-
           <label className="stack-field">
             <span>Theme</span>
             <select value={theme} onChange={(e) => setTheme(e.target.value as 'dark' | 'light' | 'system')}>
@@ -96,22 +97,26 @@ export function AppShell({ role, setRole, theme, setTheme }: { role: RoleKey; se
       </aside>
 
       <main className="main-area">
-        <header className="topbar topbar-shell">
-          <div className="topbar-leading">
-            <button className="menu-chip" type="button" aria-label="Open navigation">≡</button>
+        <header className="topbar shell-topbar">
+          <div className="topbar-title-wrap">
+            <button className="menu-pill" type="button" aria-label="Open module navigation">
+              ≡
+            </button>
             <div>
               <p className="eyebrow">One shell • one workflow language</p>
-              <h1>{activeLabel}</h1>
+              <h1>{pageTitle}</h1>
             </div>
           </div>
 
-          <div className="topbar-actions topbar-user-row">
-            <button className="icon-chip" type="button" aria-label="Notifications">◔</button>
-            <div className="user-chip">
-              <span className="user-avatar">A</span>
+          <div className="topbar-actions topbar-right-cluster">
+            <button className="ghost-icon-button" type="button" aria-label="Quick action">
+              ◔
+            </button>
+            <div className="user-chip-card">
+              <div className="user-avatar">A</div>
               <div>
                 <strong>Alex Morgan</strong>
-                <p>{roleLabels[role]}</p>
+                <p>{role === 'executive' ? 'Executive' : role[0].toUpperCase() + role.slice(1)}</p>
               </div>
             </div>
           </div>
@@ -120,7 +125,7 @@ export function AppShell({ role, setRole, theme, setTheme }: { role: RoleKey; se
         <section className="page-body"><Outlet /></section>
 
         <nav className="mobile-nav">
-          {[...coreNav].slice(0, 5).map(([to, label]) => (
+          {moduleItems.slice(0, 5).map(([to, label]) => (
             <NavLink key={to} to={to} end={to === '/'} className={({ isActive }) => `mobile-link ${isActive ? 'active' : ''}`}>
               {label}
             </NavLink>

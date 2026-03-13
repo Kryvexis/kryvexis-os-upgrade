@@ -1,28 +1,39 @@
-import { Link } from 'react-router-dom';
-import { Card } from '../components/Card';
-
-const accountingBlocks = [
-  { label: 'Debtors', path: '/invoices', blurb: 'Overdue accounts, debtor aging, and follow-up actions.' },
-  { label: 'Creditors', path: '/procurement', blurb: 'Supplier-side payables and bill follow-through.' },
-  { label: 'Statements', path: '/customers', blurb: 'Account statements and customer balance visibility.' },
-  { label: 'Expenses', path: '/settings', blurb: 'Expense policy and cash handling foundation.' },
-  { label: 'Cash Up', path: '/payments', blurb: 'Receipts, proof, and end-of-day finance control.' }
-] as const;
+function WorkspaceBlock({ title, body }: { title: string; body: string }) {
+  return (
+    <div className="workspace-block static-block">
+      <div className="workspace-icon" />
+      <div className="workspace-block-copy">
+        <h3>{title}</h3>
+        <p>{body}</p>
+      </div>
+    </div>
+  );
+}
 
 export function AccountingWorkspacePage() {
   return (
-    <div className="page-grid module-workspace-page">
-      <Card title="Accounting workspace" subtitle="Like the mockup, accounting opens as a workspace of finance blocks instead of a cluttered sidebar list." className="module-hero-card">
-        <div className="module-block-grid procurement-module-grid">
-          {accountingBlocks.map((block) => (
-            <Link key={block.label} to={block.path} className="module-block-card">
-              <span className="module-block-icon" />
-              <strong>{block.label}</strong>
-              <p>{block.blurb}</p>
-            </Link>
-          ))}
+    <div className="module-page-grid">
+      <section className="module-hero-card">
+        <div className="module-hero-copy">
+          <p className="eyebrow">Accounting workspace</p>
+          <h2>Debtors, creditors, cash-up, and statements grouped under one finance surface.</h2>
+          <p className="module-subcopy">Use the accounting module as the finance control layer rather than scattering these records around the shell.</p>
         </div>
-      </Card>
+        <div className="module-chip-row">
+          <span className="module-chip">2 debtor actions</span>
+          <span className="module-chip">1 cash-up issue</span>
+          <span className="module-chip">4 statements ready</span>
+        </div>
+      </section>
+      <section className="module-board">
+        <div className="workspace-block-grid two-up plus-single">
+          <WorkspaceBlock title="Debtors" body="Collections, aging, and overdue action queues." />
+          <WorkspaceBlock title="Creditors" body="Supplier obligations and due-date visibility." />
+          <WorkspaceBlock title="Statements" body="Customer and supplier statement control." />
+          <WorkspaceBlock title="Expenses" body="Branch spend and approval-linked costs." />
+          <WorkspaceBlock title="Cash Up" body="Daily close, variance checks, and finance signoff." />
+        </div>
+      </section>
     </div>
   );
 }

@@ -1,73 +1,77 @@
-import { Link } from 'react-router-dom';
-import { Card } from '../components/Card';
-import { api } from '../lib/api';
 import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { api } from '../lib/api';
 import type { Product } from '../types';
 
-const inventoryBlocks = [
-  { label: 'Products', path: '/products', blurb: 'SKU records, pricing anchors, and item detail.' },
-  { label: 'Stock', path: '/products', blurb: 'On-hand levels, threshold pressure, and coverage.' },
-  { label: 'Movements', path: '/products', blurb: 'Recent movement summaries and internal flow.' },
-  { label: 'Transfers', path: '/products', blurb: 'Inter-branch stock transfers and handoff visibility.' },
-  { label: 'Low stock', path: '/products', blurb: 'Threshold breaches and reorder pressure.' }
-] as const;
+function WorkspaceBlock({ title, body, to }: { title: string; body: string; to: string }) {
+  return (
+    <Link to={to} className="workspace-block">
+      <div className="workspace-icon" />
+      <div className="workspace-block-copy">
+        <h3>{title}</h3>
+        <p>{body}</p>
+      </div>
+    </Link>
+  );
+}
 
 export function InventoryWorkspacePage() {
   const [products, setProducts] = useState<Product[]>([]);
-  useEffect(() => { api.products().then(setProducts).catch(() => setProducts([])); }, []);
+  useEffect(() => { api.products().then(setProducts); }, []);
+
   const lowStock = useMemo(() => products.filter((item) => item.stock <= item.reorderAt), [products]);
+  const healthy = Math.max(products.length - lowStock.length, 0);
 
   return (
-    <div className="page-grid module-workspace-page">
-      <Card title="Inventory workspace" subtitle="The inventory module opens as a workspace first, then drills into product-level records." className="module-hero-card">
-        <div className="module-hero-grid">
-          <div>
-            <strong className="hero-value compact-hero-value">{products.length || 0}</strong>
-            <p className="hero-support">Active SKU records across products, stock, movements, and transfers.</p>
-          </div>
-          <div className="hero-chip-stack horizontal-chips">
-            <span className="hero-chip small-chip">{lowStock.length} low stock</span>
-            <span className="hero-chip small-chip">{products.filter((item) => item.status === 'Healthy').length} healthy SKUs</span>
-          </div>
+    <div className="module-page-grid">
+      <section className="module-hero-card">
+        <div className="module-hero-copy">
+          <p className="eyebrow">Inventory workspace</p>
+          <h2>Products, stock, movements, and transfers under one operating module.</h2>
+          <p className="module-subcopy">Open inventory as a workspace first, then drill into product-level records and threshold pressure.</p>
         </div>
-        <div className="module-block-grid inventory-module-grid">
-          {inventoryBlocks.map((block) => (
-            <Link key={block.label} to={block.path} className="module-block-card">
-              <span className="module-block-icon" />
-              <strong>{block.label}</strong>
-              <p>{block.blurb}</p>
-            </Link>
-          ))}
+        <div className="module-chip-row">
+          <span className="module-chip">{products.length} active SKUs</span>
+          <span className="module-chip">{lowStock.length} low stock</span>
+          <span className="module-chip">{healthy} healthy SKUs</span>
         </div>
-      </Card>
+      </section>
 
-      <div className="module-support-grid">
-        <Card title="Low stock watchlist" subtitle="Visible pressure items without opening the full stock table.">
-          <div className="module-list-stack">
-            {lowStock.slice(0, 3).map((item) => (
-              <Link key={item.id} to={`/products/${item.id}`} className="mini-list-row module-list-row">
-                <div>
-                  <strong>{item.name}</strong>
-                  <p>{item.branch} • reorder at {item.reorderAt}</p>
-                </div>
-                <span className="badge warning">{item.stock} on hand</span>
-              </Link>
-            ))}
+      <section className="module-board">
+        <div className="module-board-head">
+          <div>
+            <strong className="module-board-count">5</strong>
+            <p>Products, stock, movements, transfers, and low stock pressure.</p>
           </div>
-        </Card>
-        <Card title="Inventory quick focus" subtitle="The first places to look before drilling into record detail.">
-          <div className="module-mini-stats">
-            <div className="hero-footer-card compact-footer-card">
-              <span className="eyebrow">Products</span>
-              <strong>{products.length}</strong>
-            </div>
-            <div className="hero-footer-card compact-footer-card">
-              <span className="eyebrow">Suppliers in view</span>
-              <strong>{new Set(products.map((item) => item.supplier)).size}</strong>
-            </div>
+        </div>
+        <div className="workspace-block-grid two-up plus-single">
+          <WorkspaceBlock title="Products" body="SKU records, pricing anchors, and item detail." to="/products" />
+          <WorkspaceBlock title="Stock" body="On-hand levels, threshold pressure, and coverage." to="/products" />
+          <WorkspaceBlock title="Movements" body="Recent movement summaries and internal flow." to="/products" />
+          <WorkspaceBlock title="Transfers" body="Inter-branch stock transfers and handoff visibility." to="/products" />
+          <WorkspaceBlock title="Low stock" body="Threshold breaches and reorder pressure." to="/products" />
+        </div>
+      </section>
+
+      <section className="module-watch-card">
+        <div className="card-header compact-card-header">
+          <div>
+            <h3>Low stock watchlist</h3>
+            <p>Visible pressure items without opening the full stock table.</p>
           </div>
-        </Card>
-      </div>
+        </div>
+        <div className="watchlist-stack">
+          {lowStock.length ? lowStock.map((item) => (
+            <Link key={item.id} to={`/products/${item.id}`} className="watchlist-row">
+              <div>
+                <strong>{item.name}</strong>
+                <p>{item.branch} • reorder at {item.reorderAt}</p>
+              </div>
+              <span className="mini-badge warning">{item.stock} on hand</span>
+            </Link>
+          )) : <div className="watchlist-row"><strong>No low stock pressure</strong></div>}
+        </div>
+      </section>
     </div>
   );
 }
