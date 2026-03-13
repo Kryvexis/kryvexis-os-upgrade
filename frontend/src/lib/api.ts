@@ -43,7 +43,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const api = {
   dashboard: (role: RoleKey) => request<DashboardResponse>(`/api/dashboard?role=${role}`),
-  reports: (role: RoleKey) => request<ReportsResponse>(`/api/reports?role=${role}`),
+  reports: (role: RoleKey, branch?: string) => request<ReportsResponse>(`/api/reports?role=${role}${branch ? `&branch=${encodeURIComponent(branch)}` : ''}`),
   customers: () => request<Customer[]>('/api/customers'),
   customer: (id: string) => request<Customer>(`/api/customers/${id}`),
   customerSummary: (id: string) => request<CustomerSummary>(`/api/customers/${id}/summary`),

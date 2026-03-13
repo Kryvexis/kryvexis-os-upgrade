@@ -208,26 +208,17 @@ const sellerPerformance = [
   { name: 'Tariq Naidoo', branch: 'Durban', sales: 'R541,800', target: 'R760,000', attainmentPercent: 71 }
 ];
 
-const reportsSnapshot = {
-  scope: 'manager-executive',
-  totals: {
-    yesterdaySales: 'R448,000',
-    monthToDateSales: 'R5,860,000',
-    monthlyTarget: 'R7,200,000',
-    attainmentPercent: 81
-  },
-  branches: branchDailySales,
-  sellers: sellerPerformance,
-  emailPreview: {
-    recipients: ['manager@kryvexis.local', 'boss@kryvexis.local'],
-    subject: 'Daily branch sales summary',
-    lines: [
-      'Johannesburg branch made R200,000 yesterday against a target of R180,000.',
-      'Cape Town branch made R150,000 yesterday against a target of R145,000.',
-      'Durban branch made R98,000 yesterday against a target of R120,000.'
-    ]
-  }
-};
+const dailySummaryRows = [
+  { date: '2026-03-12', branch: 'Johannesburg', salesTotal: 'R200,000', posSales: 'R124,000', invoiceSales: 'R76,000', cashSales: 'R22,000', cardSales: 'R108,000', eftSales: 'R70,000', transactions: 42, target: 'R180,000', variance: '+R20,000', owner: 'Alex Morgan' },
+  { date: '2026-03-12', branch: 'Cape Town', salesTotal: 'R150,000', posSales: 'R91,000', invoiceSales: 'R59,000', cashSales: 'R18,000', cardSales: 'R77,000', eftSales: 'R55,000', transactions: 31, target: 'R145,000', variance: '+R5,000', owner: 'Rina Patel' },
+  { date: '2026-03-12', branch: 'Durban', salesTotal: 'R98,000', posSales: 'R53,000', invoiceSales: 'R45,000', cashSales: 'R12,000', cardSales: 'R41,000', eftSales: 'R45,000', transactions: 24, target: 'R120,000', variance: '-R22,000', owner: 'Tariq Naidoo' }
+];
+
+const emailDispatchLog = [
+  { id: 'MAIL-1003', sentAt: 'Today 06:05', audience: 'Manager + executive summary', recipients: ['manager@kryvexis.local', 'boss@kryvexis.local'], status: 'Delivered', summary: 'All branch figures for 12 Mar 2026 distributed automatically.' },
+  { id: 'MAIL-1002', sentAt: 'Yesterday 06:04', audience: 'Manager summary', recipients: ['manager@kryvexis.local'], status: 'Delivered', summary: 'Branch-only rollup sent after cash-up lock.' },
+  { id: 'MAIL-1001', sentAt: '2 days ago 06:07', audience: 'Executive summary', recipients: ['boss@kryvexis.local'], status: 'Delivered', summary: 'Company-wide trend summary sent with branch leaderboard.' }
+];
 
 const baseCustomerSummaries = {
   'CUS-001': {
@@ -411,9 +402,64 @@ function buildDashboard(role) {
   };
 }
 
-function buildReports(role) {
+function formatCurrency(amount) {
+  return `R${Number(amount || 0).toLocaleString('en-ZA')}`;
+}
+
+function roleBranchScope(role) {
+  if (role === 'manager') return 'Johannesburg';
+  return 'All branches';
+}
+
+function buildReports(role, requestedBranch = 'All branches') {
   if (!['admin', 'manager', 'executive'].includes(role)) return null;
-  return reportsSnapshot;
+
+  const forcedBranch = role === 'manager' ? roleBranchScope(role) : requestedBranch || 'All branches';
+  const selectedBranch = forcedBranch === 'All branches' ? 'All branches' : forcedBranch;
+  const filteredDaily = selectedBranch === 'All branches'
+    ? dailySummaryRows
+    : dailySummaryRows.filter((row) => row.branch === selectedBranch);
+  const filteredBranches = selectedBranch === 'All branches'
+    ? branchDailySales
+    : branchDailySales.filter((row) => row.branch === selectedBranch);
+  const filteredSellers = selectedBranch === 'All branches'
+    ? sellerPerformance
+    : sellerPerformance.filter((row) => row.branch === selectedBranch);
+
+  const yesterdayTotal = filteredDaily.reduce((sum, row) => sum + numericAmount(row.salesTotal), 0);
+  const targetTotal = filteredDaily.reduce((sum, row) => sum + numericAmount(row.target), 0);
+  const mtdTotal = filteredSellers.reduce((sum, row) => sum + numericAmount(row.sales), 0);
+  const mtdTarget = filteredSellers.reduce((sum, row) => sum + numericAmount(row.target), 0);
+  const attainmentPercent = targetTotal ? Math.round((yesterdayTotal / targetTotal) * 100) : 0;
+
+  const emailRecipients = selectedBranch === 'All branches'
+    ? ['manager@kryvexis.local', 'boss@kryvexis.local']
+    : ['manager@kryvexis.local'];
+
+  return {
+    scope: selectedBranch === 'All branches' ? 'company' : 'branch',
+    selectedBranch,
+    generatedAt: 'Today 06:05 after cash-up close',
+    totals: {
+      yesterdaySales: formatCurrency(yesterdayTotal),
+      monthToDateSales: formatCurrency(mtdTotal),
+      monthlyTarget: formatCurrency(mtdTarget),
+      attainmentPercent
+    },
+    branches: filteredBranches,
+    sellers: filteredSellers,
+    dailySummaries: filteredDaily,
+    emailDispatches: selectedBranch === 'All branches'
+      ? emailDispatchLog
+      : emailDispatchLog.filter((entry) => /manager/i.test(entry.audience)),
+    emailPreview: {
+      recipients: emailRecipients,
+      subject: `Daily sales summary - ${selectedBranch === 'All branches' ? 'All branches' : selectedBranch}`,
+      lines: filteredDaily.map((row) => `${row.branch} branch made ${row.salesTotal} yesterday against a target of ${row.target}. POS ${row.posSales}, invoices ${row.invoiceSales}, variance ${row.variance}.`)
+    },
+    availableBranches: ['All branches', ...dailySummaryRows.map((row) => row.branch)]
+      .filter((value, index, list) => list.indexOf(value) === index)
+  };
 }
 
 function collectActivity({ recordType, recordId, customerId }) {
@@ -511,7 +557,7 @@ app.get('/api/dashboard', (req, res) => {
 });
 app.get('/api/reports', (req, res) => {
   const role = req.query.role || 'admin';
-  const reports = buildReports(role);
+  const reports = buildReports(role, req.query.branch || 'All branches');
   if (!reports) return res.status(403).json({ ok: false, error: 'reports access denied' });
   return res.json(envelope(reports));
 });

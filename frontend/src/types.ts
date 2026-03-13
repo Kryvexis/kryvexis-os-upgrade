@@ -169,8 +169,32 @@ export type DailyEmailPreview = {
   subject: string;
   lines: string[];
 };
+export type DailySummaryRow = {
+  date: string;
+  branch: string;
+  salesTotal: string;
+  posSales: string;
+  invoiceSales: string;
+  cashSales: string;
+  cardSales: string;
+  eftSales: string;
+  transactions: number;
+  target: string;
+  variance: string;
+  owner: string;
+};
+export type EmailDispatchLog = {
+  id: string;
+  sentAt: string;
+  audience: string;
+  recipients: string[];
+  status: string;
+  summary: string;
+};
 export type ReportsResponse = {
   scope: string;
+  selectedBranch: string;
+  generatedAt: string;
   totals: {
     yesterdaySales: string;
     monthToDateSales: string;
@@ -179,7 +203,10 @@ export type ReportsResponse = {
   };
   branches: BranchDailySales[];
   sellers: SellerPerformance[];
+  dailySummaries: DailySummaryRow[];
   emailPreview: DailyEmailPreview;
+  emailDispatches: EmailDispatchLog[];
+  availableBranches: string[];
 };
 
 export type DashboardResponse = {
