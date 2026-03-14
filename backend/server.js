@@ -1112,7 +1112,18 @@ async function insertCompatible(tableName, values, options = {}) {
   const keys = filteredEntries.map(([key]) => key);
   const params = filteredEntries.map(([, value]) => value);
   const placeholders = keys.map((_, index) => `$${index + 1}`).join(', ');
-  const conflictKey = options.conflictKey || 'id';
+  const preferredConflictKeys = [options.conflictKey || 'id', ...(options.fallbackConflictKeys || ['key', 'email', 'sku', 'ref', 'name'])]
+    .filter((key, index, arr) => key && arr.indexOf(key) === index);
+  const conflictKey = preferredConflictKeys.find((key) => columns.has(key));
+
+  if (!conflictKey) {
+    await pool.query(
+      `insert into ${tableName} (${keys.join(', ')}) values (${placeholders})`,
+      params
+    );
+    return;
+  }
+
   const updateKeys = options.update === false ? [] : keys.filter((key) => key !== conflictKey);
   const updates = updateKeys.length
     ? updateKeys.map((key) => `${key} = excluded.${key}`).join(', ')
@@ -1178,6 +1189,8 @@ async function ensureCoreSqlSeed() {
   for (const customer of customers) {
     await insertCompatible('customers', {
       id: customer.id,
+      customer_code: customer.id,
+      code: customer.id,
       name: customer.name,
       owner: customer.owner,
       branch_id: branchIdByName(customer.branch),
@@ -1192,7 +1205,7 @@ async function ensureCoreSqlSeed() {
       phone: customer.phone,
       notes: customer.notes,
       next_action: customer.nextAction
-    });
+    }, { fallbackConflictKeys: ['customer_code', 'code', 'name'] });
 
     const activityColumns = await getTableColumns('customer_activity');
     if (activityColumns.size && activityColumns.has('customer_id') && activityColumns.has('activity_text')) {

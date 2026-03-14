@@ -6,7 +6,7 @@ export function createCustomersRepository(pool) {
 
   function mapCustomer(row) {
     return {
-      id: row.id,
+      id: row.id || row.customer_code || row.code || row.name,
       name: row.name,
       owner: row.owner,
       branch: row.branch_name || row.branch_id,
@@ -32,9 +32,9 @@ export function createCustomersRepository(pool) {
             filter (where ca.id is not null), '[]'::json) as activity
         from customers c
         left join branches b on b.id = c.branch_id
-        left join customer_activity ca on ca.customer_id = c.id
-        group by c.id, b.name
-        order by c.id
+        left join customer_activity ca on ca.customer_id = coalesce(c.id, c.customer_code, c.code)
+        group by coalesce(c.id, c.customer_code, c.code), c.name, c.owner, c.branch_id, c.status, c.balance, c.risk, c.credit_terms, c.price_list, c.contact_email, c.phone, c.notes, c.next_action, b.name
+        order by coalesce(c.id, c.customer_code, c.code)
       `);
       return result.rows.map(mapCustomer);
     },
@@ -45,9 +45,9 @@ export function createCustomersRepository(pool) {
             filter (where ca.id is not null), '[]'::json) as activity
         from customers c
         left join branches b on b.id = c.branch_id
-        left join customer_activity ca on ca.customer_id = c.id
-        where c.id = $1
-        group by c.id, b.name
+        left join customer_activity ca on ca.customer_id = coalesce(c.id, c.customer_code, c.code)
+        where coalesce(c.id, c.customer_code, c.code) = $1
+        group by coalesce(c.id, c.customer_code, c.code), c.name, c.owner, c.branch_id, c.status, c.balance, c.risk, c.credit_terms, c.price_list, c.contact_email, c.phone, c.notes, c.next_action, b.name
       `, [id]);
       return result.rows[0] ? mapCustomer(result.rows[0]) : null;
     }
