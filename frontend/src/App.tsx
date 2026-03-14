@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { AppShell } from './layout/AppShell';
 import { DashboardPage } from './pages/DashboardPage';
+import { ActionCenterPage } from './pages/ActionCenterPage';
 import { CustomersPage } from './pages/CustomersPage';
 import { CustomerDetailPage } from './pages/CustomerDetailPage';
 import { QuotesPage } from './pages/QuotesPage';
@@ -150,6 +151,7 @@ export default function App() {
         <Route path="/inventory" element={<InventoryWorkspacePage />} />
         <Route path="/procurement" element={<ProcurementWorkspacePage />} />
         <Route path="/accounting" element={<AccountingWorkspacePage />} />
+        <Route path="/action-center" element={<ActionCenterPage role={role} />} />
         <Route path="/accounting/debtors" element={<DebtorsPage />} />
         <Route path="/accounting/statements" element={<StatementsPage />} />
         <Route path="/accounting/cash-up" element={<CashUpPage />} />
