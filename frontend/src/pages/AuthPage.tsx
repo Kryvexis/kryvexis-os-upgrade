@@ -1,7 +1,7 @@
 import { FormEvent, useMemo, useState } from 'react';
 import { api } from '../lib/api';
 import logo from '../assets/kryvexis-logo.png';
-import type { AuthSession } from '../types';
+import type { AuthSession, RoleKey } from '../types';
 
 const starterEmails = [
   'kryvexissolutions@gmail.com',
@@ -16,8 +16,27 @@ const storyFrames = [
   'Built to feel iconic on mobile and unmistakably Kryvexis on first launch.'
 ];
 
+const roleOptions: { value: RoleKey; label: string }[] = [
+  { value: 'manager', label: 'Manager' },
+  { value: 'sales', label: 'Sales' },
+  { value: 'finance', label: 'Finance' },
+  { value: 'warehouse', label: 'Warehouse' },
+  { value: 'procurement', label: 'Procurement' },
+  { value: 'operations', label: 'Operations' }
+];
+
+const branchOptions = [
+  { value: 'BR-JHB', label: 'Johannesburg' },
+  { value: 'BR-CPT', label: 'Cape Town' },
+  { value: 'BR-DUR', label: 'Durban' }
+];
+
 export function AuthPage({ onAuthenticated }: { onAuthenticated: (session: AuthSession) => void }) {
+  const [mode, setMode] = useState<'login' | 'signup'>('login');
   const [email, setEmail] = useState('kryvexissolutions@gmail.com');
+  const [fullName, setFullName] = useState('');
+  const [roleKey, setRoleKey] = useState<RoleKey>('manager');
+  const [branchId, setBranchId] = useState('BR-JHB');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const frame = useMemo(() => storyFrames[Math.floor((Date.now() / 3000) % storyFrames.length)], []);
@@ -27,10 +46,12 @@ export function AuthPage({ onAuthenticated }: { onAuthenticated: (session: AuthS
     setBusy(true);
     setError('');
     try {
-      const session = await api.login(email);
+      const session = mode === 'login'
+        ? await api.login(email)
+        : await api.signup({ fullName, email, roleKey, branchId });
       onAuthenticated(session);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed');
+      setError(err instanceof Error ? err.message : `${mode} failed`);
     } finally {
       setBusy(false);
     }
@@ -44,12 +65,12 @@ export function AuthPage({ onAuthenticated }: { onAuthenticated: (session: AuthS
         <div className="entry-hero">
           <p className="eyebrow">Kryvexis OS</p>
           <img src={logo} alt="Kryvexis" className="entry-logo entry-logo-large" />
-          <h1>An entry experience people remember.</h1>
+          <h1>Secure access before system ignition.</h1>
           <p className="entry-copy">{frame}</p>
           <div className="entry-pill-row">
-            <span className="entry-pill">System ignition</span>
-            <span className="entry-pill">Mobile-first motion</span>
-            <span className="entry-pill">Command center access</span>
+            <span className="entry-pill">Role-aware access</span>
+            <span className="entry-pill">Branch-aware sessions</span>
+            <span className="entry-pill">Command center ready</span>
           </div>
         </div>
 
@@ -59,11 +80,38 @@ export function AuthPage({ onAuthenticated }: { onAuthenticated: (session: AuthS
             <img src={logo} alt="Kryvexis" className="entry-logo" />
             <div>
               <strong>Kryvexis OS</strong>
-              <p>Sign in to the operating core</p>
+              <p>{mode === 'login' ? 'Sign in to the operating core' : 'Create an operator account and continue'}</p>
             </div>
           </div>
 
+          <div className="auth-chip-row cinematic-chip-row" style={{ marginBottom: 14 }}>
+            <button type="button" className={`ghost-button entry-chip ${mode === 'login' ? 'active' : ''}`} onClick={() => setMode('login')}>Login</button>
+            <button type="button" className={`ghost-button entry-chip ${mode === 'signup' ? 'active' : ''}`} onClick={() => setMode('signup')}>Sign up</button>
+          </div>
+
           <form onSubmit={submit} className="stack-field auth-form-stack">
+            {mode === 'signup' ? (
+              <>
+                <label className="stack-field">
+                  <span>Full name</span>
+                  <input className="entry-input" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Antonie Meyer" autoComplete="name" />
+                </label>
+                <div className="split-grid" style={{ gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <label className="stack-field">
+                    <span>Role</span>
+                    <select className="entry-input" value={roleKey} onChange={(e) => setRoleKey(e.target.value as RoleKey)}>
+                      {roleOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                    </select>
+                  </label>
+                  <label className="stack-field">
+                    <span>Branch</span>
+                    <select className="entry-input" value={branchId} onChange={(e) => setBranchId(e.target.value)}>
+                      {branchOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                    </select>
+                  </label>
+                </div>
+              </>
+            ) : null}
             <label className="stack-field">
               <span>Work email</span>
               <input
@@ -75,7 +123,7 @@ export function AuthPage({ onAuthenticated }: { onAuthenticated: (session: AuthS
               />
             </label>
             <button className="entry-primary-button" type="submit" disabled={busy}>
-              {busy ? 'Launching command core...' : 'Launch Kryvexis'}
+              {busy ? (mode === 'login' ? 'Launching command core...' : 'Creating operator account...') : (mode === 'login' ? 'Launch Kryvexis' : 'Create account and continue')}
             </button>
             {error ? <p className="danger-text">{error}</p> : null}
           </form>
@@ -87,7 +135,7 @@ export function AuthPage({ onAuthenticated }: { onAuthenticated: (session: AuthS
             </div>
             <div className="auth-chip-row cinematic-chip-row">
               {starterEmails.map((item) => (
-                <button key={item} type="button" className="ghost-button entry-chip" onClick={() => setEmail(item)}>{item}</button>
+                <button key={item} type="button" className="ghost-button entry-chip" onClick={() => { setMode('login'); setEmail(item); }}>{item}</button>
               ))}
             </div>
           </div>

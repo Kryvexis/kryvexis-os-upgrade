@@ -1,5 +1,6 @@
 export type RoleKey = 'admin' | 'manager' | 'sales' | 'finance' | 'warehouse' | 'procurement' | 'operations' | 'executive';
-export type AuthSession = { email: string; name: string; role: RoleKey; branch: string; token: string; lastLoginAt: string; };
+export type AuthSession = { email: string; name: string; role: RoleKey; branch: string; branchId?: string | null; token: string; lastLoginAt: string; permissions?: string[]; };
+export type SignupPayload = { fullName: string; email: string; roleKey?: RoleKey; branchId?: string | null; };
 export type KPI = { label: string; value: string; detail: string };
 export type PanelGroup = { title: string; items: string[] };
 export type Customer = {
@@ -152,3 +153,25 @@ export type ProcurementOverview = {
   purchaseOrders: ProcurementPoRow[];
   exceptions: ProcurementExceptionRow[];
 };
+
+
+export type InventoryRow = Product & {
+  product: string;
+  onHand: number;
+  reserved: number;
+  freeToSell: number;
+  coverGap: number;
+  riskBand: string;
+  stockRiskScore: number;
+  movementBand: string;
+  movementInsight: string;
+  transferOptions: { branch: string; stock: number; reorderAt: number; surplus: number; movementSummary: string }[];
+  suggestedTransferUnits: number;
+  buyShortfallOnly: number;
+  recommendation: string;
+};
+export type InventoryStockRiskRow = { id: string; sku: string; product: string; branch: string; onHand: number; reserved: number; freeToSell: number; reorderAt: number; coverGap: number; riskBand: string; score: number; recommendation: string; };
+export type InventoryTransferRow = { id: string; sku: string; product: string; toBranch: string; fromBranch: string; suggestedUnits: number; coverGap: number; buyShortfallOnly: number; urgency: string; score: number; recommendation: string; };
+export type InventoryMovementRow = { id: string; sku: string; product: string; branch: string; movementBand: string; summary: string; insight: string; score: number; recommendation: string; };
+export type InventoryExceptionRow = { id: string; title: string; severity: string; branch: string; detail: string; action: string; recordPath: string; };
+export type InventoryOverview = { generatedAt: string; kpis: KPI[]; focus: ProcurementRecommendation[]; stockRisks: InventoryStockRiskRow[]; transferSuggestions: InventoryTransferRow[]; movementIntelligence: InventoryMovementRow[]; exceptions: InventoryExceptionRow[]; rows: InventoryRow[]; };

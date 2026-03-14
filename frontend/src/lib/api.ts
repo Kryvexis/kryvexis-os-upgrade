@@ -16,6 +16,12 @@ import type {
   ExpenseRow,
   FinanceExceptionRow,
   Invoice,
+  InventoryExceptionRow,
+  InventoryMovementRow,
+  InventoryOverview,
+  InventoryRow,
+  InventoryStockRiskRow,
+  InventoryTransferRow,
   InvoiceDetail,
   JournalEntryRow,
   KPI,
@@ -37,6 +43,7 @@ import type {
   QuoteStatus,
   ReconciliationPayload,
   ReportsResponse,
+  SignupPayload,
   Role,
   RoleKey,
   Settings,
@@ -69,26 +76,6 @@ function writeSession(session: AuthSession | null) {
   window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(session));
 }
 
-function inferRole(email: string): RoleKey {
-  const value = email.toLowerCase();
-  if (value.includes('finance') || value.includes('rina')) return 'finance';
-  if (value.includes('warehouse') || value.includes('stock')) return 'warehouse';
-  if (value.includes('procurement') || value.includes('buyer')) return 'procurement';
-  if (value.includes('ops') || value.includes('operations')) return 'operations';
-  if (value.includes('exec')) return 'executive';
-  if (value.includes('manager')) return 'manager';
-  if (value.includes('admin')) return 'admin';
-  return 'sales';
-}
-
-function inferBranch(email: string): string {
-  const value = email.toLowerCase();
-  if (value.includes('ct') || value.includes('cape')) return 'Cape Town';
-  if (value.includes('dbn') || value.includes('durban')) return 'Durban';
-  if (value.includes('pta') || value.includes('pretoria')) return 'Pretoria';
-  return 'Johannesburg';
-}
-
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const session = readSession();
   const response = await fetch(`${API_BASE}${path}`, {
@@ -102,6 +89,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
   if (!response.ok) {
     const payload = await response.json().catch(() => null);
+    if (response.status === 401) writeSession(null);
     throw new Error(payload?.error || `Failed to load ${path}`);
   }
 
@@ -110,30 +98,50 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  async signup(payload: SignupPayload): Promise<AuthSession> {
+    const session = await request<AuthSession>('/api/auth/signup', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+    writeSession(session);
+    return session;
+  },
   async login(email: string): Promise<AuthSession> {
     const cleanEmail = email.trim().toLowerCase();
     if (!cleanEmail) throw new Error('Please enter your work email');
-    const session: AuthSession = {
-      email: cleanEmail,
-      name: cleanEmail.split('@')[0].split(/[._-]/).map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(' '),
-      role: inferRole(cleanEmail),
-      branch: inferBranch(cleanEmail),
-      token: `demo-${btoa(cleanEmail)}`,
-      lastLoginAt: new Date().toISOString()
-    };
+    const session = await request<AuthSession>('/api/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email: cleanEmail })
+    });
     writeSession(session);
     return session;
   },
   async logout(): Promise<void> {
-    writeSession(null);
+    try {
+      await request<{ success: boolean }>('/api/auth/logout', { method: 'POST' });
+    } finally {
+      writeSession(null);
+    }
   },
   async me(): Promise<AuthSession | null> {
-    return readSession();
+    const current = readSession();
+    if (!current?.token) return null;
+    try {
+      const session = await request<AuthSession>('/api/auth/me');
+      writeSession(session);
+      return session;
+    } catch {
+      writeSession(null);
+      return null;
+    }
   },
   async switchBranch(branch: string): Promise<AuthSession | null> {
     const current = readSession();
-    if (!current) return null;
-    const next = { ...current, branch };
+    if (!current?.token) return null;
+    const next = await request<AuthSession>('/api/auth/switch-branch', {
+      method: 'POST',
+      body: JSON.stringify({ branch })
+    });
     writeSession(next);
     return next;
   },
@@ -157,7 +165,7 @@ export const api = {
   customers: () => request<Customer[]>('/api/customers'),
   customer: (id: string) => request<Customer>(`/api/customers/${id}`),
   customerSummary: (id: string) => request<CustomerSummary>(`/api/customers/${id}/summary`),
-  products: () => request<Product[]>('/api/products'),
+  products: () => request<InventoryRow[]>('/api/products'),
   suppliers: () => request<Supplier[]>('/api/suppliers'),
   purchaseOrders: () => request<PurchaseOrder[]>('/api/purchase-orders'),
   product: (id: string) => request<Product>(`/api/products/${id}`),
@@ -187,6 +195,11 @@ export const api = {
   procurementSuppliers: () => request<SupplierInsightRow[]>('/api/procurement/suppliers'),
   procurementPurchaseOrders: () => request<ProcurementPoRow[]>('/api/procurement/purchase-orders'),
   procurementExceptions: () => request<ProcurementExceptionRow[]>('/api/procurement/exceptions'),
+  inventoryOverview: () => request<InventoryOverview>('/api/inventory/brain'),
+  inventoryStockRisks: () => request<InventoryStockRiskRow[]>('/api/inventory/stock-risks'),
+  inventoryTransfers: () => request<InventoryTransferRow[]>('/api/inventory/transfers'),
+  inventoryMovement: () => request<InventoryMovementRow[]>('/api/inventory/movement-intelligence'),
+  inventoryExceptions: () => request<InventoryExceptionRow[]>('/api/inventory/exceptions'),
   reports: (role: RoleKey, branch = 'all') => request<ReportsResponse>(`/api/reports?role=${role}&branch=${encodeURIComponent(branch)}`),
   automationSettings: () => request<AutomationSettings>('/api/automation-settings'),
   updateAutomationSettings: (settings: AutomationSettings) => request<AutomationSettings>('/api/automation-settings', { method: 'POST', body: JSON.stringify(settings) }),

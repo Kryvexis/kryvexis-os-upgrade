@@ -128,7 +128,16 @@ export default function App() {
     return () => window.clearTimeout(timer);
   }, [booting, showIgnition]);
 
-  if (booting) return <SplashScreen />;
+  if (booting && session) return <SplashScreen />;
+
+  if (!session) {
+    return <AuthPage onAuthenticated={(next) => {
+      setSession(next);
+      setRole(next.role);
+      setBooting(false);
+      setShowIgnition(true);
+    }} />;
+  }
 
   if (showIgnition) return <SystemIgnitionPage onFinish={() => setShowIgnition(false)} />;
 
@@ -136,13 +145,6 @@ export default function App() {
     return <IntroPage onContinue={() => {
       window.localStorage.setItem(INTRO_STORAGE_KEY, 'true');
       setIntroSeen(true);
-    }} />;
-  }
-
-  if (!session) {
-    return <AuthPage onAuthenticated={(next) => {
-      setSession(next);
-      setRole(next.role);
     }} />;
   }
 

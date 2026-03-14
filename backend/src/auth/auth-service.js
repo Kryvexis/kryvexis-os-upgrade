@@ -97,6 +97,35 @@ async function loadPermissionsForRole(roleKey) {
   return result.rows.map((row) => row.permission_key);
 }
 
+
+export async function registerUser({ email, fullName, roleKey = 'manager', branchId = null }) {
+  const normalized = String(email || '').trim().toLowerCase();
+  const name = String(fullName || '').trim();
+  if (!normalized || !name) throw new Error('fullName and email are required');
+  const existing = await loadUserByEmail(normalized);
+  if (existing) throw new Error('A user with that email already exists');
+  if (!dbConfig.enableSql) {
+    const branchName = branchId === 'BR-CPT' ? 'Cape Town' : branchId === 'BR-DUR' ? 'Durban' : 'Johannesburg';
+    const user = { id: `DEV-${Date.now()}`, fullName: name, email: normalized, roleKey, branchId: branchId || 'BR-JHB', branchName, isActive: true };
+    fallbackUsers.push(user);
+    return user;
+  }
+  const result = await query(`
+    insert into app_users (role_key, full_name, email, branch_id, is_active)
+    values ($1, $2, $3, $4, true)
+    returning id, full_name, email, role_key, branch_id, is_active
+  `, [roleKey, name, normalized, branchId || null]);
+  return {
+    id: result.rows[0].id,
+    fullName: result.rows[0].full_name,
+    email: result.rows[0].email,
+    roleKey: result.rows[0].role_key,
+    branchId: result.rows[0].branch_id,
+    branchName: null,
+    isActive: result.rows[0].is_active
+  };
+}
+
 export async function createSessionForEmail(email, meta = {}) {
   const user = await loadUserByEmail(email);
   if (!user || !user.isActive) return null;
