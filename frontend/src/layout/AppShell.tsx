@@ -5,7 +5,6 @@ import type { Notification, RoleKey } from '../types';
 
 const coreModules = [
   ['/', 'Dashboard', '◔'],
-  ['/action-center', 'Action Center', '✦'],
   ['/sales', 'Sales', '⌁'],
   ['/inventory', 'Inventory', '◫'],
   ['/procurement', 'Purchasing', '◎'],
@@ -20,7 +19,6 @@ const adminItems = [
 ] as const;
 
 const quickActions = [
-  { label: 'Action center', to: '/action-center' },
   { label: 'New quote', to: '/quotes' },
   { label: 'New invoice', to: '/invoices' },
   { label: 'Run reports', to: '/reports' },
@@ -39,7 +37,6 @@ const roleLabels: Record<RoleKey, string> = {
 };
 
 const pageTitles: Array<[string, string]> = [
-  ['/action-center', 'Action Center'],
   ['/sales', 'Sales'],
   ['/inventory', 'Inventory'],
   ['/procurement', 'Purchasing'],

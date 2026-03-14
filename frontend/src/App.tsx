@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { AppShell } from './layout/AppShell';
 import { DashboardPage } from './pages/DashboardPage';
-import { ActionCenterPage } from './pages/ActionCenterPage';
 import { CustomersPage } from './pages/CustomersPage';
 import { CustomerDetailPage } from './pages/CustomerDetailPage';
 import { QuotesPage } from './pages/QuotesPage';
@@ -29,6 +28,11 @@ import { CashUpPage } from './pages/CashUpPage';
 import { ExpensesPage } from './pages/ExpensesPage';
 import { CreditorsPage } from './pages/CreditorsPage';
 import { FinanceExceptionsPage } from './pages/FinanceExceptionsPage';
+import { PeriodClosePage } from './pages/PeriodClosePage';
+import { VatControlPage } from './pages/VatControlPage';
+import { ReconciliationPage } from './pages/ReconciliationPage';
+import { SupplierBillsPage } from './pages/SupplierBillsPage';
+import { LedgerPage } from './pages/LedgerPage';
 import { OperationsWorkspacePage } from './pages/OperationsWorkspacePage';
 import { ReportsPage } from './pages/ReportsPage';
 import { AuthPage } from './pages/AuthPage';
@@ -142,7 +146,6 @@ export default function App() {
       <Route path="/invoices/:id/print" element={<InvoicePrintPage />} />
       <Route element={<AppShell role={role} setRole={setRole} theme={theme} setTheme={setTheme} />}>
         <Route path="/" element={<DashboardPage role={role} />} />
-        <Route path="/action-center" element={<ActionCenterPage role={role} />} />
         <Route path="/sales" element={<SalesWorkspacePage />} />
         <Route path="/inventory" element={<InventoryWorkspacePage />} />
         <Route path="/procurement" element={<ProcurementWorkspacePage />} />
@@ -153,6 +156,11 @@ export default function App() {
         <Route path="/accounting/expenses" element={<ExpensesPage />} />
         <Route path="/accounting/creditors" element={<CreditorsPage />} />
         <Route path="/accounting/exceptions" element={<FinanceExceptionsPage />} />
+        <Route path="/accounting/ledger" element={<LedgerPage />} />
+        <Route path="/accounting/bills" element={<SupplierBillsPage />} />
+        <Route path="/accounting/reconciliation" element={<ReconciliationPage />} />
+        <Route path="/accounting/vat" element={<VatControlPage />} />
+        <Route path="/accounting/period-close" element={<PeriodClosePage />} />
         <Route path="/operations" element={<OperationsWorkspacePage />} />
         <Route path="/reports" element={<ReportsPage role={role} />} />
         <Route path="/customers" element={<CustomersPage />} />
