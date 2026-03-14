@@ -72,20 +72,65 @@ export type AccountingOverview = {
   creditors: CreditorRow[];
 };
 
-export type LedgerAccountRow = { code: string; name: string; type: string; balance: string; status: string; movement: string; };
-export type JournalEntryRow = { id: string; date: string; source: string; reference: string; status: string; total: string; owner: string; summary: string; };
-export type LedgerPayload = { summary: KPI[]; accounts: LedgerAccountRow[]; journals: JournalEntryRow[]; trialBalanceReady: boolean; };
-export type SupplierBillRow = { id: string; supplier: string; branch: string; amount: string; dueDate: string; status: string; matchStatus: string; recommendation: string; };
-export type SupplierBillsPayload = { kpis: KPI[]; bills: SupplierBillRow[]; };
-export type BankAccountRow = { id: string; name: string; balance: string; unreconciled: number; suggestedMatches: number; };
-export type ReconciliationItemRow = { id: string; account: string; date: string; description: string; amount: string; status: string; recommendation: string; };
-export type ReconciliationPayload = { bankAccounts: BankAccountRow[]; items: ReconciliationItemRow[]; };
-export type VatItemRow = { id: string; label: string; value: string; detail: string; };
-export type VatPayload = { period: string; outputVat: string; inputVat: string; payable: string; status: string; items: VatItemRow[]; };
-export type PeriodCloseItemRow = { id: string; label: string; status: string; owner: string; detail: string; };
-export type PeriodClosePayload = { readiness: string; status: string; checklist: PeriodCloseItemRow[]; };
 
-export type ActionCenterDomain = 'Finance' | 'Procurement' | 'Inventory' | 'Operations';
-export type ActionRecommendation = { id: string; domain: ActionCenterDomain | string; title: string; detail: string; reason: string; owner: string; branch: string; priority: 'critical' | 'high' | 'medium' | 'low' | string; score: number; impact: string; actionLabel: string; recordPath: string; status: string; autoReady?: boolean; };
-export type ActionCenterDomainSummary = { domain: ActionCenterDomain | string; count: number; urgent: number; headline: string; impact: string; };
-export type ActionCenterResponse = { generatedAt: string; topFocus: ActionRecommendation[]; quickWins: ActionRecommendation[]; recommendationFeed: ActionRecommendation[]; domainSummaries: ActionCenterDomainSummary[]; branchSnapshots: BranchSnapshot[]; auditHighlights: ActivityEntry[]; };
+export type ProcurementRecommendation = {
+  id: string;
+  title: string;
+  detail: string;
+  impact: string;
+  actionLabel: string;
+  recordPath: string;
+  priority: 'high' | 'medium' | 'low' | string;
+  domain: 'reorder' | 'supplier' | 'purchase-order' | 'exception' | string;
+};
+export type ReorderCandidateRow = {
+  id: string;
+  sku: string;
+  product: string;
+  branch: string;
+  stock: number;
+  reorderAt: number;
+  deficit: number;
+  supplier: string;
+  urgency: string;
+  recommendation: string;
+  score: number;
+};
+export type SupplierInsightRow = {
+  id: string;
+  supplier: string;
+  category: string;
+  leadTime: string;
+  status: string;
+  reliability: string;
+  score: number;
+  recommendation: string;
+};
+export type ProcurementPoRow = {
+  id: string;
+  supplier: string;
+  branch: string;
+  status: string;
+  value: string;
+  eta: string;
+  buyer: string;
+  recommendation: string;
+  score: number;
+};
+export type ProcurementExceptionRow = {
+  id: string;
+  title: string;
+  severity: string;
+  branch: string;
+  detail: string;
+  action: string;
+  recordPath: string;
+};
+export type ProcurementOverview = {
+  kpis: KPI[];
+  focus: ProcurementRecommendation[];
+  reorders: ReorderCandidateRow[];
+  suppliers: SupplierInsightRow[];
+  purchaseOrders: ProcurementPoRow[];
+  exceptions: ProcurementExceptionRow[];
+};

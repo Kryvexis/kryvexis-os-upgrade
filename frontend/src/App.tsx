@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { AppShell } from './layout/AppShell';
 import { DashboardPage } from './pages/DashboardPage';
-import { ActionCenterPage } from './pages/ActionCenterPage';
 import { CustomersPage } from './pages/CustomersPage';
 import { CustomerDetailPage } from './pages/CustomerDetailPage';
 import { QuotesPage } from './pages/QuotesPage';
@@ -22,6 +21,11 @@ import { EmailComposerPage } from './pages/EmailComposerPage';
 import { SalesWorkspacePage } from './pages/SalesWorkspacePage';
 import { InventoryWorkspacePage } from './pages/InventoryWorkspacePage';
 import { ProcurementWorkspacePage } from './pages/ProcurementWorkspacePage';
+import { ProcurementBrainPage } from './pages/ProcurementBrainPage';
+import { ReordersPage } from './pages/ReordersPage';
+import { SupplierScorecardsPage } from './pages/SupplierScorecardsPage';
+import { PurchaseOrderRecommendationsPage } from './pages/PurchaseOrderRecommendationsPage';
+import { ProcurementExceptionsPage } from './pages/ProcurementExceptionsPage';
 import { AccountingWorkspacePage } from './pages/AccountingWorkspacePage';
 import { DebtorsPage } from './pages/DebtorsPage';
 import { StatementsPage } from './pages/StatementsPage';
@@ -29,11 +33,6 @@ import { CashUpPage } from './pages/CashUpPage';
 import { ExpensesPage } from './pages/ExpensesPage';
 import { CreditorsPage } from './pages/CreditorsPage';
 import { FinanceExceptionsPage } from './pages/FinanceExceptionsPage';
-import { PeriodClosePage } from './pages/PeriodClosePage';
-import { VatControlPage } from './pages/VatControlPage';
-import { ReconciliationPage } from './pages/ReconciliationPage';
-import { SupplierBillsPage } from './pages/SupplierBillsPage';
-import { LedgerPage } from './pages/LedgerPage';
 import { OperationsWorkspacePage } from './pages/OperationsWorkspacePage';
 import { ReportsPage } from './pages/ReportsPage';
 import { AuthPage } from './pages/AuthPage';
@@ -150,19 +149,18 @@ export default function App() {
         <Route path="/sales" element={<SalesWorkspacePage />} />
         <Route path="/inventory" element={<InventoryWorkspacePage />} />
         <Route path="/procurement" element={<ProcurementWorkspacePage />} />
+        <Route path="/procurement/brain" element={<ProcurementBrainPage />} />
+        <Route path="/procurement/reorders" element={<ReordersPage />} />
+        <Route path="/procurement/suppliers" element={<SupplierScorecardsPage />} />
+        <Route path="/procurement/purchase-orders" element={<PurchaseOrderRecommendationsPage />} />
+        <Route path="/procurement/exceptions" element={<ProcurementExceptionsPage />} />
         <Route path="/accounting" element={<AccountingWorkspacePage />} />
-        <Route path="/action-center" element={<ActionCenterPage role={role} />} />
         <Route path="/accounting/debtors" element={<DebtorsPage />} />
         <Route path="/accounting/statements" element={<StatementsPage />} />
         <Route path="/accounting/cash-up" element={<CashUpPage />} />
         <Route path="/accounting/expenses" element={<ExpensesPage />} />
         <Route path="/accounting/creditors" element={<CreditorsPage />} />
         <Route path="/accounting/exceptions" element={<FinanceExceptionsPage />} />
-        <Route path="/accounting/ledger" element={<LedgerPage />} />
-        <Route path="/accounting/bills" element={<SupplierBillsPage />} />
-        <Route path="/accounting/reconciliation" element={<ReconciliationPage />} />
-        <Route path="/accounting/vat" element={<VatControlPage />} />
-        <Route path="/accounting/period-close" element={<PeriodClosePage />} />
         <Route path="/operations" element={<OperationsWorkspacePage />} />
         <Route path="/reports" element={<ReportsPage role={role} />} />
         <Route path="/customers" element={<CustomersPage />} />

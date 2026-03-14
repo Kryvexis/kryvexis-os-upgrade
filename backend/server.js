@@ -61,6 +61,73 @@ const purchaseOrders = [
   { id: 'PO-3094', supplier: 'Metro Warehouse Goods', branch: 'Durban', status: 'Goods received', value: 'R9,880', eta: '2026-03-10', buyer: 'Tariq Naidoo', nextAction: 'Match supplier bill to GRN' }
 ];
 
+
+function buildProcurementReorders() {
+  return products.map((item) => {
+    const deficit = Math.max(item.reorderAt - item.stock, 0);
+    const score = deficit > 0 ? 70 + Math.min(deficit * 4, 20) : Math.max(32, 58 - Math.max(item.stock - item.reorderAt, 0));
+    const urgency = deficit > 4 ? 'Critical' : deficit > 0 ? 'High' : item.stock <= item.reorderAt + 2 ? 'Watch' : 'Stable';
+    const recommendation = deficit > 0
+      ? `Raise replenishment for ${deficit + Math.max(4, item.reorderAt)} units via ${item.supplier}.`
+      : `Hold buying and keep ${item.branch} under watch.`;
+    return { id: `REO-${item.id}`, sku: item.sku, product: item.name, branch: item.branch, stock: item.stock, reorderAt: item.reorderAt, deficit, supplier: item.supplier, urgency, recommendation, score };
+  }).sort((a, b) => b.score - a.score);
+}
+
+function buildSupplierInsights() {
+  return suppliers.map((item) => {
+    const score = item.status === 'Attention' ? 62 : 84;
+    const reliability = item.status === 'Attention' ? 'Needs watch' : 'Reliable';
+    const recommendation = item.status === 'Attention'
+      ? `Call ${item.name} now and confirm the next dispatch slot.`
+      : `Keep ${item.name} as preferred supplier for the next release.`;
+    return { id: item.id, supplier: item.name, category: item.category, leadTime: item.leadTime, status: item.status, reliability, score, recommendation };
+  }).sort((a, b) => b.score - a.score);
+}
+
+function buildProcurementPurchaseOrders() {
+  return purchaseOrders.map((item) => {
+    let score = 58;
+    let recommendation = item.nextAction;
+    if (item.status === 'Pending approval') { score = 92; recommendation = 'Approve now to avoid stock pressure.'; }
+    else if (item.status === 'Issued') { score = 74; recommendation = 'Track ETA and prepare receipt cover.'; }
+    else if (item.status === 'Goods received') { score = 81; recommendation = 'Complete GRN and supplier-bill match before release.'; }
+    return { ...item, recommendation, score };
+  }).sort((a, b) => b.score - a.score);
+}
+
+function buildProcurementExceptions() {
+  return [
+    { id: 'PEX-1', title: 'Thermal roll replenishment below safe cover', severity: 'High', branch: 'Cape Town', detail: 'Consumables cover has fallen below reorder threshold and is now affecting checkout readiness.', action: 'Approve reorder now', recordPath: '/procurement/reorders' },
+    { id: 'PEX-2', title: 'Supplier bill still unmatched to GRN', severity: 'Medium', branch: 'Durban', detail: 'PO-3094 has goods received status but finance cannot release payment until the bill is matched.', action: 'Match bill to GRN', recordPath: '/procurement/purchase-orders' },
+    { id: 'PEX-3', title: 'Supplier reliability needs confirmation', severity: 'Medium', branch: 'Cape Town', detail: 'Cape Paper Supply is flagged Attention and should be called before the next replenishment window.', action: 'Confirm dispatch slot', recordPath: '/procurement/suppliers' }
+  ];
+}
+
+function buildProcurementOverview() {
+  const reorders = buildProcurementReorders();
+  const suppliers = buildSupplierInsights();
+  const purchaseOrders = buildProcurementPurchaseOrders();
+  const exceptions = buildProcurementExceptions();
+  return {
+    kpis: [
+      { label: 'Priority buys', value: String(reorders.filter((item) => item.deficit > 0).length), detail: 'SKUs below safe reorder cover today.' },
+      { label: 'Suppliers watched', value: String(suppliers.filter((item) => item.status !== 'On track').length), detail: 'Suppliers requiring active follow-up.' },
+      { label: 'PO actions', value: String(purchaseOrders.filter((item) => item.score >= 74).length), detail: 'Purchase orders needing approval, chase, or match.' },
+      { label: 'Exceptions', value: String(exceptions.length), detail: 'Abnormal procurement conditions surfaced now.' }
+    ],
+    focus: [
+      { id: 'PFO-1', title: 'Approve Cape Town replenishment now', detail: 'Thermal roll stock is below threshold and will pressure front-line trading if delayed.', impact: 'Prevents a near-term stockout in consumables.', actionLabel: 'Approve reorder', recordPath: '/procurement/reorders', priority: 'high', domain: 'reorder' },
+      { id: 'PFO-2', title: 'Clear the unmatched Durban supplier bill', detail: 'Goods have landed, but payment release is blocked until GRN matching is complete.', impact: 'Unblocks supplier settlement and keeps procurement clean.', actionLabel: 'Match supplier bill', recordPath: '/procurement/purchase-orders', priority: 'medium', domain: 'exception' },
+      { id: 'PFO-3', title: 'Confirm Cape Paper Supply dispatch slot', detail: 'Supplier is under watch and should be confirmed before the next buy wave.', impact: 'Reduces ETA uncertainty on the most urgent replenishment.', actionLabel: 'Call supplier', recordPath: '/procurement/suppliers', priority: 'medium', domain: 'supplier' }
+    ],
+    reorders,
+    suppliers,
+    purchaseOrders,
+    exceptions
+  };
+}
+
 const quotes = [
   {
     id: 'Q-1045', customerId: 'CUS-003', customer: 'Urban Build Supply', owner: 'Alex Morgan', value: 'R62,500', status: 'Pending approval', validity: '2026-03-17', branch: 'Durban', trigger: 'High-value threshold', updated: '22 min ago', notes: 'Requires sales manager approval before sending.', nextAction: 'Finance review at 09:00 tomorrow', subtotal: 'R54,347.83', tax: 'R8,152.17', total: 'R62,500', marginBand: 'Protected margin', approvalOwner: 'Sales Manager',
@@ -166,216 +233,6 @@ function activeNotifications() { return notifications.filter((item) => !item.dis
 function stampNow() { return 'Just now'; }
 function numericAmount(value) { return Number(String(value || '').replace(/[^\d.-]/g, '')) || 0; }
 
-
-
-const cashUps = [
-  { id: 'CU-2401', branch: 'Johannesburg', date: '2026-03-14', expected: 'R128,400', counted: 'R127,980', variance: '-R420', status: 'Review required', owner: 'Nadine Smit', recommendation: 'Verify petty-cash slip before approving close.' },
-  { id: 'CU-2402', branch: 'Cape Town', date: '2026-03-14', expected: 'R96,200', counted: 'R96,200', variance: 'R0', status: 'Ready', owner: 'Rina Patel', recommendation: 'Approve and send close summary.' },
-  { id: 'CU-2403', branch: 'Durban', date: '2026-03-14', expected: 'R74,860', counted: 'R74,210', variance: '-R650', status: 'Escalate', owner: 'Tariq Naidoo', recommendation: 'Variance above threshold; require manager sign-off.' }
-];
-
-const expenses = [
-  { id: 'EXP-9001', branch: 'Johannesburg', category: 'Logistics', supplier: 'Metro Dispatch', amount: 'R4,980', status: 'Pending approval', submittedBy: 'Lebo Mokoena', incurredOn: '2026-03-13', recommendation: 'Approve if delivery batch 14 proof is attached.' },
-  { id: 'EXP-9002', branch: 'Cape Town', category: 'Maintenance', supplier: 'Cape Electrical', amount: 'R2,760', status: 'Approved', submittedBy: 'Rina Patel', incurredOn: '2026-03-12', recommendation: 'No action required.' },
-  { id: 'EXP-9003', branch: 'Durban', category: 'Fuel', supplier: 'Fleet Fuel SA', amount: 'R6,440', status: 'Review required', submittedBy: 'Tariq Naidoo', incurredOn: '2026-03-13', recommendation: 'Compare against weekly route budget before approval.' }
-];
-
-const ledgerAccounts = [
-  { code: '1000', name: 'Cash Control', type: 'Asset', balance: 'R218,300', status: 'Healthy', movement: '+R12,400 today' },
-  { code: '1100', name: 'Trade Debtors Control', type: 'Asset', balance: 'R98,120', status: 'Watch', movement: '+R7,600 overdue pressure' },
-  { code: '2000', name: 'Trade Creditors Control', type: 'Liability', balance: 'R54,880', status: 'Healthy', movement: 'R12,400 due this week' },
-  { code: '2100', name: 'VAT Control', type: 'Liability', balance: 'R31,460', status: 'Review', movement: 'Return prep in progress' },
-  { code: '4000', name: 'Sales Revenue', type: 'Income', balance: 'R448,000', status: 'Healthy', movement: '+R39,200 today' },
-  { code: '5100', name: 'Operating Expenses', type: 'Expense', balance: 'R82,940', status: 'Review', movement: '+R6,440 fuel spike' }
-];
-
-const journalEntries = [
-  { id: 'JRN-3101', date: '2026-03-14', source: 'Sales posting', reference: 'INV-2201', status: 'Posted', total: 'R12,440', owner: 'Finance Bot', summary: 'Trade debtors / sales / VAT posted from invoice issue.' },
-  { id: 'JRN-3102', date: '2026-03-14', source: 'Cash allocation', reference: 'PAY-7701', status: 'Posted', total: 'R7,400', owner: 'Finance Team', summary: 'Receipt applied to debtor control and invoice ledger.' },
-  { id: 'JRN-3103', date: '2026-03-14', source: 'Expense review', reference: 'EXP-9003', status: 'Needs approval', total: 'R6,440', owner: 'Finance Team', summary: 'Fuel claim waiting for budget confirmation before posting.' }
-];
-
-const supplierBills = [
-  { id: 'BILL-4401', supplier: 'Cape Paper Supply', branch: 'Cape Town', amount: 'R18,240', dueDate: '2026-03-19', status: 'Ready to pay', matchStatus: 'Matched to PO-3101', recommendation: 'Queue for Friday payment batch.' },
-  { id: 'BILL-4402', supplier: 'Prime Devices', branch: 'Johannesburg', amount: 'R42,600', dueDate: '2026-03-21', status: 'Hold', matchStatus: 'Waiting on GRN confirmation', recommendation: 'Do not release until scanner dock receipt is signed.' },
-  { id: 'BILL-4403', supplier: 'Metro Warehouse Goods', branch: 'Durban', amount: 'R9,880', dueDate: '2026-03-16', status: 'Review', matchStatus: 'Price mismatch vs PO', recommendation: 'Resolve supplier variance before payment.' }
-];
-
-const bankReconciliation = {
-  bankAccounts: [
-    { id: 'BANK-JHB', name: 'Main Ops Account', balance: 'R312,880', unreconciled: 3, suggestedMatches: 2 },
-    { id: 'BANK-CPT', name: 'Cape Town Ops Account', balance: 'R186,430', unreconciled: 1, suggestedMatches: 1 }
-  ],
-  items: [
-    { id: 'REC-1001', account: 'Main Ops Account', date: '2026-03-14', description: 'Deposit PAY-7688', amount: 'R12,000', status: 'Suggested match', recommendation: 'Allocate against INV-2192.' },
-    { id: 'REC-1002', account: 'Main Ops Account', date: '2026-03-14', description: 'Bank charges', amount: '-R165', status: 'Unposted', recommendation: 'Post service fee journal.' },
-    { id: 'REC-1003', account: 'Cape Town Ops Account', date: '2026-03-14', description: 'Cash deposit', amount: 'R4,980', status: 'Matched', recommendation: 'No action required.' }
-  ]
-};
-
-const vatSummary = {
-  period: 'March 2026',
-  outputVat: 'R62,720',
-  inputVat: 'R31,260',
-  payable: 'R31,460',
-  status: 'Review before submit',
-  items: [
-    { id: 'VAT-OUT', label: 'Output VAT', value: 'R62,720', detail: 'Driven by issued invoices and posted sales journals.' },
-    { id: 'VAT-IN', label: 'Input VAT', value: 'R31,260', detail: 'Captured from approved supplier bills and expenses.' },
-    { id: 'VAT-ADJ', label: 'Adjustments', value: 'R0', detail: 'No manual adjustments recorded this period.' }
-  ]
-};
-
-const periodCloseChecklist = [
-  { id: 'CLOSE-1', label: 'Bank reconciliation', status: 'In progress', owner: 'Finance Team', detail: '2 unmatched lines remain in Main Ops Account.' },
-  { id: 'CLOSE-2', label: 'Supplier bill matching', status: 'Blocked', owner: 'Procurement + Finance', detail: 'Prime Devices and Metro Warehouse bills need variance resolution.' },
-  { id: 'CLOSE-3', label: 'VAT review', status: 'Ready', owner: 'Finance Lead', detail: 'VAT return prepared pending sign-off.' },
-  { id: 'CLOSE-4', label: 'Expense approvals', status: 'In progress', owner: 'Branch Managers', detail: '1 expense requires budget review.' },
-  { id: 'CLOSE-5', label: 'Cash-up approvals', status: 'Blocked', owner: 'Branch Managers', detail: 'Durban variance exceeds tolerance.' }
-];
-
-function buildDebtorRows() {
-  return customers.map((customer) => {
-    const openInvoices = invoices.filter((invoice) => invoice.customerId === customer.id && invoice.status !== 'Paid');
-    const totalOpen = openInvoices.reduce((sum, invoice) => sum + numericAmount(invoice.amount), 0);
-    const overdue = openInvoices.filter((invoice) => /overdue|collections/i.test(invoice.status)).reduce((sum, invoice) => sum + numericAmount(invoice.amount), 0);
-    const currentAmount = Math.max(totalOpen - overdue, 0);
-    const score = Math.min(100, Math.round((overdue / 1000) + (customer.risk === 'Medium' ? 25 : customer.risk === 'High' ? 40 : 10) + (totalOpen / 4000)));
-    return {
-      id: `DEBT-${customer.id}`,
-      customerId: customer.id,
-      customer: customer.name,
-      branch: customer.branch,
-      overdueAmount: formatCurrency(overdue),
-      currentAmount: formatCurrency(currentAmount),
-      totalOpen: formatCurrency(totalOpen),
-      oldestBucket: overdue ? '60+ days risk' : 'Current',
-      risk: customer.risk,
-      recommendation: overdue ? `Call ${customer.name} today and issue fresh statement.` : `Monitor ${customer.name} for next due cycle.`,
-      score
-    };
-  }).sort((a, b) => b.score - a.score);
-}
-
-function buildStatementRows() {
-  return customers.map((customer) => {
-    const rows = invoices.filter((invoice) => invoice.customerId === customer.id && invoice.status !== 'Paid');
-    const balance = rows.reduce((sum, invoice) => sum + numericAmount(invoice.amount), 0);
-    const overdueInvoices = rows.filter((invoice) => /overdue|collections/i.test(invoice.status)).length;
-    return {
-      id: `STM-${customer.id}`,
-      customerId: customer.id,
-      customer: customer.name,
-      branch: customer.branch,
-      balance: formatCurrency(balance),
-      overdueInvoices,
-      lastIssued: overdueInvoices ? 'Yesterday 16:10' : 'Today 09:00',
-      nextAction: overdueInvoices ? 'Send refreshed statement and log collection follow-up.' : 'Send routine statement on next cycle.',
-      status: overdueInvoices ? 'Priority send' : 'Routine'
-    };
-  });
-}
-
-function buildCreditorRows() {
-  return supplierBills.map((bill) => ({
-    id: bill.id,
-    supplier: bill.supplier,
-    branch: bill.branch,
-    outstanding: bill.amount,
-    dueWindow: bill.dueDate,
-    status: bill.status,
-    recommendation: bill.recommendation
-  }));
-}
-
-function buildFinanceExceptions() {
-  return [
-    ...cashUps.filter((item) => item.status !== 'Ready').map((item) => ({ id: item.id, kind: 'Cash up', title: `${item.branch} cash-up needs attention`, branch: item.branch, severity: item.status === 'Escalate' ? 'high' : 'medium', detail: item.recommendation, action: 'Review cash-up', recordPath: '/accounting/cash-up' })),
-    ...expenses.filter((item) => item.status !== 'Approved').map((item) => ({ id: item.id, kind: 'Expense', title: `${item.category} expense requires review`, branch: item.branch, severity: item.status === 'Review required' ? 'high' : 'medium', detail: item.recommendation, action: 'Review expense', recordPath: '/accounting/expenses' })),
-    ...supplierBills.filter((bill) => bill.status !== 'Ready to pay').map((bill) => ({ id: bill.id, kind: 'Creditor bill', title: `${bill.supplier} bill blocked`, branch: bill.branch, severity: bill.status === 'Hold' ? 'high' : 'medium', detail: bill.recommendation, action: 'Resolve supplier bill', recordPath: '/accounting/creditors' }))
-  ];
-}
-
-function buildAccountingOverview() {
-  const debtorRows = buildDebtorRows();
-  const creditorRows = buildCreditorRows();
-  const totalOverdue = debtorRows.reduce((sum, item) => sum + numericAmount(item.overdueAmount), 0);
-  const totalCreditors = creditorRows.reduce((sum, item) => sum + numericAmount(item.outstanding), 0);
-  const blockedClose = periodCloseChecklist.filter((item) => item.status === 'Blocked').length;
-  return {
-    kpis: [
-      { label: 'Overdue debtors', value: formatCurrency(totalOverdue), detail: 'Collection pressure that needs action now.' },
-      { label: 'Creditor exposure', value: formatCurrency(totalCreditors), detail: 'Open supplier commitments across branches.' },
-      { label: 'VAT payable', value: vatSummary.payable, detail: 'Current payable position for the active period.' },
-      { label: 'Close blockers', value: String(blockedClose), detail: 'Items preventing a clean finance close.' }
-    ],
-    priorityActions: buildFinanceExceptions().slice(0, 5),
-    debtors: debtorRows,
-    statements: buildStatementRows(),
-    cashUps,
-    expenses,
-    creditors: creditorRows
-  };
-}
-
-function buildAccountingBrain() {
-  const debtors = buildDebtorRows();
-  const creditors = buildCreditorRows();
-  const closeBlockers = periodCloseChecklist.filter((item) => item.status === 'Blocked');
-  const focus = [
-    { id: 'brain-collections', area: 'Collections', title: `Collect ${debtors[0]?.customer || 'priority debtor'} first`, reason: debtors[0]?.recommendation || 'Highest open balance and overdue pressure.', priority: 'high' },
-    { id: 'brain-creditors', area: 'Creditors', title: `Resolve ${creditors[0]?.supplier || 'supplier'} before Friday batch`, reason: creditors[0]?.recommendation || 'Payment run is blocked by unresolved mismatch.', priority: 'high' },
-    { id: 'brain-close', area: 'Period close', title: `${closeBlockers.length} close blockers remain`, reason: closeBlockers.map((item) => item.label).join(', ') || 'Month-end checklist is clean.', priority: closeBlockers.length ? 'medium' : 'low' }
-  ];
-  const recommendedActions = [
-    { id: 'rec-1', label: 'Issue statements', detail: `${buildStatementRows().filter((row) => row.status === 'Priority send').length} customers should receive statements today.`, path: '/accounting/statements', priority: 'high' },
-    { id: 'rec-2', label: 'Release ready supplier bill', detail: 'Cape Paper Supply can be included in the next payment batch.', path: '/accounting/creditors', priority: 'medium' },
-    { id: 'rec-3', label: 'Post bank fee journal', detail: 'Main Ops Account has an unmatched bank charge awaiting posting.', path: '/accounting/reconciliation', priority: 'medium' }
-  ];
-  return { focus, recommendedActions, closeReadiness: `${Math.max(0, 100 - closeBlockers.length * 18)}%`, vat: vatSummary.status };
-}
-
-function buildLedgerPayload() {
-  return {
-    summary: [
-      { label: 'Assets', value: 'R316,420', detail: 'Cash plus debtors and operating balances.' },
-      { label: 'Liabilities', value: 'R86,340', detail: 'Creditors and VAT control balances.' },
-      { label: 'Income', value: 'R448,000', detail: 'Recognized sales for the active period.' },
-      { label: 'Expenses', value: 'R82,940', detail: 'Approved operating expense total.' }
-    ],
-    accounts: ledgerAccounts,
-    journals: journalEntries,
-    trialBalanceReady: true
-  };
-}
-
-function buildBillsPayload() {
-  return {
-    kpis: [
-      { label: 'Bills ready to pay', value: String(supplierBills.filter((item) => item.status === 'Ready to pay').length), detail: 'Can go into the next supplier payment batch.' },
-      { label: 'Bills on hold', value: String(supplierBills.filter((item) => item.status === 'Hold').length), detail: 'Waiting on GRN or mismatch resolution.' },
-      { label: 'Bills under review', value: String(supplierBills.filter((item) => item.status === 'Review').length), detail: 'Need finance decision before release.' }
-    ],
-    bills: supplierBills
-  };
-}
-
-function buildReconciliationPayload() {
-  return bankReconciliation;
-}
-
-function buildVatPayload() {
-  return vatSummary;
-}
-
-function buildPeriodClosePayload() {
-  const readiness = Math.max(0, 100 - periodCloseChecklist.filter((item) => item.status === 'Blocked').length * 20 - periodCloseChecklist.filter((item) => item.status === 'In progress').length * 8);
-  return {
-    readiness: `${readiness}%`,
-    status: readiness >= 85 ? 'Almost ready' : readiness >= 60 ? 'Needs work' : 'Blocked',
-    checklist: periodCloseChecklist
-  };
-}
 function ensureDataDir() {
   if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
 }
@@ -1214,12 +1071,11 @@ app.post('/api/accounting/expenses/:id/approve', (req, res) => {
 });
 app.get('/api/accounting/creditors', (_req, res) => res.json(envelope(buildCreditorRows())));
 app.get('/api/accounting/exceptions', (_req, res) => res.json(envelope(buildFinanceExceptions())));
-app.get('/api/accounting/brain', (_req, res) => res.json(envelope(buildAccountingBrain())));
-app.get('/api/accounting/ledger', (_req, res) => res.json(envelope(buildLedgerPayload())));
-app.get('/api/accounting/bills', (_req, res) => res.json(envelope(buildBillsPayload())));
-app.get('/api/accounting/reconciliation', (_req, res) => res.json(envelope(buildReconciliationPayload())));
-app.get('/api/accounting/vat', (_req, res) => res.json(envelope(buildVatPayload())));
-app.get('/api/accounting/period-close', (_req, res) => res.json(envelope(buildPeriodClosePayload())));
+app.get('/api/procurement/brain', (_req, res) => res.json(envelope(buildProcurementOverview())));
+app.get('/api/procurement/reorders', (_req, res) => res.json(envelope(buildProcurementReorders())));
+app.get('/api/procurement/suppliers', (_req, res) => res.json(envelope(buildSupplierInsights())));
+app.get('/api/procurement/purchase-orders', (_req, res) => res.json(envelope(buildProcurementPurchaseOrders())));
+app.get('/api/procurement/exceptions', (_req, res) => res.json(envelope(buildProcurementExceptions())));
 
 app.get('/api/reports', async (req, res) => {
   if (pool) await hydrateAutomationState();
