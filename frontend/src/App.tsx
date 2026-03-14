@@ -113,7 +113,7 @@ export default function App() {
 
   useEffect(() => {
     if (booting || !showIgnition) return;
-    const timer = window.setTimeout(() => setShowIgnition(false), 3600);
+    const timer = window.setTimeout(() => setShowIgnition(false), 6200);
     return () => window.clearTimeout(timer);
   }, [booting, showIgnition]);
 
