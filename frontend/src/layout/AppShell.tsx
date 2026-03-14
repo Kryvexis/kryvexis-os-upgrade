@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
-import { NavLink, Outlet, useLocation, Link } from 'react-router-dom';
+import '../styles/ui-lock.css';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { api } from '../lib/api';
 import type { Notification, RoleKey } from '../types';
 
@@ -7,7 +8,7 @@ const coreModules = [
   ['/', 'Dashboard', '◔'],
   ['/sales', 'Sales', '⌁'],
   ['/inventory', 'Inventory', '◫'],
-  ['/procurement', 'Procurement', '◎'],
+  ['/procurement', 'Purchasing', '◎'],
   ['/accounting', 'Accounting', '◌'],
   ['/operations', 'Operations', '↗'],
   ['/reports', 'Reports', '▣']
@@ -16,14 +17,6 @@ const coreModules = [
 const adminItems = [
   ['/roles', 'Roles', '⌘'],
   ['/settings', 'Settings', '⚙']
-] as const;
-
-const quickActions = [
-  { label: 'New customer', to: '/customers' },
-  { label: 'New quote', to: '/quotes' },
-  { label: 'New invoice', to: '/invoices' },
-  { label: 'Run reports', to: '/reports' },
-  { label: 'Record payment', to: '/payments' }
 ] as const;
 
 const roleLabels: Record<RoleKey, string> = {
@@ -40,7 +33,7 @@ const roleLabels: Record<RoleKey, string> = {
 const pageTitles: Array<[string, string]> = [
   ['/sales', 'Sales'],
   ['/inventory', 'Inventory'],
-  ['/procurement', 'Procurement'],
+  ['/procurement', 'Purchasing'],
   ['/accounting', 'Accounting'],
   ['/operations', 'Operations'],
   ['/reports', 'Reports'],
@@ -49,19 +42,38 @@ const pageTitles: Array<[string, string]> = [
   ['/invoices', 'Invoices'],
   ['/products', 'Products'],
   ['/payments', 'Payments'],
-  ['/notifications', 'Inbox'],
+  ['/notifications', 'Notifications'],
   ['/roles', 'Roles'],
   ['/settings', 'Settings']
 ];
 
-export function AppShell({ role, setRole, theme, setTheme }: { role: RoleKey; setRole: (role: RoleKey) => void; theme: 'dark' | 'light' | 'system'; setTheme: (theme: 'dark' | 'light' | 'system') => void; }) {
+function initials(name: string) {
+  return name
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? '')
+    .join('') || 'K';
+}
+
+export function AppShell({
+  role,
+  setRole,
+  theme,
+  setTheme
+}: {
+  role: RoleKey;
+  setRole: (role: RoleKey) => void;
+  theme: 'dark' | 'light' | 'system';
+  setTheme: (theme: 'dark' | 'light' | 'system') => void;
+}) {
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [alertsOpen, setAlertsOpen] = useState(false);
-  const [quickOpen, setQuickOpen] = useState(false);
-  const activeLabel = pageTitles.find(([prefix]) => location.pathname === prefix || location.pathname.startsWith(`${prefix}/`))?.[1] ?? 'Dashboard';
+  const [userOpen, setUserOpen] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     api.notifications().then(setNotifications).catch(() => setNotifications([]));
@@ -69,121 +81,101 @@ export function AppShell({ role, setRole, theme, setTheme }: { role: RoleKey; se
 
   useEffect(() => {
     setAlertsOpen(false);
-    setQuickOpen(false);
+    setUserOpen(false);
     if (typeof window !== 'undefined' && window.innerWidth <= 860) {
       setSidebarOpen(false);
     }
   }, [location.pathname]);
 
+  useEffect(() => {
+    function onClick(event: MouseEvent) {
+      if (!userMenuRef.current?.contains(event.target as Node)) {
+        setUserOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', onClick);
+    return () => document.removeEventListener('mousedown', onClick);
+  }, []);
+
   function toggleNav() {
     if (typeof window !== 'undefined' && window.innerWidth <= 860) {
-      setSidebarOpen((v) => !v);
+      setSidebarOpen((value) => !value);
     } else {
-      setSidebarCollapsed((v) => !v);
+      setSidebarCollapsed((value) => !value);
     }
   }
 
-  const shellClass = ['app-shell', sidebarCollapsed ? 'sidebar-collapsed' : '', sidebarOpen ? 'sidebar-open' : ''].filter(Boolean).join(' ');
+  const shellClass = ['app-shell', sidebarCollapsed ? 'sidebar-collapsed' : '', sidebarOpen ? 'sidebar-open' : '']
+    .filter(Boolean)
+    .join(' ');
   const unread = notifications.filter((item) => !item.read && !item.dismissed).length;
-  const recentAlerts = notifications.filter((item) => !item.dismissed).slice(0, 5);
+  const recentAlerts = notifications.filter((item) => !item.dismissed).slice(0, 4);
+  const activeLabel = pageTitles.find(([prefix]) => location.pathname === prefix || location.pathname.startsWith(`${prefix}/`))?.[1] ?? 'Dashboard';
+  const isDashboard = location.pathname === '/';
   const breadcrumb = useMemo(() => {
-    const section = pageTitles.find(([prefix]) => location.pathname === prefix || location.pathname.startsWith(`${prefix}/`))?.[1] ?? 'Dashboard';
-    return section === 'Dashboard' ? 'Daily operating view' : `Module / ${section}`;
-  }, [location.pathname]);
+    if (isDashboard) return 'Dashboard';
+    return `Module / ${activeLabel}`;
+  }, [activeLabel, isDashboard]);
+
+  const userName = 'Antonie Meyer';
 
   return (
     <div className={shellClass}>
-      <aside className="sidebar">
-        <div className="brand-block brand-block-tight">
-          <span className="brand-mark">K</span>
+      {sidebarOpen ? <button className="sidebar-overlay" type="button" aria-label="Close navigation" onClick={() => setSidebarOpen(false)} /> : null}
+
+      <aside className="sidebar mockup-sidebar">
+        <Link to="/" className="brand-block mockup-brand-block">
+          <span className="brand-mark brand-mark-cube" />
           <div>
             <strong>Kryvexis OS</strong>
-            <p>{roleLabels[role]} workspace</p>
           </div>
-        </div>
+        </Link>
 
-        <div className="nav-section">
-          <span className="eyebrow nav-section-label">Core modules</span>
-          <nav className="nav-list nav-list-icons">
-            {coreModules.map(([to, label, icon]) => (
-              <NavLink key={to} to={to} end={to === '/'} className={({ isActive }) => `nav-link nav-link-icon ${isActive ? 'active' : ''}`}>
-                <span className="nav-link-icon-mark">{icon}</span>
-                <span>{label}</span>
-              </NavLink>
-            ))}
-          </nav>
-        </div>
+        <nav className="nav-list nav-list-icons mockup-nav-list">
+          {coreModules.map(([to, label, icon]) => (
+            <NavLink key={to} to={to} end={to === '/'} className={({ isActive }) => `nav-link nav-link-icon mockup-nav-link ${isActive ? 'active' : ''}`}>
+              <span className="nav-link-icon-mark">{icon}</span>
+              <span>{label}</span>
+            </NavLink>
+          ))}
+        </nav>
 
-        <div className="nav-section admin-nav-section">
-          <span className="eyebrow nav-section-label">Admin</span>
-          <nav className="nav-list nav-list-icons">
-            {adminItems.map(([to, label, icon]) => (
-              <NavLink key={to} to={to} className={({ isActive }) => `nav-link nav-link-icon ${isActive ? 'active' : ''}`}>
-                <span className="nav-link-icon-mark">{icon}</span>
-                <span>{label}</span>
-              </NavLink>
-            ))}
-          </nav>
-        </div>
+        <div className="sidebar-divider" />
 
-        <div className="sidebar-foot">
-          <label className="stack-field">
-            <span>Role view</span>
-            <select value={role} onChange={(e) => setRole(e.target.value as RoleKey)}>
-              <option value="admin">Admin</option>
-              <option value="manager">Manager</option>
-              <option value="executive">Executive</option>
-              <option value="sales">Sales</option>
-              <option value="finance">Finance</option>
-              <option value="warehouse">Warehouse</option>
-              <option value="procurement">Procurement</option>
-              <option value="operations">Operations</option>
-            </select>
-          </label>
-
-          <label className="stack-field">
-            <span>Theme</span>
-            <select value={theme} onChange={(e) => setTheme(e.target.value as 'dark' | 'light' | 'system')}>
-              <option value="dark">Dark</option>
-              <option value="light">Light</option>
-              <option value="system">System</option>
-            </select>
-          </label>
-        </div>
+        <nav className="nav-list nav-list-icons mockup-nav-list admin-mini-nav">
+          <NavLink to="/notifications" className={({ isActive }) => `nav-link nav-link-icon mockup-nav-link ${isActive ? 'active' : ''}`}>
+            <span className="nav-link-icon-mark">✦</span>
+            <span>Notifications</span>
+          </NavLink>
+          {adminItems.map(([to, label, icon]) => (
+            <NavLink key={to} to={to} className={({ isActive }) => `nav-link nav-link-icon mockup-nav-link ${isActive ? 'active' : ''}`}>
+              <span className="nav-link-icon-mark">{icon}</span>
+              <span>{label}</span>
+            </NavLink>
+          ))}
+        </nav>
       </aside>
 
-      <main className="main-area">
-        <header className="topbar topbar-shell enhanced-topbar-shell">
-          <div className="topbar-leading">
-            <button className="menu-chip" type="button" aria-label="Toggle navigation" onClick={toggleNav}>≡</button>
+      <main className="main-area mockup-main-area">
+        <header className="topbar topbar-shell mockup-topbar-shell">
+          <div className="topbar-leading mockup-topbar-leading">
+            <button className="menu-chip mockup-menu-chip" type="button" aria-label="Toggle navigation" onClick={toggleNav}>☰</button>
             <div>
-              <p className="eyebrow">One shell • one workflow language</p>
-              <h1>{activeLabel}</h1>
-              <span className="topbar-breadcrumb">{breadcrumb}</span>
+              <h1 className="mockup-page-title">{activeLabel}</h1>
+              <span className="topbar-breadcrumb mockup-breadcrumb">{breadcrumb}</span>
             </div>
           </div>
 
-          <div className="topbar-actions topbar-user-row enhanced-topbar-actions">
-            <div className={`topbar-popover ${quickOpen ? 'open' : ''}`}>
-              <button className="ghost-button topbar-action-button" type="button" onClick={() => setQuickOpen((v) => !v)}>＋ Quick actions</button>
-              {quickOpen ? (
-                <div className="popover-menu quick-actions-menu">
-                  {quickActions.map((action) => (
-                    <Link key={action.label} to={action.to} className="popover-link">{action.label}</Link>
-                  ))}
-                </div>
-              ) : null}
-            </div>
-
+          <div className="topbar-actions topbar-user-row mockup-topbar-actions">
             <div className={`topbar-popover ${alertsOpen ? 'open' : ''}`}>
-              <button className="icon-chip topbar-bell-button" type="button" aria-label="Open inbox" onClick={() => setAlertsOpen((v) => !v)}>
+              <button className="icon-chip mockup-icon-chip" type="button" aria-label="Open notifications" onClick={() => setAlertsOpen((value) => !value)}>
                 ✦
                 {unread ? <span className="icon-badge">{unread}</span> : null}
               </button>
               {alertsOpen ? (
-                <div className="popover-menu alerts-menu">
+                <div className="popover-menu alerts-menu mockup-popover">
                   <div className="popover-menu-head">
-                    <strong>Inbox</strong>
+                    <strong>Notifications</strong>
                     <Link to="/notifications" className="action-link">Open all</Link>
                   </div>
                   <div className="alerts-menu-list">
@@ -199,17 +191,51 @@ export function AppShell({ role, setRole, theme, setTheme }: { role: RoleKey; se
               ) : null}
             </div>
 
-            <div className="user-chip enhanced-user-chip">
-              <span className="user-avatar">A</span>
-              <div>
-                <strong>Antonie Meyer</strong>
-                <p>{roleLabels[role]}</p>
-              </div>
+            <div className="topbar-popover" ref={userMenuRef}>
+              <button className="user-chip mockup-user-chip" type="button" onClick={() => setUserOpen((value) => !value)}>
+                <span className="user-avatar">{initials(userName)}</span>
+                <div>
+                  <strong>{userName}</strong>
+                  <p>{roleLabels[role]}</p>
+                </div>
+              </button>
+              {userOpen ? (
+                <div className="popover-menu user-menu-popover mockup-popover">
+                  <div className="user-menu-section">
+                    <span className="eyebrow">Quick settings</span>
+                    <label className="stack-field compact-field">
+                      <span>Role</span>
+                      <select value={role} onChange={(event) => setRole(event.target.value as RoleKey)}>
+                        <option value="admin">Admin</option>
+                        <option value="manager">Manager</option>
+                        <option value="executive">Executive</option>
+                        <option value="sales">Sales</option>
+                        <option value="finance">Finance</option>
+                        <option value="warehouse">Warehouse</option>
+                        <option value="procurement">Procurement</option>
+                        <option value="operations">Operations</option>
+                      </select>
+                    </label>
+                    <label className="stack-field compact-field">
+                      <span>Theme</span>
+                      <select value={theme} onChange={(event) => setTheme(event.target.value as 'dark' | 'light' | 'system')}>
+                        <option value="dark">Dark</option>
+                        <option value="light">Light</option>
+                        <option value="system">System</option>
+                      </select>
+                    </label>
+                  </div>
+                  <div className="user-menu-links">
+                    <Link to="/pos" className="popover-link">Open POS</Link>
+                    <Link to="/settings" className="popover-link">Settings</Link>
+                  </div>
+                </div>
+              ) : null}
             </div>
           </div>
         </header>
 
-        <section className="page-body"><Outlet /></section>
+        <section className="page-body mockup-page-body"><Outlet /></section>
 
         <nav className="mobile-nav">
           {[...coreModules, ['/notifications', 'Inbox', '✦'] as const].slice(0, 6).map(([to, label]) => (
