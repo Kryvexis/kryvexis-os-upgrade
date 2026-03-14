@@ -31,6 +31,7 @@ import { FinanceExceptionsPage } from './pages/FinanceExceptionsPage';
 import { OperationsWorkspacePage } from './pages/OperationsWorkspacePage';
 import { ReportsPage } from './pages/ReportsPage';
 import { AuthPage } from './pages/AuthPage';
+import { SystemIgnitionPage } from './pages/SystemIgnitionPage';
 import { applyTheme, getStoredTheme, type ThemeMode } from './lib/theme';
 import { api } from './lib/api';
 import type { AuthSession, RoleKey } from './types';
@@ -77,6 +78,7 @@ function SplashScreen() {
 export default function App() {
   const [session, setSession] = useState<AuthSession | null>(null);
   const [booting, setBooting] = useState(true);
+  const [showIgnition, setShowIgnition] = useState(true);
   const [introSeen, setIntroSeen] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
     return window.localStorage.getItem(INTRO_STORAGE_KEY) === 'true';
@@ -109,7 +111,15 @@ export default function App() {
     if (session?.role) setRole(session.role);
   }, [session]);
 
+  useEffect(() => {
+    if (booting || !showIgnition) return;
+    const timer = window.setTimeout(() => setShowIgnition(false), 3600);
+    return () => window.clearTimeout(timer);
+  }, [booting, showIgnition]);
+
   if (booting) return <SplashScreen />;
+
+  if (showIgnition) return <SystemIgnitionPage onFinish={() => setShowIgnition(false)} />;
 
   if (!introSeen) {
     return <IntroPage onContinue={() => {

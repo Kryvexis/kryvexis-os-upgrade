@@ -11,9 +11,9 @@ const starterEmails = [
 ];
 
 const storyFrames = [
-  'Command your branches with one operating system.',
-  'Automate finance, procurement, and inventory with intelligence.',
-  'Move from admin software to a live command center.'
+  'A command center that feels switched on before you touch a single module.',
+  'Finance, procurement, and stock control moving in one connected pulse.',
+  'Built to feel iconic on mobile and unmistakably Kryvexis on first launch.'
 ];
 
 export function AuthPage({ onAuthenticated }: { onAuthenticated: (session: AuthSession) => void }) {
@@ -44,12 +44,12 @@ export function AuthPage({ onAuthenticated }: { onAuthenticated: (session: AuthS
         <div className="entry-hero">
           <p className="eyebrow">Kryvexis OS</p>
           <img src={logo} alt="Kryvexis" className="entry-logo entry-logo-large" />
-          <h1>Built to feel like the future of operations.</h1>
+          <h1>An entry experience people remember.</h1>
           <p className="entry-copy">{frame}</p>
           <div className="entry-pill-row">
-            <span className="entry-pill">Finance intelligence</span>
-            <span className="entry-pill">Predictive procurement</span>
-            <span className="entry-pill">Stock brain</span>
+            <span className="entry-pill">System ignition</span>
+            <span className="entry-pill">Mobile-first motion</span>
+            <span className="entry-pill">Command center access</span>
           </div>
         </div>
 
@@ -59,7 +59,7 @@ export function AuthPage({ onAuthenticated }: { onAuthenticated: (session: AuthS
             <img src={logo} alt="Kryvexis" className="entry-logo" />
             <div>
               <strong>Kryvexis OS</strong>
-              <p>Enter the command center</p>
+              <p>Sign in to the operating core</p>
             </div>
           </div>
 
@@ -75,7 +75,7 @@ export function AuthPage({ onAuthenticated }: { onAuthenticated: (session: AuthS
               />
             </label>
             <button className="entry-primary-button" type="submit" disabled={busy}>
-              {busy ? 'Opening workspace...' : 'Launch Kryvexis'}
+              {busy ? 'Launching command core...' : 'Launch Kryvexis'}
             </button>
             {error ? <p className="danger-text">{error}</p> : null}
           </form>
