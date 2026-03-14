@@ -5,6 +5,7 @@ import type { Notification, RoleKey } from '../types';
 
 const coreModules = [
   ['/', 'Dashboard', '◔'],
+  ['/action-center', 'Action Center', '✦'],
   ['/sales', 'Sales', '⌁'],
   ['/inventory', 'Inventory', '◫'],
   ['/procurement', 'Purchasing', '◎'],
@@ -37,6 +38,7 @@ const roleLabels: Record<RoleKey, string> = {
 };
 
 const pageTitles: Array<[string, string]> = [
+  ['/action-center', 'Action Center'],
   ['/sales', 'Sales'],
   ['/inventory', 'Inventory'],
   ['/procurement', 'Purchasing'],
@@ -208,7 +210,7 @@ export function AppShell({ role, setRole, theme, setTheme }: { role: RoleKey; se
         <section className="page-body"><Outlet /></section>
 
         <nav className="mobile-nav">
-          {[...coreModules, ['/notifications', 'Inbox', '✦'] as const].slice(0, 6).map(([to, label]) => (
+          {[['/', 'Home'], ['/action-center', 'Actions'], ['/inventory', 'Stock'], ['/accounting', 'Finance'], ['/notifications', 'Inbox']].map(([to, label]) => (
             <NavLink key={to} to={to} end={to === '/'} className={({ isActive }) => `mobile-link ${isActive ? 'active' : ''}`}>
               {label}
             </NavLink>

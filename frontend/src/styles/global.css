@@ -1760,3 +1760,11 @@ textarea { min-height: 88px; resize: vertical; }
   .action-center-stats { grid-template-columns: 1fr; }
   .dashboard-action-preview-head { align-items: start; flex-direction: column; }
 }
+
+.action-center-hero-v2 { align-items: start; }
+.action-center-stats-v2 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.action-center-heat-card { border-color: rgba(119, 201, 255, 0.32); }
+.action-hero-cta-row { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 18px; }
+.mobile-nav { padding-bottom: calc(14px + env(safe-area-inset-bottom)); }
+.mobile-link { justify-content: center; font-weight: 700; }
+@media (max-width: 860px) { .action-center-stats-v2 { grid-template-columns: 1fr; } .topbar { padding-top: calc(12px + env(safe-area-inset-top)); } .page-body { padding-bottom: 100px; } }

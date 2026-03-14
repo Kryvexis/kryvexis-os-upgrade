@@ -271,51 +271,112 @@ function buildInventoryOverview() {
   };
 }
 
+function buildDebtorRows() {
+  return customers.map((customer) => {
+    const linkedInvoices = invoices.filter((item) => item.customerId === customer.id);
+    const overdueTotal = linkedInvoices.filter((item) => /overdue|collections/i.test(item.status)).reduce((sum, item) => sum + numericAmount(item.amount), 0);
+    const currentTotal = linkedInvoices.filter((item) => !/overdue|collections/i.test(item.status) && item.paymentStatus !== 'Settled').reduce((sum, item) => sum + numericAmount(item.amount), 0);
+    const riskScore = Math.min(99, Math.round((overdueTotal / 1000) + (customer.risk === 'High' ? 28 : customer.risk === 'Medium' ? 16 : 8) + linkedInvoices.length * 3));
+    return {
+      id: `DEBT-${customer.id}`,
+      customerId: customer.id,
+      customer: customer.name,
+      branch: customer.branch,
+      overdueAmount: formatCurrency(overdueTotal),
+      currentAmount: formatCurrency(currentTotal),
+      totalOpen: formatCurrency(overdueTotal + currentTotal),
+      oldestBucket: overdueTotal > 0 ? '31+ days' : 'Current',
+      risk: riskScore >= 80 ? 'Critical' : riskScore >= 60 ? 'High' : 'Watch',
+      recommendation: overdueTotal > 0 ? 'Call debtor and issue statement now.' : currentTotal > 0 ? 'Keep on polite reminder cadence.' : 'No collections pressure right now.',
+      score: riskScore
+    };
+  }).sort((a, b) => b.score - a.score);
+}
+
+function buildStatementRows() {
+  return buildDebtorRows().map((item) => ({
+    id: `STM-${item.customerId}`,
+    customerId: item.customerId,
+    customer: item.customer,
+    branch: item.branch,
+    balance: item.totalOpen,
+    overdueInvoices: invoices.filter((entry) => entry.customerId === item.customerId && /overdue|collections/i.test(entry.status)).length,
+    lastIssued: item.score >= 70 ? 'Today 09:12' : 'Yesterday 16:30',
+    nextAction: item.score >= 70 ? 'Send refreshed statement now' : 'Keep standard statement cadence',
+    status: item.score >= 70 ? 'Priority' : 'Healthy'
+  }));
+}
+
+function buildFinanceBrain() {
+  const debtorActions = buildDebtorRows().slice(0, 5).map((item) => ({
+    id: `FB-DEBT-${item.customerId}`,
+    domain: 'Finance',
+    title: `${item.customer} collections pressure is building`,
+    detail: `${item.overdueAmount} overdue and ${item.totalOpen} still open across the account.`,
+    reason: item.recommendation,
+    owner: 'Finance',
+    branch: item.branch,
+    priority: item.score >= 82 ? 'critical' : item.score >= 65 ? 'high' : 'medium',
+    score: item.score,
+    impact: 'Protect cash conversion and customer payment discipline.',
+    actionLabel: item.score >= 82 ? 'Call debtor now' : 'Open debtor card',
+    recordPath: `/customers/${item.customerId}`,
+    status: item.risk,
+    autoReady: false
+  }));
+
+  const paymentActions = payments.filter((item) => item.status === 'Pending proof' || item.status === 'Unallocated').map((item) => ({
+    id: `FB-PAY-${item.id}`,
+    domain: 'Finance',
+    title: item.status === 'Pending proof' ? `${item.party} payment still needs proof` : `${item.party} payment is ready for allocation`,
+    detail: `${item.ref} for ${item.amount} is ${item.status.toLowerCase()} and still interrupting a clean close loop.`,
+    reason: item.status === 'Pending proof' ? 'Proof missing keeps the receipt from becoming audit-safe.' : 'Allocation is the fastest way to clean debtor visibility.',
+    owner: 'Finance',
+    branch: findCustomer(item.customerId)?.branch || 'Finance',
+    priority: item.status === 'Unallocated' ? 'high' : 'medium',
+    score: item.status === 'Unallocated' ? 86 : 74,
+    impact: 'Reduce exception noise and clean receipting before close.',
+    actionLabel: item.status === 'Pending proof' ? 'Resolve proof' : 'Allocate payment',
+    recordPath: `/payments/${item.id}`,
+    status: item.status,
+    autoReady: item.status === 'Unallocated'
+  }));
+
+  const statementActions = buildStatementRows().filter((item) => item.status === 'Priority').slice(0, 3).map((item) => ({
+    id: `FB-STM-${item.customerId}`,
+    domain: 'Finance',
+    title: `${item.customer} should receive a fresh statement`,
+    detail: `${item.balance} remains open and the account has ${item.overdueInvoices} overdue invoices.`,
+    reason: 'Fresh statements accelerate calls, reminders, and dispute clearing.',
+    owner: 'Finance',
+    branch: item.branch,
+    priority: 'medium',
+    score: 68,
+    impact: 'Move collections faster with cleaner customer visibility.',
+    actionLabel: 'Send statement',
+    recordPath: '/accounting/statements',
+    status: item.status,
+    autoReady: true
+  }));
+
+  return [...debtorActions, ...paymentActions, ...statementActions].sort((a, b) => b.score - a.score);
+}
+
 function buildFinanceExceptions() {
-  const overdue = invoices
-    .filter((item) => /overdue|collections/i.test(item.status))
-    .map((item) => ({
-      id: `FEX-${item.id}`,
-      kind: 'collections',
-      title: `${item.customer} needs collections follow-up`,
-      branch: item.branch,
-      severity: item.status === 'Overdue' ? 'High' : 'Medium',
-      detail: `${item.id} is ${item.status.toLowerCase()} with payment state ${item.paymentStatus}.`,
-      action: 'Send reminder and call debtor',
-      recordPath: `/invoices/${item.id}`
-    }));
-  const paymentsNeedingAction = payments
-    .filter((item) => item.status === 'Pending proof' || item.status === 'Unallocated')
-    .map((item) => ({
-      id: `FEX-${item.id}`,
-      kind: 'payments',
-      title: `${item.party} payment still needs finance action`,
-      branch: findCustomer(item.customerId)?.branch || 'Finance',
-      severity: item.status === 'Pending proof' ? 'Medium' : 'High',
-      detail: `${item.ref} is currently ${item.status.toLowerCase()} for ${item.amount}.`,
-      action: item.status === 'Pending proof' ? 'Resolve proof' : 'Allocate payment',
-      recordPath: `/payments/${item.id}`
-    }));
-  return [...overdue, ...paymentsNeedingAction];
+  return buildFinanceBrain().map((item) => ({
+    id: `FEX-${item.id}`,
+    kind: item.title.toLowerCase().includes('statement') ? 'statements' : item.title.toLowerCase().includes('payment') ? 'payments' : 'collections',
+    title: item.title,
+    branch: item.branch,
+    severity: item.priority === 'critical' ? 'High' : item.priority === 'high' ? 'Medium' : 'Watch',
+    detail: item.detail,
+    action: item.actionLabel,
+    recordPath: item.recordPath
+  }));
 }
 
 function buildActionCenter(role = 'admin') {
-  const financeActions = buildFinanceExceptions().map((item, index) => ({
-    id: `FIN-${index}-${item.id}`,
-    domain: 'Finance',
-    title: item.title,
-    detail: item.detail,
-    reason: item.action,
-    owner: 'Finance',
-    branch: item.branch,
-    priority: item.severity === 'High' ? 'critical' : 'medium',
-    score: item.severity === 'High' ? 92 : 76,
-    impact: 'Protect collections and accounting flow.',
-    actionLabel: item.action,
-    recordPath: item.recordPath,
-    status: item.severity,
-    autoReady: false
-  }));
+  const financeActions = buildFinanceBrain();
   const procurementActions = buildProcurementExceptions().map((item, index) => ({
     id: `PRO-${index}-${item.id}`,
     domain: 'Procurement',
@@ -348,12 +409,12 @@ function buildActionCenter(role = 'admin') {
     status: item.severity,
     autoReady: item.action.toLowerCase().includes('transfer')
   }));
-  const roleActions = [...financeActions, ...procurementActions, ...inventoryActions];
+  const roleActions = [...financeActions, ...procurementActions, ...inventoryActions].sort((a, b) => b.score - a.score).map((item, index) => ({ ...item, lane: index < 5 ? 'top-focus' : item.autoReady ? 'quick-win' : 'watch' }));
   return {
     generatedAt: new Date().toISOString(),
-    topFocus: [...roleActions].sort((a, b) => b.score - a.score).slice(0, 5),
+    topFocus: roleActions.slice(0, 5),
     quickWins: roleActions.filter((item) => item.autoReady).slice(0, 6),
-    recommendationFeed: roleActions.sort((a, b) => b.score - a.score),
+    recommendationFeed: roleActions,
     domainSummaries: ['Finance', 'Procurement', 'Inventory'].map((domain) => {
       const items = roleActions.filter((item) => item.domain === domain);
       return {
@@ -361,10 +422,10 @@ function buildActionCenter(role = 'admin') {
         count: items.length,
         urgent: items.filter((item) => item.priority === 'critical' || item.priority === 'high').length,
         headline: items[0]?.title || `${domain} is stable`,
-        impact: domain === 'Inventory' ? 'Stock cover, transfer flow, and movement pressure.' : domain === 'Procurement' ? 'Reorders, suppliers, and PO pressure.' : 'Collections, approvals, and payment follow-through.'
+        impact: domain === 'Inventory' ? 'Stock cover, transfer flow, and movement pressure.' : domain === 'Procurement' ? 'Reorders, suppliers, and PO pressure.' : 'Collections, statements, and payment allocation.'
       };
     }),
-    branchSnapshots: buildBranchSnapshots(),
+    branchSnapshots: buildBranchSnapshots().map((item) => ({ ...item, heat: item.approvals + item.collections + item.exceptions })),
     auditHighlights: auditLog.slice(0, 6)
   };
 }

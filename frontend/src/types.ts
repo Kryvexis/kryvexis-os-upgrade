@@ -38,7 +38,7 @@ export type Settings = { themes: string[]; paymentModes: string[]; density: stri
 export type Role = { key: RoleKey; label: string; description: string; dashboards: string[]; };
 export type TopClient = { customerId: string; name: string; revenue: string; invoices: number; averageOrderValue: string; overdueBalance: string; trend: string; };
 export type OperationalActionItem = { id: string; title: string; detail: string; owner: string; branch: string; priority: 'high' | 'medium' | 'low' | string; recordPath: string; actionLabel: string; status: string; };
-export type BranchSnapshot = { branch: string; approvals: number; collections: number; exceptions: number };
+export type BranchSnapshot = { branch: string; approvals: number; collections: number; exceptions: number; heat?: number };
 export type DashboardResponse = { role: string; kpis: KPI[]; panels: PanelGroup[]; highlights: Notification[]; recentCustomers: Customer[]; lowStockProducts: Product[]; topClients: TopClient[]; actionCenter: { branchSnapshots: BranchSnapshot[]; actionQueue: OperationalActionItem[]; auditHighlights: ActivityEntry[]; }; };
 export type PurchaseHistoryEntry = { id: string; date: string; type: 'invoice' | 'payment' | 'quote'; reference: string; amount: string; status: string; note: string; };
 export type TopProduct = { sku: string; name: string; quantity: number; revenue: string; };
@@ -87,7 +87,7 @@ export type PeriodCloseItemRow = { id: string; label: string; status: string; ow
 export type PeriodClosePayload = { readiness: string; status: string; checklist: PeriodCloseItemRow[]; };
 
 export type ActionCenterDomain = 'Finance' | 'Procurement' | 'Inventory' | 'Operations';
-export type ActionRecommendation = { id: string; domain: ActionCenterDomain | string; title: string; detail: string; reason: string; owner: string; branch: string; priority: 'critical' | 'high' | 'medium' | 'low' | string; score: number; impact: string; actionLabel: string; recordPath: string; status: string; autoReady?: boolean; };
+export type ActionRecommendation = { id: string; domain: ActionCenterDomain | string; title: string; detail: string; reason: string; owner: string; branch: string; priority: 'critical' | 'high' | 'medium' | 'low' | string; score: number; impact: string; actionLabel: string; recordPath: string; status: string; autoReady?: boolean; lane?: 'top-focus' | 'quick-win' | 'watch' | string; };
 export type ActionCenterDomainSummary = { domain: ActionCenterDomain | string; count: number; urgent: number; headline: string; impact: string; };
 export type ActionCenterResponse = { generatedAt: string; topFocus: ActionRecommendation[]; quickWins: ActionRecommendation[]; recommendationFeed: ActionRecommendation[]; domainSummaries: ActionCenterDomainSummary[]; branchSnapshots: BranchSnapshot[]; auditHighlights: ActivityEntry[]; };
 
