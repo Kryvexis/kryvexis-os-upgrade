@@ -33,7 +33,6 @@ const products = [
   { id: 'PRD-1033', sku: 'SKU-1033', name: 'Warehouse Scanner Dock', branch: 'Johannesburg', status: 'Healthy', stock: 21, reorderAt: 6, price: 'R1,290', cost: 'R790', supplier: 'Prime Devices', barcode: '6001001001033', variants: 'USB-C', movementSummary: 'No movement today', nextAction: 'Monitor top mover trend' }
 ];
 
-
 const suppliers = [
   { id: 'SUP-001', name: 'Prime Devices', category: 'Hardware', leadTime: '5 days', status: 'On track', contact: 'orders@primedevices.co.za', nextAction: 'Release next scanner dock PO' },
   { id: 'SUP-002', name: 'Cape Paper Supply', category: 'Consumables', leadTime: '3 days', status: 'Attention', contact: 'dispatch@capepaper.co.za', nextAction: 'Confirm thermal roll replenishment' },
@@ -118,8 +117,6 @@ const settings = {
   business: { currency: 'ZAR', taxDefault: 'VAT Standard', paymentTerms: '30 days', defaultBranch: 'Johannesburg' }
 };
 
-
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const dataDir = path.join(__dirname, 'data');
@@ -197,7 +194,7 @@ function saveAutomationState() {
 }
 
 function formatCurrency(amount) {
-  return new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR', maximumFractionDigits: 0 }).format(amount).replace('ZAR', 'R').replace(/ /g, ' ');
+  return new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR', maximumFractionDigits: 0 }).format(amount).replace('ZAR', 'R').replace(/ /g, ' ');
 }
 
 function formatPct(value) {
@@ -244,8 +241,7 @@ function buildDailySummary(date = isoDateOffset(-1)) {
 function buildEmailBody(summary) {
   const lines = summary.branches.map((branch) => `${branch.branch} made ${formatCurrency(branch.totalSales)} yesterday against a target of ${formatCurrency(branch.target)} (${formatPct(branch.targetAchievedPct)}).`);
   lines.push(`Total company sales yesterday: ${formatCurrency(summary.totals.totalSales)}.`);
-  return lines.join('
-');
+  return lines.join('\n');
 }
 
 function logAutomationEvent({ action, status = 'info', detail, actor = 'Antonie Meyer', branch = 'All branches', date = isoDateOffset(-1) }) {
@@ -484,10 +480,10 @@ function startScheduler() {
   saveAutomationState();
   setInterval(async () => {
     const now = new Date();
-    const hhmm = now.toTimeString().slice(0,5);
+    const hhmm = now.toTimeString().slice(0, 5);
     if (automationState.automationSettings.triggerMode !== 'scheduled-close') return;
     if (hhmm !== automationState.automationSettings.closeTime) return;
-    const today = now.toISOString().slice(0,10);
+    const today = now.toISOString().slice(0, 10);
     if (automationState.scheduler.lastAutoRunDate === today) return;
     try {
       await runDayClose({ trigger: 'scheduled', sendEmail: true, date: today });
@@ -894,7 +890,6 @@ app.post('/api/payments/:id/allocate', (req, res) => {
   return res.json(envelope({ payment: buildPaymentDetail(payment) }));
 });
 
-
 function buildEmailDraft(kind, id) {
   if (kind === 'quote-send') {
     const quote = findQuote(id);
@@ -912,9 +907,7 @@ function buildEmailDraft(kind, id) {
         `The quote is valid until ${quote.validity} and covers the requested items for the ${quote.branch} branch workflow.`,
         `Reply to this email if you would like us to proceed or adjust any line items before confirmation.`
       ],
-      closing: `Regards,
-${quote.owner}
-Kryvexis Solutions`
+      closing: `Regards,\n${quote.owner}\nKryvexis Solutions`
     };
   }
 
@@ -934,9 +927,7 @@ Kryvexis Solutions`
         `The invoice is currently marked as ${invoice.status.toLowerCase()} and the due status is ${invoice.due}.`,
         `If payment has already been made, please send proof of payment so our finance team can update the record immediately.`
       ],
-      closing: `Regards,
-Finance Team
-Kryvexis Solutions`
+      closing: 'Regards,\nFinance Team\nKryvexis Solutions'
     };
   }
 
@@ -956,9 +947,7 @@ Kryvexis Solutions`
         `Our team still needs the supporting proof so we can complete allocation against ${payment.appliedTo}.`,
         `Please reply with the payment confirmation at your earliest convenience so we can close the finance action.`
       ],
-      closing: `Regards,
-Finance Team
-Kryvexis Solutions`
+      closing: 'Regards,\nFinance Team\nKryvexis Solutions'
     };
   }
 
@@ -975,7 +964,6 @@ app.get('/api/emails/:kind/:id', (req, res) => {
   if (!draft) return res.status(404).json({ ok: false, error: 'email draft not found' });
   return res.json(envelope(draft));
 });
-
 
 app.get('/api/reports', (req, res) => {
   const role = String(req.query.role || 'admin');
