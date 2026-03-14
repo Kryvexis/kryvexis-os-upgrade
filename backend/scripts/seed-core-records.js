@@ -85,6 +85,21 @@ async function upsertSeedOrganization() {
   );
 }
 
+
+async function insertCompatible(tableName, values, options = {}) {
+  const columns = await getTableColumns(tableName);
+  if (!columns.size) return;
+  const filteredEntries = Object.entries(values).filter(([key, value]) => columns.has(key) && value !== undefined);
+  if (!filteredEntries.length) return;
+  const keys = filteredEntries.map(([key]) => key);
+  const params = filteredEntries.map(([, value]) => value);
+  const placeholders = keys.map((_, index) => `$${index + 1}`).join(', ');
+  const conflictKey = options.conflictKey || 'id';
+  const updateKeys = options.update === false ? [] : keys.filter((key) => key !== conflictKey);
+  const updates = updateKeys.length ? updateKeys.map((key) => `${key} = excluded.${key}`).join(', ') : `${conflictKey} = excluded.${conflictKey}`;
+  await pool.query(`insert into ${tableName} (${keys.join(', ')}) values (${placeholders}) on conflict (${conflictKey}) do update set ${updates}`, params);
+}
+
 async function upsertSeedBranches() {
   const columns = await getTableColumns('branches');
   for (const branch of branches) {
@@ -118,86 +133,166 @@ async function seed() {
   await upsertSeedBranches();
 
   for (const role of roles) {
-    await pool.query(`insert into roles (key, label, description, dashboards)
-      values ($1, $2, $3, $4::jsonb)
-      on conflict (key) do update set label = excluded.label, description = excluded.description, dashboards = excluded.dashboards`,
-      [role.key, role.label, role.description, JSON.stringify(role.dashboards)]);
+    await insertCompatible('roles', {
+      key: role.key,
+      label: role.label,
+      description: role.description,
+      dashboards: JSON.stringify(role.dashboards)
+    });
   }
 
+  const customerColumns = await getTableColumns('customers');
+  const customerHasRisk = customerColumns.has('risk');
+  const customerHasRiskLevel = customerColumns.has('risk_level');
+  const customerHasCreditTerms = customerColumns.has('credit_terms');
+  const customerHasCreditTermsDays = customerColumns.has('credit_terms_days');
+
   for (const customer of customers) {
-    await pool.query(`insert into customers
-      (id, name, owner, branch_id, status, balance, risk, credit_terms, price_list, contact_email, phone, notes, next_action)
-      values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
-      on conflict (id) do update set
-        name = excluded.name, owner = excluded.owner, branch_id = excluded.branch_id, status = excluded.status,
-        balance = excluded.balance, risk = excluded.risk, credit_terms = excluded.credit_terms, price_list = excluded.price_list,
-        contact_email = excluded.contact_email, phone = excluded.phone, notes = excluded.notes, next_action = excluded.next_action,
-        updated_at = now()`,
-      [customer.id, customer.name, customer.owner, branchIdByName(customer.branch), customer.status, moneyToNumber(customer.balance), customer.risk, customer.creditTerms, customer.priceList, customer.contact, customer.phone, customer.notes, customer.nextAction]);
-    await pool.query('delete from customer_activity where customer_id = $1', [customer.id]);
-    for (const activity of customer.activity) {
-      await pool.query('insert into customer_activity (customer_id, activity_text) values ($1, $2)', [customer.id, activity]);
+    await insertCompatible('customers', {
+      id: customer.id,
+      name: customer.name,
+      owner: customer.owner,
+      branch_id: branchIdByName(customer.branch),
+      status: customer.status,
+      balance: moneyToNumber(customer.balance),
+      risk: customerHasRisk ? customer.risk : undefined,
+      risk_level: customerHasRiskLevel ? customer.risk : undefined,
+      credit_terms: customerHasCreditTerms ? customer.creditTerms : undefined,
+      credit_terms_days: customerHasCreditTermsDays ? parseInt(customer.creditTerms, 10) || undefined : undefined,
+      price_list: customer.priceList,
+      contact_email: customer.contact,
+      phone: customer.phone,
+      notes: customer.notes,
+      next_action: customer.nextAction
+    });
+    const activityColumns = await getTableColumns('customer_activity');
+    if (activityColumns.size && activityColumns.has('customer_id') && activityColumns.has('activity_text')) {
+      await pool.query('delete from customer_activity where customer_id = $1', [customer.id]);
+      for (const activity of customer.activity) {
+        await pool.query('insert into customer_activity (customer_id, activity_text) values ($1, $2)', [customer.id, activity]);
+      }
     }
   }
 
   for (const supplier of suppliers) {
-    await pool.query(`insert into suppliers (id, name, category, lead_time, status, contact_email, next_action)
-      values ($1,$2,$3,$4,$5,$6,$7)
-      on conflict (id) do update set name = excluded.name, category = excluded.category, lead_time = excluded.lead_time,
-        status = excluded.status, contact_email = excluded.contact_email, next_action = excluded.next_action, updated_at = now()`,
-      [supplier.id, supplier.name, supplier.category, supplier.leadTime, supplier.status, supplier.contact, supplier.nextAction]);
+    await insertCompatible('suppliers', {
+      id: supplier.id,
+      name: supplier.name,
+      category: supplier.category,
+      lead_time: supplier.leadTime,
+      lead_time_days: parseInt(supplier.leadTime, 10) || undefined,
+      status: supplier.status,
+      contact_email: supplier.contact,
+      next_action: supplier.nextAction
+    });
   }
 
   for (const product of products) {
-    await pool.query(`insert into products
-      (id, sku, name, branch_id, status, stock, reorder_at, price, cost, supplier_id, barcode, variants, movement_summary, next_action)
-      values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
-      on conflict (id) do update set sku = excluded.sku, name = excluded.name, branch_id = excluded.branch_id,
-        status = excluded.status, stock = excluded.stock, reorder_at = excluded.reorder_at, price = excluded.price,
-        cost = excluded.cost, supplier_id = excluded.supplier_id, barcode = excluded.barcode, variants = excluded.variants,
-        movement_summary = excluded.movement_summary, next_action = excluded.next_action, updated_at = now()`,
-      [product.id, product.sku, product.name, branchIdByName(product.branch), product.status, product.stock, product.reorderAt, moneyToNumber(product.price), moneyToNumber(product.cost), product.supplier, product.barcode, product.variants, product.movementSummary, product.nextAction]);
+    await insertCompatible('products', {
+      id: product.id,
+      sku: product.sku,
+      name: product.name,
+      branch_id: branchIdByName(product.branch),
+      status: product.status,
+      stock: product.stock,
+      reorder_at: product.reorderAt,
+      price: moneyToNumber(product.price),
+      cost: moneyToNumber(product.cost),
+      supplier_id: product.supplier,
+      barcode: product.barcode,
+      variants: product.variants,
+      movement_summary: product.movementSummary,
+      next_action: product.nextAction
+    });
   }
 
   for (const quote of quotes) {
-    await pool.query(`insert into quotes
-      (id, customer_id, customer_name, owner, branch_id, value_total, status, validity_date, trigger_reason, updated_label, notes, next_action, subtotal, tax, margin_band, approval_owner)
-      values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
-      on conflict (id) do update set customer_id = excluded.customer_id, customer_name = excluded.customer_name, owner = excluded.owner,
-        branch_id = excluded.branch_id, value_total = excluded.value_total, status = excluded.status, validity_date = excluded.validity_date,
-        trigger_reason = excluded.trigger_reason, updated_label = excluded.updated_label, notes = excluded.notes,
-        next_action = excluded.next_action, subtotal = excluded.subtotal, tax = excluded.tax, margin_band = excluded.margin_band,
-        approval_owner = excluded.approval_owner, updated_at = now()`,
-      [quote.id, quote.customerId, quote.customer, quote.owner, branchIdByName(quote.branch), moneyToNumber(quote.total), quote.status, quote.validity, quote.trigger, quote.updated, quote.notes, quote.nextAction, moneyToNumber(quote.subtotal), moneyToNumber(quote.tax), quote.marginBand, quote.approvalOwner]);
-    await pool.query('delete from quote_lines where quote_id = $1', [quote.id]);
-    await pool.query('delete from quote_workflow_events where quote_id = $1', [quote.id]);
-    for (const line of quote.lines) {
-      await pool.query('insert into quote_lines (id, quote_id, sku, description, qty, unit_price, total) values ($1,$2,$3,$4,$5,$6,$7)', [line.id, quote.id, line.sku, line.description, line.qty, moneyToNumber(line.unitPrice), moneyToNumber(line.total)]);
+    await insertCompatible('quotes', {
+      id: quote.id,
+      customer_id: quote.customerId,
+      customer_name: quote.customer,
+      owner: quote.owner,
+      owner_name: quote.owner,
+      branch_id: branchIdByName(quote.branch),
+      value_total: moneyToNumber(quote.total),
+      total: moneyToNumber(quote.total),
+      status: quote.status,
+      validity_date: quote.validity,
+      trigger_reason: quote.trigger,
+      updated_label: quote.updated,
+      notes: quote.notes,
+      next_action: quote.nextAction,
+      subtotal: moneyToNumber(quote.subtotal),
+      tax: moneyToNumber(quote.tax),
+      margin_band: quote.marginBand,
+      approval_owner: quote.approvalOwner
+    });
+    const quoteLineColumns = await getTableColumns('quote_lines');
+    if (quoteLineColumns.size) {
+      await pool.query('delete from quote_lines where quote_id = $1', [quote.id]);
+      for (const line of quote.lines) {
+        await insertCompatible('quote_lines', {
+          id: line.id,
+          quote_id: quote.id,
+          product_id: null,
+          sku: line.sku,
+          description: line.description,
+          qty: line.qty,
+          unit_price: moneyToNumber(line.unitPrice),
+          total: moneyToNumber(line.total),
+          line_total: moneyToNumber(line.total)
+        });
+      }
     }
-    for (const event of quote.workflow) {
-      await pool.query('insert into quote_workflow_events (quote_id, label, detail) values ($1,$2,$3)', [quote.id, event.label, event.detail]);
+    const workflowColumns = await getTableColumns('quote_workflow_events');
+    if (workflowColumns.size && workflowColumns.has('quote_id') && workflowColumns.has('label') && workflowColumns.has('detail')) {
+      await pool.query('delete from quote_workflow_events where quote_id = $1', [quote.id]);
+      for (const event of quote.workflow) {
+        await pool.query('insert into quote_workflow_events (quote_id, label, detail) values ($1,$2,$3)', [quote.id, event.label, event.detail]);
+      }
     }
   }
 
   for (const invoice of invoices) {
-    await pool.query(`insert into invoices
-      (id, customer_id, customer_name, amount, branch_id, status, due_label, source_quote_id, payment_status, tax_label, reminders, next_action, due_in_days)
-      values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
-      on conflict (id) do update set customer_id = excluded.customer_id, customer_name = excluded.customer_name,
-        amount = excluded.amount, branch_id = excluded.branch_id, status = excluded.status, due_label = excluded.due_label,
-        source_quote_id = excluded.source_quote_id, payment_status = excluded.payment_status, tax_label = excluded.tax_label,
-        reminders = excluded.reminders, next_action = excluded.next_action, due_in_days = excluded.due_in_days, updated_at = now()`,
-      [invoice.id, invoice.customerId, invoice.customer, moneyToNumber(invoice.amount), branchIdByName(invoice.branch), invoice.status, invoice.due, invoice.source, invoice.paymentStatus, invoice.tax, invoice.reminders, invoice.nextAction, parseRelativeDue(invoice.due)]);
+    await insertCompatible('invoices', {
+      id: invoice.id,
+      customer_id: invoice.customerId,
+      customer_name: invoice.customer,
+      amount: moneyToNumber(invoice.amount),
+      branch_id: branchIdByName(invoice.branch),
+      status: invoice.status,
+      due_label: invoice.due,
+      due_date: null,
+      source_quote_id: invoice.source,
+      quote_id: invoice.source,
+      payment_status: invoice.paymentStatus,
+      tax_label: invoice.tax,
+      reminders: invoice.reminders,
+      next_action: invoice.nextAction,
+      due_in_days: parseRelativeDue(invoice.due),
+      subtotal: moneyToNumber(invoice.amount),
+      tax: 0,
+      total: moneyToNumber(invoice.amount)
+    });
   }
 
   for (const payment of payments) {
-    await pool.query(`insert into payments
-      (id, customer_id, party, amount, branch_id, status, method, ref, proof, applied_to, next_action)
-      values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
-      on conflict (id) do update set customer_id = excluded.customer_id, party = excluded.party, amount = excluded.amount,
-        branch_id = excluded.branch_id, status = excluded.status, method = excluded.method, ref = excluded.ref,
-        proof = excluded.proof, applied_to = excluded.applied_to, next_action = excluded.next_action, updated_at = now()`,
-      [payment.id, payment.customerId, payment.party, moneyToNumber(payment.amount), branchIdByName(payment.branch), payment.status, payment.method, payment.ref, payment.proof, payment.appliedTo, payment.nextAction]);
+    await insertCompatible('payments', {
+      id: payment.id,
+      customer_id: payment.customerId,
+      party: payment.party,
+      amount: moneyToNumber(payment.amount),
+      branch_id: branchIdByName(payment.branch),
+      status: payment.status,
+      method: payment.method,
+      ref: payment.ref,
+      reference: payment.ref,
+      proof: payment.proof,
+      proof_status: payment.proof,
+      applied_to: payment.appliedTo,
+      invoice_id: payment.appliedTo?.startsWith('INV-') ? payment.appliedTo : null,
+      next_action: payment.nextAction
+    });
   }
 
   console.log('Core records seeded successfully');
