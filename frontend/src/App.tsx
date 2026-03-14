@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { AppShell } from './layout/AppShell';
 import { DashboardPage } from './pages/DashboardPage';
+import { ActionCenterPage } from './pages/ActionCenterPage';
 import { CustomersPage } from './pages/CustomersPage';
 import { CustomerDetailPage } from './pages/CustomerDetailPage';
 import { QuotesPage } from './pages/QuotesPage';
@@ -141,6 +142,7 @@ export default function App() {
       <Route path="/invoices/:id/print" element={<InvoicePrintPage />} />
       <Route element={<AppShell role={role} setRole={setRole} theme={theme} setTheme={setTheme} />}>
         <Route path="/" element={<DashboardPage role={role} />} />
+        <Route path="/action-center" element={<ActionCenterPage role={role} />} />
         <Route path="/sales" element={<SalesWorkspacePage />} />
         <Route path="/inventory" element={<InventoryWorkspacePage />} />
         <Route path="/procurement" element={<ProcurementWorkspacePage />} />

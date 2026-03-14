@@ -1,6 +1,6 @@
 import type {
-  AccountingBrain,
   AccountingOverview,
+  ActionCenterResponse,
   AutomationSettings,
   Customer,
   CreditorRow,
@@ -124,7 +124,7 @@ export const api = {
     return next;
   },
   accountingOverview: () => request<AccountingOverview>('/api/accounting/overview'),
-  accountingBrain: () => request<AccountingBrain>('/api/accounting/brain'),
+  actionCenter: (role?: RoleKey) => request<ActionCenterResponse>(`/api/action-center${role ? `?role=${role}` : ''}`),
   debtors: () => request<DebtorRow[]>('/api/accounting/debtors'),
   statements: () => request<StatementRow[]>('/api/accounting/statements'),
   sendStatement: (customerId: string) => request<StatementRow>(`/api/accounting/statements/${customerId}/send`, { method: 'POST' }),

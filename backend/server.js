@@ -760,137 +760,100 @@ function buildCustomerSummary(id) {
 
 
 const cashUps = [
-  { id: 'CU-1001', branch: 'Johannesburg', date: isoDateOffset(-1), expected: 'R38,000', counted: 'R37,940', variance: 'R-60', status: 'Review required', owner: 'Nadine Smit', recommendation: 'Approve after supervisor note confirms petty cash movement.' },
-  { id: 'CU-1002', branch: 'Cape Town', date: isoDateOffset(-1), expected: 'R26,000', counted: 'R25,740', variance: 'R-260', status: 'Escalate', owner: 'Rina Patel', recommendation: 'Investigate till variance before branch close release.' },
-  { id: 'CU-1003', branch: 'Durban', date: isoDateOffset(-1), expected: 'R19,000', counted: 'R19,010', variance: 'R10', status: 'Approved', owner: 'Tariq Naidoo', recommendation: 'Released to close history' }
+  { id: 'CU-301', branch: 'Cape Town', date: isoDateOffset(-1), expected: 'R18,400', counted: 'R18,050', variance: 'R-350', status: 'Needs review', owner: 'Rina Patel', recommendation: 'Review variance before close release' },
+  { id: 'CU-302', branch: 'Johannesburg', date: isoDateOffset(-1), expected: 'R26,900', counted: 'R26,900', variance: 'R0', status: 'Ready', owner: 'Nadine Smit', recommendation: 'Approve and post to close history' },
+  { id: 'CU-303', branch: 'Durban', date: isoDateOffset(-1), expected: 'R11,200', counted: 'R11,120', variance: 'R-80', status: 'Ready', owner: 'Tariq Naidoo', recommendation: 'Approve if supporting slips match' }
 ];
 
 const expenses = [
-  { id: 'EXP-8801', branch: 'Johannesburg', category: 'Delivery fuel', supplier: 'FleetCard SA', amount: 'R2,480', status: 'Pending', submittedBy: 'Alex Morgan', incurredOn: isoDateOffset(-1), recommendation: 'Approve - within normal cost band for route volume.' },
-  { id: 'EXP-8802', branch: 'Cape Town', category: 'Emergency labels', supplier: 'Cape Paper Supply', amount: 'R6,940', status: 'Review', submittedBy: 'Rina Patel', incurredOn: isoDateOffset(-2), recommendation: 'Check against open PO before approval.' },
-  { id: 'EXP-8803', branch: 'Durban', category: 'Warehouse sundries', supplier: 'Metro Warehouse Goods', amount: 'R1,260', status: 'Approved', submittedBy: 'Tariq Naidoo', incurredOn: isoDateOffset(-3), recommendation: 'Posted and cleared for reporting' }
+  { id: 'EXP-901', branch: 'Johannesburg', category: 'Fuel', supplier: 'FleetGo', amount: 'R2,480', status: 'Pending approval', submittedBy: 'Alex Morgan', incurredOn: isoDateOffset(-1), recommendation: 'Approve if trip sheet is attached' },
+  { id: 'EXP-902', branch: 'Cape Town', category: 'Packaging', supplier: 'Cape Paper Supply', amount: 'R1,180', status: 'Pending receipt', submittedBy: 'Rina Patel', incurredOn: isoDateOffset(-2), recommendation: 'Hold until supplier receipt is uploaded' },
+  { id: 'EXP-903', branch: 'Durban', category: 'Maintenance', supplier: 'Metro Warehouse Goods', amount: 'R3,940', status: 'Pending approval', submittedBy: 'Tariq Naidoo', incurredOn: isoDateOffset(-3), recommendation: 'Approve after manager comment is added' }
 ];
 
-function money(value) { return formatCurrency(numericAmount(value)); }
-function customerInvoices(customerId) { return invoices.filter((item) => item.customerId === customerId); }
-function customerPayments(customerId) { return payments.filter((item) => item.customerId === customerId); }
-function severityFromScore(score) { return score >= 85 ? 'Critical' : score >= 70 ? 'High' : score >= 45 ? 'Medium' : 'Low'; }
-function parseDueBucket(invoice) {
-  const source = `${invoice.status} ${invoice.due}`.toLowerCase();
-  if (source.includes('overdue')) return '31+ days';
-  if (source.includes('today')) return 'Due today';
-  if (source.includes('2 days')) return '1-7 days';
-  return 'Current';
-}
 function buildDebtorRows() {
-  return customers
-    .map((customer) => {
-      const invoiceRows = customerInvoices(customer.id);
-      const paymentRows = customerPayments(customer.id);
-      const openInvoices = invoiceRows.filter((item) => item.status !== 'Paid');
-      const overdueInvoices = openInvoices.filter((item) => /overdue|collections/i.test(item.status));
-      const currentInvoices = openInvoices.filter((item) => !/overdue|collections/i.test(item.status));
-      const overdueAmount = overdueInvoices.reduce((sum, item) => sum + numericAmount(item.amount), 0);
-      const currentAmount = currentInvoices.reduce((sum, item) => sum + numericAmount(item.amount), 0);
-      const balanceSizeScore = Math.min(30, Math.round((overdueAmount + currentAmount) / 1000));
-      const overdueScore = Math.min(35, overdueInvoices.length * 12 + (overdueAmount >= 10000 ? 10 : 0));
-      const riskScore = customer.risk === 'High' ? 25 : customer.risk === 'Medium' ? 14 : 6;
-      const frictionScore = paymentRows.some((item) => item.status === 'Pending proof' || item.status === 'Unallocated') ? 12 : 0;
-      const score = Math.min(99, balanceSizeScore + overdueScore + riskScore + frictionScore);
-      const oldestBucket = overdueInvoices[0] ? parseDueBucket(overdueInvoices[0]) : currentInvoices[0] ? parseDueBucket(currentInvoices[0]) : 'Current';
-      const recommendation = overdueAmount > 0
-        ? `Call ${customer.name} today, send statement, and review allocation blockers.`
-        : currentAmount > 0
-          ? `Queue reminder cadence and keep account warm before due date.`
-          : 'Healthy account - monitor for new order cycle.';
-      return {
-        id: `DEBT-${customer.id}`,
-        customerId: customer.id,
-        customer: customer.name,
-        branch: customer.branch,
-        overdueAmount: money(overdueAmount),
-        currentAmount: money(currentAmount),
-        totalOpen: money(overdueAmount + currentAmount),
-        oldestBucket,
-        risk: customer.risk,
-        recommendation,
-        score
-      };
-    })
-    .sort((a, b) => b.score - a.score);
+  return customers.map((customer) => {
+    const customerInvoices = invoices.filter((item) => item.customerId === customer.id && item.status !== 'Paid');
+    const overdueInvoices = customerInvoices.filter((item) => /overdue|collections/i.test(item.status));
+    const overdueAmount = overdueInvoices.reduce((sum, item) => sum + numericAmount(item.amount), 0);
+    const totalOpen = customerInvoices.reduce((sum, item) => sum + numericAmount(item.amount), 0);
+    const currentAmount = Math.max(totalOpen - overdueAmount, 0);
+    const score = Math.min(98, Math.round((overdueAmount / 400) + (customer.risk === 'Medium' ? 18 : 6) + (customer.branch === 'Johannesburg' ? 4 : 0)));
+    return {
+      id: `DEBT-${customer.id}`,
+      customerId: customer.id,
+      customer: customer.name,
+      branch: customer.branch,
+      overdueAmount: formatCurrency(overdueAmount),
+      currentAmount: formatCurrency(currentAmount),
+      totalOpen: formatCurrency(totalOpen),
+      oldestBucket: overdueAmount ? '31-60 days' : 'Current',
+      risk: customer.risk,
+      recommendation: overdueAmount ? `Call ${customer.name} and send statement today` : 'Monitor and keep statement cadence',
+      score
+    };
+  }).sort((a, b) => b.score - a.score);
 }
+
 function buildStatementRows() {
-  const debtorRows = buildDebtorRows();
-  return debtorRows.map((item, index) => ({
-    id: `STM-${item.customerId}`,
-    customerId: item.customerId,
-    customer: item.customer,
-    branch: item.branch,
-    balance: item.totalOpen,
-    overdueInvoices: customerInvoices(item.customerId).filter((invoice) => /overdue|collections/i.test(invoice.status)).length,
-    lastIssued: index === 0 ? '3 days ago' : index === 1 ? 'Yesterday' : 'Today 08:00',
-    nextAction: item.score >= 70 ? 'Send statement and call today' : item.score >= 45 ? 'Send statement by noon' : 'Monitor and include in next batch',
-    status: item.score >= 70 ? 'Urgent send' : item.score >= 45 ? 'Due for send' : 'Routine'
+  return customers.map((customer) => {
+    const customerInvoices = invoices.filter((item) => item.customerId === customer.id && item.status !== 'Paid');
+    const overdueInvoices = customerInvoices.filter((item) => /overdue|collections/i.test(item.status)).length;
+    return {
+      id: `STM-${customer.id}`,
+      customerId: customer.id,
+      customer: customer.name,
+      branch: customer.branch,
+      balance: customer.balance,
+      overdueInvoices,
+      lastIssued: overdueInvoices ? '2 days ago' : '5 days ago',
+      nextAction: overdueInvoices ? 'Send updated statement now' : 'Send on normal cycle',
+      status: overdueInvoices ? 'Urgent' : 'Scheduled'
+    };
+  }).sort((a, b) => b.overdueInvoices - a.overdueInvoices);
+}
+
+function buildCreditorRows() {
+  return purchaseOrders.map((po) => ({
+    id: `CR-${po.id}`,
+    supplier: po.supplier,
+    branch: po.branch,
+    outstanding: po.value,
+    dueWindow: po.status === 'Issued' ? 'Due in 3-5 days' : po.status === 'Goods received' ? 'Ready for bill match' : 'Pending approval',
+    status: po.status,
+    recommendation: po.status === 'Goods received' ? 'Match supplier bill and clear for payment' : po.status === 'Pending approval' ? 'Approve PO before supplier lead time slips' : 'Track ETA and prepare payment window'
   }));
 }
-function buildCreditorRows() {
-  return suppliers.map((supplier, index) => {
-    const po = purchaseOrders.find((item) => item.supplier === supplier.name) || null;
-    const outstanding = index === 0 ? 42600 : index === 1 ? 18240 : 9880;
-    const dueWindow = index === 0 ? 'Due in 5 days' : index === 1 ? 'Due now' : 'Matched / clearing';
-    const status = index === 1 ? 'High priority' : po?.status === 'Goods received' ? 'Ready to clear' : 'Scheduled';
-    const recommendation = index === 1
-      ? 'Pay or match immediately to avoid replenishment delay.'
-      : po?.status === 'Goods received'
-        ? 'Match supplier bill and clear for payment run.'
-        : 'Hold for standard payment run unless ETA slips.';
-    return { id: `CR-${supplier.id}`, supplier: supplier.name, branch: po?.branch || 'Shared', outstanding: money(outstanding), dueWindow, status, recommendation };
-  });
-}
+
 function buildFinanceExceptions() {
-  const debtorRows = buildDebtorRows();
   const items = [];
-  const leadDebtor = debtorRows[0];
-  if (leadDebtor) {
-    items.push({ id: 'FEX-DEBTOR-1', kind: 'Collections', title: `Highest-pressure debtor: ${leadDebtor.customer}`, branch: leadDebtor.branch, severity: severityFromScore(leadDebtor.score), detail: `${leadDebtor.overdueAmount} overdue with ${leadDebtor.oldestBucket.toLowerCase()} pressure.`, action: 'Call, send statement, and review allocation blockers.', recordPath: `/customers/${leadDebtor.customerId}` });
+  for (const payment of payments) {
+    if (payment.status === 'Pending proof') {
+      items.push({ id: `FX-${payment.id}`, kind: 'Payment proof', title: `Missing proof for ${payment.id}`, branch: findCustomer(payment.customerId)?.branch || 'Unassigned', severity: 'high', detail: `${payment.party} paid ${payment.amount} but proof is still missing.`, action: 'Request proof now', recordPath: recordPathFor('payment', payment.id) });
+    }
+    if (payment.status === 'Unallocated') {
+      items.push({ id: `FX-ALLOC-${payment.id}`, kind: 'Allocation', title: `Allocate ${payment.id}`, branch: findCustomer(payment.customerId)?.branch || 'Unassigned', severity: 'medium', detail: `${payment.amount} is waiting for invoice allocation.`, action: 'Allocate payment', recordPath: recordPathFor('payment', payment.id) });
+    }
   }
-  const pendingProof = payments.find((item) => item.status === 'Pending proof');
-  if (pendingProof) {
-    items.push({ id: 'FEX-PROOF-1', kind: 'Payment proof', title: `Missing proof on ${pendingProof.ref}`, branch: findCustomer(pendingProof.customerId)?.branch || 'Finance', severity: 'High', detail: `${pendingProof.party} paid ${pendingProof.amount} but proof is still missing.`, action: 'Request proof before close and confirm invoice allocation.', recordPath: `/payments/${pendingProof.id}` });
-  }
-  const unallocated = payments.find((item) => item.status === 'Unallocated');
-  if (unallocated) {
-    items.push({ id: 'FEX-ALLOC-1', kind: 'Allocation', title: `Unallocated receipt ${unallocated.ref}`, branch: findCustomer(unallocated.customerId)?.branch || 'Finance', severity: 'High', detail: `${unallocated.amount} is ready to post against an open invoice.`, action: 'Allocate to the oldest matching invoice now.', recordPath: `/payments/${unallocated.id}` });
-  }
-  const cashVariance = cashUps.find((item) => item.status !== 'Approved');
-  if (cashVariance) {
-    items.push({ id: 'FEX-CASH-1', kind: 'Cash-up', title: `${cashVariance.branch} cash-up variance`, branch: cashVariance.branch, severity: numericAmount(cashVariance.variance) <= -200 ? 'Critical' : 'Medium', detail: `Variance ${cashVariance.variance} for ${cashVariance.date}.`, action: cashVariance.recommendation, recordPath: '/accounting/cash-up' });
-  }
-  const expenseReview = expenses.find((item) => item.status !== 'Approved');
-  if (expenseReview) {
-    items.push({ id: 'FEX-EXP-1', kind: 'Expense', title: `${expenseReview.category} awaiting decision`, branch: expenseReview.branch, severity: expenseReview.status === 'Review' ? 'Medium' : 'Low', detail: `${expenseReview.supplier} submitted ${expenseReview.amount}.`, action: expenseReview.recommendation, recordPath: '/accounting/expenses' });
-  }
-  const supplierExposure = buildCreditorRows().find((item) => item.status === 'High priority');
-  if (supplierExposure) {
-    items.push({ id: 'FEX-CRED-1', kind: 'Supplier exposure', title: `${supplierExposure.supplier} needs payment attention`, branch: supplierExposure.branch, severity: 'Medium', detail: `${supplierExposure.outstanding} outstanding and ${supplierExposure.dueWindow.toLowerCase()}.`, action: supplierExposure.recommendation, recordPath: '/accounting/creditors' });
+  for (const cashUp of cashUps.filter((item) => item.status !== 'Approved' && item.variance !== 'R0')) {
+    items.push({ id: `FX-${cashUp.id}`, kind: 'Cash-up', title: `${cashUp.branch} variance needs review`, branch: cashUp.branch, severity: 'high', detail: `Cash-up variance ${cashUp.variance} for ${cashUp.date}.`, action: 'Review cash-up', recordPath: '/accounting/cash-up' });
   }
   return items;
 }
+
 function buildAccountingOverview() {
   const debtors = buildDebtorRows();
   const statements = buildStatementRows();
   const creditors = buildCreditorRows();
   const exceptions = buildFinanceExceptions();
-  const overdueTotal = debtors.reduce((sum, item) => sum + numericAmount(item.overdueAmount), 0);
-  const openTotal = debtors.reduce((sum, item) => sum + numericAmount(item.totalOpen), 0);
   return {
     kpis: [
-      { label: 'Open receivables', value: money(openTotal), detail: `${debtors.length} live debtor accounts in queue` },
-      { label: 'Overdue pressure', value: money(overdueTotal), detail: `${debtors.filter((item) => numericAmount(item.overdueAmount) > 0).length} accounts need collections action` },
-      { label: 'Cash-up exceptions', value: String(cashUps.filter((item) => item.status !== 'Approved').length), detail: 'Branches blocking finance close approval' },
-      { label: 'Supplier exposure', value: creditors[0]?.outstanding || 'R0', detail: 'Highest outstanding creditor in payment stack' }
+      { label: 'Collections at risk', value: formatCurrency(debtors.reduce((sum, item) => sum + numericAmount(item.overdueAmount), 0)), detail: `${debtors.filter((item) => numericAmount(item.overdueAmount) > 0).length} debtor accounts need action` },
+      { label: 'Statements due', value: String(statements.filter((item) => item.status === 'Urgent').length), detail: 'Accounts should receive updated statements today' },
+      { label: 'Cash-up blockers', value: String(cashUps.filter((item) => item.status !== 'Approved').length), detail: 'Branches waiting for finance release' },
+      { label: 'Finance exceptions', value: String(exceptions.length), detail: 'Priority issues surfaced by the finance brain' }
     ],
-    priorityActions: exceptions,
+    priorityActions: exceptions.slice(0, 4),
     debtors,
     statements,
     cashUps,
@@ -898,21 +861,125 @@ function buildAccountingOverview() {
     creditors
   };
 }
-function buildAccountingBrain() {
-  const debtors = buildDebtorRows();
-  const exceptions = buildFinanceExceptions();
-  const leadDebtor = debtors[0];
-  const cashIssue = cashUps.find((item) => item.status !== 'Approved');
-  const statementPressure = buildStatementRows().find((item) => item.status !== 'Routine');
+
+function rankPriority(label) {
+  return ({ critical: 4, high: 3, medium: 2, low: 1 })[label] || 1;
+}
+
+function buildUnifiedActionCenter(role = 'admin') {
+  const financeRecs = [];
+  for (const debtor of buildDebtorRows().slice(0, 4)) {
+    if (numericAmount(debtor.overdueAmount) <= 0) continue;
+    financeRecs.push({
+      id: `REC-${debtor.id}`,
+      domain: 'Finance',
+      title: `Collect ${debtor.customer}`,
+      detail: `${debtor.overdueAmount} overdue across ${debtor.oldestBucket}.`,
+      reason: `${debtor.risk} risk account with overdue exposure and open statements.`,
+      owner: 'Finance Desk',
+      branch: debtor.branch,
+      priority: debtor.score > 80 ? 'critical' : 'high',
+      score: debtor.score,
+      impact: debtor.overdueAmount,
+      actionLabel: 'Open debtor file',
+      recordPath: `/customers/${debtor.customerId}`,
+      status: 'Needs action',
+      autoReady: true
+    });
+  }
+  for (const payment of payments.filter((item) => item.status === 'Unallocated' || item.status === 'Pending proof')) {
+    financeRecs.push({
+      id: `REC-${payment.id}`,
+      domain: 'Finance',
+      title: payment.status === 'Unallocated' ? `Allocate ${payment.id}` : `Resolve ${payment.id} proof`,
+      detail: `${payment.party} ${payment.amount} via ${payment.method}.`,
+      reason: payment.status === 'Unallocated' ? 'Cash is in but margin visibility stays distorted until allocation is complete.' : 'Collections cannot fully close while proof is missing.',
+      owner: 'Finance Desk',
+      branch: findCustomer(payment.customerId)?.branch || 'Unassigned',
+      priority: payment.status === 'Pending proof' ? 'high' : 'medium',
+      score: payment.status === 'Pending proof' ? 83 : 76,
+      impact: payment.amount,
+      actionLabel: payment.status === 'Pending proof' ? 'Request proof' : 'Allocate now',
+      recordPath: recordPathFor('payment', payment.id),
+      status: payment.status,
+      autoReady: payment.status === 'Unallocated'
+    });
+  }
+
+  const procurementRecs = products.filter((item) => item.stock <= item.reorderAt).map((product) => ({
+    id: `REC-REORDER-${product.id}`,
+    domain: 'Procurement',
+    title: `Replenish ${product.name}`,
+    detail: `${product.stock} on hand vs reorder point ${product.reorderAt}.`,
+    reason: `${product.branch} will likely stock out before the normal supplier cycle if demand holds.`,
+    owner: 'Procurement',
+    branch: product.branch,
+    priority: product.stock <= Math.ceil(product.reorderAt * 0.75) ? 'critical' : 'high',
+    score: product.stock <= Math.ceil(product.reorderAt * 0.75) ? 88 : 78,
+    impact: formatCurrency((product.reorderAt + 8 - product.stock) * (numericAmount(product.cost) || 0)),
+    actionLabel: 'Raise PO',
+    recordPath: '/procurement',
+    status: product.status,
+    autoReady: true
+  }));
+  for (const po of purchaseOrders.filter((item) => item.status === 'Pending approval' || item.status === 'Goods received')) {
+    procurementRecs.push({
+      id: `REC-${po.id}`,
+      domain: 'Procurement',
+      title: po.status === 'Pending approval' ? `Approve ${po.id}` : `Match bill for ${po.id}`,
+      detail: `${po.supplier} • ${po.value} • ${po.branch}.`,
+      reason: po.status === 'Pending approval' ? 'Lead time risk increases if the PO is not released today.' : 'Supplier settlement should only move once the GRN and bill are matched.',
+      owner: 'Procurement',
+      branch: po.branch,
+      priority: po.status === 'Pending approval' ? 'high' : 'medium',
+      score: po.status === 'Pending approval' ? 74 : 68,
+      impact: po.value,
+      actionLabel: po.status === 'Pending approval' ? 'Approve PO' : 'Open supplier bill',
+      recordPath: '/procurement',
+      status: po.status,
+      autoReady: po.status === 'Pending approval'
+    });
+  }
+
+  const inventoryRecs = products.map((product) => ({
+    id: `REC-STOCK-${product.id}`,
+    domain: 'Inventory',
+    title: product.stock <= product.reorderAt ? `Protect ${product.name}` : `Watch ${product.name}`,
+    detail: `${product.stock} units in ${product.branch}. ${product.movementSummary}.`,
+    reason: product.stock <= product.reorderAt ? 'Inventory brain sees a stockout path and wants a proactive move.' : 'Healthy now, but this SKU should stay visible because it drives operational throughput.',
+    owner: 'Warehouse',
+    branch: product.branch,
+    priority: product.stock <= product.reorderAt ? 'high' : 'low',
+    score: product.stock <= product.reorderAt ? 72 : 38,
+    impact: product.price,
+    actionLabel: product.stock <= product.reorderAt ? 'Review stock plan' : 'Open product',
+    recordPath: `/products/${product.id}`,
+    status: product.status,
+    autoReady: product.stock <= product.reorderAt
+  })).filter((item) => item.priority !== 'low' || role === 'admin');
+
+  const recommendationFeed = [...financeRecs, ...procurementRecs, ...inventoryRecs]
+    .sort((a, b) => b.score - a.score || rankPriority(b.priority) - rankPriority(a.priority));
+  const topFocus = recommendationFeed.slice(0, 6);
+  const quickWins = recommendationFeed.filter((item) => item.autoReady).slice(0, 5);
+  const domainBuckets = ['Finance', 'Procurement', 'Inventory'].map((domain) => {
+    const scoped = recommendationFeed.filter((item) => item.domain === domain);
+    return {
+      domain,
+      count: scoped.length,
+      urgent: scoped.filter((item) => item.priority === 'critical' || item.priority === 'high').length,
+      headline: scoped[0]?.title || `No ${domain.toLowerCase()} actions right now`,
+      impact: scoped[0]?.impact || 'Stable'
+    };
+  });
   return {
-    headline: 'Accounting Brain // Live finance guidance',
-    summary: 'Kryvexis is ranking debtors, close blockers, and supplier exposure so finance can move first on what protects cash the fastest.',
-    focus: [
-      leadDebtor ? { id: 'AB-1', title: 'Collections priority', detail: `${leadDebtor.customer} has the strongest recovery signal in the queue.`, impact: leadDebtor.overdueAmount, confidence: leadDebtor.score >= 80 ? 'High' : 'Medium', action: 'Call today and pair the follow-up with a fresh statement.' } : null,
-      cashIssue ? { id: 'AB-2', title: 'Close risk detected', detail: `${cashIssue.branch} variance is the biggest finance close blocker right now.`, impact: cashIssue.variance, confidence: numericAmount(cashIssue.variance) <= -200 ? 'High' : 'Medium', action: cashIssue.recommendation } : null,
-      statementPressure ? { id: 'AB-3', title: 'Statement cadence', detail: `${statementPressure.customer} should receive the next statement batch immediately.`, impact: statementPressure.balance, confidence: statementPressure.overdueInvoices > 0 ? 'High' : 'Medium', action: statementPressure.nextAction } : null
-    ].filter(Boolean),
-    recommendedActions: exceptions.slice(0, 5)
+    generatedAt: new Date().toISOString(),
+    topFocus,
+    quickWins,
+    recommendationFeed,
+    domainSummaries: domainBuckets,
+    branchSnapshots: buildBranchSnapshots(),
+    auditHighlights: auditLog.slice(0, 8)
   };
 }
 
@@ -931,6 +998,10 @@ app.get('/api/bootstrap', (_req, res) => res.json(envelope({ roles, themeOptions
 app.get('/api/dashboard', (req, res) => {
   const role = req.query.role || 'admin';
   res.json(envelope(buildDashboard(role)));
+});
+app.get('/api/action-center', (req, res) => {
+  const role = String(req.query.role || 'admin');
+  res.json(envelope(buildUnifiedActionCenter(role)));
 });
 app.get('/api/customers/:id/summary', (req, res) => {
   const summary = buildCustomerSummary(req.params.id);
@@ -1133,7 +1204,6 @@ app.get('/api/emails/:kind/:id', (req, res) => {
   return res.json(envelope(draft));
 });
 app.get('/api/accounting/overview', (_req, res) => res.json(envelope(buildAccountingOverview())));
-app.get('/api/accounting/brain', (_req, res) => res.json(envelope(buildAccountingBrain())));
 app.get('/api/accounting/debtors', (_req, res) => res.json(envelope(buildDebtorRows())));
 app.get('/api/accounting/statements', (_req, res) => res.json(envelope(buildStatementRows())));
 app.post('/api/accounting/statements/:customerId/send', (req, res) => {

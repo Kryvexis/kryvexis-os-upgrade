@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../lib/api';
-import type { DashboardResponse, KPI, Notification, RoleKey, TopClient } from '../types';
+import type { ActionCenterResponse, DashboardResponse, KPI, Notification, RoleKey, TopClient } from '../types';
 
 function revenueNumber(value: string) {
   return Number(value.replace(/[^\d.]/g, '')) || 0;
@@ -39,6 +39,19 @@ function fallbackDashboard(role: RoleKey): DashboardResponse {
   };
 }
 
+
+function emptyActionCenter(): ActionCenterResponse {
+  return {
+    generatedAt: new Date().toISOString(),
+    topFocus: [],
+    quickWins: [],
+    recommendationFeed: [],
+    domainSummaries: [],
+    branchSnapshots: [],
+    auditHighlights: []
+  };
+}
+
 const salesTiles = [
   { label: 'Customers', to: '/customers', icon: '👥' },
   { label: 'Quotes', to: '/quotes', icon: '🧾' },
@@ -48,6 +61,7 @@ const salesTiles = [
 
 export function DashboardPage({ role }: { role: RoleKey }) {
   const [data, setData] = useState<DashboardResponse>(fallbackDashboard(role));
+  const [actionCenter, setActionCenter] = useState<ActionCenterResponse>(emptyActionCenter());
 
   useEffect(() => {
     let active = true;
@@ -55,6 +69,11 @@ export function DashboardPage({ role }: { role: RoleKey }) {
       if (active) setData(result);
     }).catch(() => {
       if (active) setData(fallbackDashboard(role));
+    });
+    api.actionCenter(role).then((result) => {
+      if (active) setActionCenter(result);
+    }).catch(() => {
+      if (active) setActionCenter(emptyActionCenter());
     });
     return () => {
       active = false;
@@ -148,6 +167,26 @@ export function DashboardPage({ role }: { role: RoleKey }) {
           ))}
         </aside>
       </div>
+
+      <section className="dashboard-action-preview">
+        <div className="dashboard-action-preview-head">
+          <div>
+            <h3>Action center</h3>
+            <p>{actionCenter.topFocus[0]?.reason ?? 'Your highest-impact work will surface here automatically.'}</p>
+          </div>
+          <Link to="/action-center" className="action-link">Open action center</Link>
+        </div>
+        <div className="dashboard-action-preview-grid">
+          {actionCenter.topFocus.slice(0, 3).map((item) => (
+            <Link key={item.id} to={item.recordPath} className="dashboard-action-preview-card">
+              <span>{item.domain} • {item.priority}</span>
+              <strong>{item.title}</strong>
+              <p>{item.detail}</p>
+            </Link>
+          ))}
+          {!actionCenter.topFocus.length ? <article className="dashboard-action-preview-card"><strong>Calm board</strong><p>No ranked actions are waiting right now.</p></article> : null}
+        </div>
+      </section>
     </div>
   );
 }

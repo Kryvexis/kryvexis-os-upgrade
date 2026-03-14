@@ -39,6 +39,10 @@ export type TopClient = { customerId: string; name: string; revenue: string; inv
 export type OperationalActionItem = { id: string; title: string; detail: string; owner: string; branch: string; priority: 'high' | 'medium' | 'low' | string; recordPath: string; actionLabel: string; status: string; };
 export type BranchSnapshot = { branch: string; approvals: number; collections: number; exceptions: number };
 export type DashboardResponse = { role: string; kpis: KPI[]; panels: PanelGroup[]; highlights: Notification[]; recentCustomers: Customer[]; lowStockProducts: Product[]; topClients: TopClient[]; actionCenter: { branchSnapshots: BranchSnapshot[]; actionQueue: OperationalActionItem[]; auditHighlights: ActivityEntry[]; }; };
+export type ActionCenterDomain = 'Finance' | 'Procurement' | 'Inventory' | 'Operations';
+export type ActionRecommendation = { id: string; domain: ActionCenterDomain | string; title: string; detail: string; reason: string; owner: string; branch: string; priority: 'critical' | 'high' | 'medium' | 'low' | string; score: number; impact: string; actionLabel: string; recordPath: string; status: string; autoReady?: boolean; };
+export type ActionCenterDomainSummary = { domain: ActionCenterDomain | string; count: number; urgent: number; headline: string; impact: string; };
+export type ActionCenterResponse = { generatedAt: string; topFocus: ActionRecommendation[]; quickWins: ActionRecommendation[]; recommendationFeed: ActionRecommendation[]; domainSummaries: ActionCenterDomainSummary[]; branchSnapshots: BranchSnapshot[]; auditHighlights: ActivityEntry[]; };
 export type PurchaseHistoryEntry = { id: string; date: string; type: 'invoice' | 'payment' | 'quote'; reference: string; amount: string; status: string; note: string; };
 export type TopProduct = { sku: string; name: string; quantity: number; revenue: string; };
 export type CustomerSummary = { customerId: string; totalSpend: string; invoiceCount: number; averageOrderValue: string; overdueBalance: string; lastPurchaseDate: string; lastPaymentDate: string; collectionStatus: string; topProducts: TopProduct[]; openQuotes: Quote[]; recentInvoices: Invoice[]; recentPayments: Payment[]; purchaseHistory: PurchaseHistoryEntry[]; overdueInvoices: number; openBalance: string; accountHealth: string; linkedActivity: ActivityEntry[]; };
@@ -71,6 +75,3 @@ export type AccountingOverview = {
   expenses: ExpenseRow[];
   creditors: CreditorRow[];
 };
-
-export type AccountingInsight = { id: string; title: string; detail: string; impact: string; confidence: string; action: string; };
-export type AccountingBrain = { headline: string; summary: string; focus: AccountingInsight[]; recommendedActions: FinanceExceptionRow[]; };
