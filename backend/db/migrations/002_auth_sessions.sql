@@ -85,12 +85,7 @@ BEGIN
       RAISE EXCEPTION 'roles table contains duplicate key values and cannot be auto-repaired';
     END IF;
 
-    IF EXISTS (
-      SELECT 1 FROM information_schema.columns
-      WHERE table_schema = 'public' AND table_name = 'roles' AND column_name = 'key'
-    ) THEN
-      ALTER TABLE roles ALTER COLUMN key SET NOT NULL;
-    END IF;
+    ALTER TABLE roles ALTER COLUMN key SET NOT NULL;
 
     IF NOT EXISTS (
       SELECT 1
@@ -99,6 +94,27 @@ BEGIN
         AND contype = 'p'
     ) THEN
       ALTER TABLE roles ADD CONSTRAINT roles_pkey PRIMARY KEY (key);
+    END IF;
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'permissions'
+  ) AND EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'permissions' AND column_name = 'role_key'
+  ) AND EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'permissions' AND column_name = 'permission_key'
+  ) THEN
+    IF NOT EXISTS (
+      SELECT 1 FROM information_schema.tables
+      WHERE table_schema = 'public' AND table_name = 'permissions_legacy'
+    ) THEN
+      ALTER TABLE permissions RENAME TO permissions_legacy;
     END IF;
   END IF;
 END $$;
@@ -112,89 +128,21 @@ create table if not exists permissions (
 DO $$
 BEGIN
   IF EXISTS (
-    SELECT 1 FROM information_schema.tables
-    WHERE table_schema = 'public' AND table_name = 'permissions'
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'permissions' AND column_name = 'key'
   ) THEN
-    IF NOT EXISTS (
-      SELECT 1 FROM information_schema.columns
-      WHERE table_schema = 'public' AND table_name = 'permissions' AND column_name = 'key'
-    ) THEN
-      ALTER TABLE permissions ADD COLUMN key text;
-    END IF;
-
-    IF NOT EXISTS (
-      SELECT 1 FROM information_schema.columns
-      WHERE table_schema = 'public' AND table_name = 'permissions' AND column_name = 'label'
-    ) THEN
-      ALTER TABLE permissions ADD COLUMN label text;
-    END IF;
-
-    IF NOT EXISTS (
-      SELECT 1 FROM information_schema.columns
-      WHERE table_schema = 'public' AND table_name = 'permissions' AND column_name = 'created_at'
-    ) THEN
-      ALTER TABLE permissions ADD COLUMN created_at timestamptz NOT NULL DEFAULT now();
-    END IF;
-
-    IF EXISTS (
-      SELECT 1 FROM information_schema.columns
-      WHERE table_schema = 'public' AND table_name = 'permissions' AND column_name = 'permission_key'
-    ) THEN
-      EXECUTE 'UPDATE permissions SET key = COALESCE(NULLIF(key, ''''), permission_key::text) WHERE key IS NULL OR key = ''''';
-      EXECUTE $sql$
-        UPDATE permissions
-        SET label = initcap(replace(permission_key, '.', ' '))
-        WHERE (label IS NULL OR label = '') AND permission_key IS NOT NULL AND permission_key <> ''
-      $sql$;
-    END IF;
-
-    IF EXISTS (
-      SELECT 1 FROM information_schema.columns
-      WHERE table_schema = 'public' AND table_name = 'permissions' AND column_name = 'id'
-    ) AND EXISTS (
-      SELECT 1 FROM information_schema.columns
-      WHERE table_schema = 'public' AND table_name = 'permissions' AND column_name = 'role_key'
-    ) THEN
-      EXECUTE $sql$
-        UPDATE permissions
-        SET key = COALESCE(NULLIF(key, ''), role_key || '.' || coalesce(id::text, 'legacy'))
-        WHERE key IS NULL OR key = ''
-      $sql$;
-    END IF;
-
-    IF EXISTS (SELECT 1 FROM permissions WHERE key IS NULL OR key = '') THEN
-      RAISE EXCEPTION 'permissions table exists but some rows still have no key value';
-    END IF;
-
-    IF EXISTS (
-      SELECT 1 FROM information_schema.columns
-      WHERE table_schema = 'public' AND table_name = 'permissions' AND column_name = 'role_key'
-    ) AND EXISTS (
-      SELECT 1 FROM information_schema.columns
-      WHERE table_schema = 'public' AND table_name = 'permissions' AND column_name = 'permission_key'
-    ) THEN
-      EXECUTE $sql$
-        DELETE FROM permissions a
-        USING permissions b
-        WHERE a.ctid < b.ctid
-          AND COALESCE(NULLIF(a.key, ''), a.permission_key) = COALESCE(NULLIF(b.key, ''), b.permission_key)
-      $sql$;
-    END IF;
-
-    IF EXISTS (SELECT 1 FROM permissions GROUP BY key HAVING COUNT(*) > 1) THEN
-      RAISE EXCEPTION 'permissions table contains duplicate key values and cannot be auto-repaired';
-    END IF;
-
     ALTER TABLE permissions ALTER COLUMN key SET NOT NULL;
+  END IF;
 
-    IF NOT EXISTS (
-      SELECT 1
-      FROM pg_constraint
-      WHERE conrelid = 'permissions'::regclass
-        AND contype = 'p'
-    ) THEN
-      ALTER TABLE permissions ADD CONSTRAINT permissions_pkey PRIMARY KEY (key);
-    END IF;
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'permissions' AND column_name = 'label'
+  ) THEN
+    UPDATE permissions
+    SET label = initcap(replace(key, '.', ' '))
+    WHERE (label IS NULL OR label = '') AND key IS NOT NULL AND key <> '';
+
+    ALTER TABLE permissions ALTER COLUMN label SET NOT NULL;
   END IF;
 END $$;
 
@@ -207,17 +155,28 @@ create table if not exists role_permissions (
 DO $$
 BEGIN
   IF EXISTS (
-    SELECT 1 FROM information_schema.columns
-    WHERE table_schema = 'public' AND table_name = 'permissions' AND column_name = 'role_key'
-  ) AND EXISTS (
-    SELECT 1 FROM information_schema.columns
-    WHERE table_schema = 'public' AND table_name = 'permissions' AND column_name = 'permission_key'
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'permissions_legacy'
   ) THEN
+    INSERT INTO permissions (key, label)
+    SELECT DISTINCT
+      permission_key,
+      initcap(replace(permission_key, '.', ' '))
+    FROM permissions_legacy
+    WHERE permission_key IS NOT NULL
+      AND permission_key <> ''
+    ON CONFLICT (key) DO UPDATE
+      SET label = COALESCE(NULLIF(permissions.label, ''), EXCLUDED.label);
+
     INSERT INTO role_permissions (role_key, permission_key)
-    SELECT DISTINCT role_key, COALESCE(NULLIF(key, ''), permission_key)
-    FROM permissions
+    SELECT DISTINCT
+      role_key,
+      permission_key
+    FROM permissions_legacy
     WHERE role_key IS NOT NULL
+      AND role_key <> ''
       AND permission_key IS NOT NULL
+      AND permission_key <> ''
     ON CONFLICT DO NOTHING;
   END IF;
 END $$;
