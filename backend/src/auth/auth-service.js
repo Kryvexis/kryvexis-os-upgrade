@@ -1,10 +1,35 @@
 import crypto from 'crypto';
 import { query, dbConfig } from '../lib/db.js';
 
+const BRANCH_ALIASES = {
+  'BR-JHB': 'JHB',
+  'BR-CPT': 'CPT',
+  'BR-DBN': 'DBN',
+  'BR-DUR': 'DBN',
+  JHB: 'JHB',
+  CPT: 'CPT',
+  DBN: 'DBN'
+};
+
+const BRANCH_NAMES = {
+  JHB: 'Johannesburg',
+  CPT: 'Cape Town',
+  DBN: 'Durban'
+};
+
+function normalizeBranchId(branchId) {
+  const normalized = String(branchId || '').trim().toUpperCase();
+  return BRANCH_ALIASES[normalized] || null;
+}
+
+function getBranchName(branchId) {
+  return BRANCH_NAMES[normalizeBranchId(branchId) || 'JHB'] || 'Johannesburg';
+}
+
 const fallbackUsers = [
-  { id: 'DEV-ADMIN', fullName: 'Antonie Meyer', email: 'kryvexissolutions@gmail.com', roleKey: 'admin', branchId: 'BR-JHB', branchName: 'Johannesburg', isActive: true },
-  { id: 'DEV-MANAGER', fullName: 'Nadine Smit', email: 'jhb.manager@kryvexis.local', roleKey: 'manager', branchId: 'BR-JHB', branchName: 'Johannesburg', isActive: true },
-  { id: 'DEV-SALES', fullName: 'Alex Morgan', email: 'alex@kryvexis.local', roleKey: 'sales', branchId: 'BR-CPT', branchName: 'Cape Town', isActive: true }
+  { id: 'DEV-ADMIN', fullName: 'Antonie Meyer', email: 'kryvexissolutions@gmail.com', roleKey: 'admin', branchId: 'JHB', branchName: 'Johannesburg', isActive: true },
+  { id: 'DEV-MANAGER', fullName: 'Nadine Smit', email: 'jhb.manager@kryvexis.local', roleKey: 'manager', branchId: 'JHB', branchName: 'Johannesburg', isActive: true },
+  { id: 'DEV-SALES', fullName: 'Alex Morgan', email: 'alex@kryvexis.local', roleKey: 'sales', branchId: 'CPT', branchName: 'Cape Town', isActive: true }
 ];
 
 const fallbackPermissionCatalog = {
@@ -69,7 +94,7 @@ export async function listUsers() {
     fullName: row.full_name,
     email: row.email,
     roleKey: row.role_key,
-    branchId: row.branch_id,
+    branchId: normalizeBranchId(row.branch_id) || row.branch_id,
     branchName: row.branch_name,
     isActive: row.is_active
   }));
@@ -111,7 +136,7 @@ async function loadUserByEmail(email) {
     fullName: row.full_name,
     email: row.email,
     roleKey: row.role_key,
-    branchId: row.branch_id,
+    branchId: normalizeBranchId(row.branch_id) || row.branch_id,
     branchName: row.branch_name,
     isActive: row.is_active
   };
@@ -126,12 +151,12 @@ async function loadPermissionsForRole(roleKey) {
 export async function registerUser({ email, fullName, roleKey = 'manager', branchId = null }) {
   const normalized = String(email || '').trim().toLowerCase();
   const name = String(fullName || '').trim();
+  const normalizedBranchId = normalizeBranchId(branchId);
   if (!normalized || !name) throw new Error('fullName and email are required');
   const existing = await loadUserByEmail(normalized);
   if (existing) throw new Error('A user with that email already exists');
   if (!dbConfig.enableSql) {
-    const branchName = branchId === 'BR-CPT' ? 'Cape Town' : branchId === 'BR-DUR' ? 'Durban' : 'Johannesburg';
-    const user = { id: `DEV-${Date.now()}`, fullName: name, email: normalized, roleKey, branchId: branchId || 'BR-JHB', branchName, isActive: true };
+    const user = { id: `DEV-${Date.now()}`, fullName: name, email: normalized, roleKey, branchId: normalizedBranchId || 'JHB', branchName: getBranchName(normalizedBranchId), isActive: true };
     fallbackUsers.push(user);
     return user;
   }
@@ -141,19 +166,19 @@ export async function registerUser({ email, fullName, roleKey = 'manager', branc
         insert into app_users (role_key, full_name, email, branch_id, is_active)
         values ($1, $2, $3, $4, true)
         returning id, full_name, email, role_key, branch_id, is_active
-      `, [roleKey, name, normalized, branchId || null])
+      `, [roleKey, name, normalized, normalizedBranchId])
     : await query(`
         insert into app_users (role_key, full_name, email, branch_id)
         values ($1, $2, $3, $4)
         returning id, full_name, email, role_key, branch_id, true as is_active
-      `, [roleKey, name, normalized, branchId || null]);
+      `, [roleKey, name, normalized, normalizedBranchId]);
   return {
     id: result.rows[0].id,
     fullName: result.rows[0].full_name,
     email: result.rows[0].email,
     roleKey: result.rows[0].role_key,
-    branchId: result.rows[0].branch_id,
-    branchName: null,
+    branchId: normalizeBranchId(result.rows[0].branch_id) || result.rows[0].branch_id,
+    branchName: getBranchName(result.rows[0].branch_id),
     isActive: result.rows[0].is_active
   };
 }
@@ -170,7 +195,7 @@ export async function createSessionForEmail(email, meta = {}) {
     await query(`
       insert into auth_sessions (id, user_id, token_hash, branch_id, expires_at, user_agent, created_by)
       values (gen_random_uuid(), $1, $2, $3, $4::timestamptz, $5, $6)
-    `, [user.id, crypto.createHash('sha256').update(token).digest('hex'), user.branchId, expiresAt, meta.userAgent || null, meta.createdBy || user.email]);
+    `, [user.id, crypto.createHash('sha256').update(token).digest('hex'), normalizeBranchId(user.branchId), expiresAt, meta.userAgent || null, meta.createdBy || user.email]);
   }
   return { token, expiresAt, user, permissions };
 }
@@ -212,7 +237,7 @@ export async function getSessionFromRequest(req) {
       fullName: row.full_name,
       email: row.email,
       roleKey: row.role_key,
-      branchId: row.session_branch_id || row.branch_id,
+      branchId: normalizeBranchId(row.session_branch_id || row.branch_id) || row.session_branch_id || row.branch_id,
       branchName: row.branch_name,
       isActive: row.is_active
     }
@@ -233,14 +258,16 @@ export async function revokeSession(token) {
 export async function switchSessionBranch(token, branchId) {
   const clean = sanitizeToken(token);
   if (!clean) return null;
+  const normalizedBranchId = normalizeBranchId(branchId);
   if (!dbConfig.enableSql) {
     const session = memorySessions.get(clean);
     if (!session) return null;
-    session.user.branchId = branchId;
+    session.user.branchId = normalizedBranchId || session.user.branchId;
+    session.user.branchName = getBranchName(normalizedBranchId || session.user.branchId);
     return session;
   }
   const tokenHash = crypto.createHash('sha256').update(clean).digest('hex');
-  await query(`update auth_sessions set branch_id = $2 where token_hash = $1 and revoked_at is null`, [tokenHash, branchId]);
+  await query(`update auth_sessions set branch_id = $2 where token_hash = $1 and revoked_at is null`, [tokenHash, normalizedBranchId]);
   return true;
 }
 
@@ -257,8 +284,9 @@ export async function listInvitations() {
 export async function createInvitation({ email, roleKey, branchId, createdBy }) {
   const inviteToken = crypto.randomBytes(16).toString('hex');
   const expiresAt = expiryDate(14);
+  const normalizedBranchId = normalizeBranchId(branchId);
   if (!dbConfig.enableSql) {
-    const invitation = { id: `INVITE-${memoryInvitations.length + 1}`, email, role_key: roleKey, branch_id: branchId, invite_token: inviteToken, expires_at: expiresAt, accepted_at: null, created_at: new Date().toISOString(), created_by: createdBy };
+    const invitation = { id: `INVITE-${memoryInvitations.length + 1}`, email, role_key: roleKey, branch_id: normalizedBranchId, invite_token: inviteToken, expires_at: expiresAt, accepted_at: null, created_at: new Date().toISOString(), created_by: createdBy };
     memoryInvitations.unshift(invitation);
     return invitation;
   }
@@ -266,7 +294,7 @@ export async function createInvitation({ email, roleKey, branchId, createdBy }) 
     insert into user_invitations (email, role_key, branch_id, invite_token, expires_at, created_by)
     values ($1, $2, $3, $4, $5::timestamptz, $6)
     returning id, email, role_key, branch_id, invite_token, expires_at, accepted_at, created_at
-  `, [email, roleKey, branchId || null, inviteToken, expiresAt, createdBy || 'system']);
+  `, [email, roleKey, normalizedBranchId, inviteToken, expiresAt, createdBy || 'system']);
   return result.rows[0];
 }
 

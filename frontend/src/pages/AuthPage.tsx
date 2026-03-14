@@ -26,9 +26,9 @@ const roleOptions: { value: RoleKey; label: string }[] = [
 ];
 
 const branchOptions = [
-  { value: 'BR-JHB', label: 'Johannesburg' },
-  { value: 'BR-CPT', label: 'Cape Town' },
-  { value: 'BR-DUR', label: 'Durban' }
+  { value: 'JHB', label: 'Johannesburg' },
+  { value: 'CPT', label: 'Cape Town' },
+  { value: 'DBN', label: 'Durban' }
 ];
 
 export function AuthPage({ onAuthenticated }: { onAuthenticated: (session: AuthSession) => void }) {
@@ -36,7 +36,7 @@ export function AuthPage({ onAuthenticated }: { onAuthenticated: (session: AuthS
   const [email, setEmail] = useState('kryvexissolutions@gmail.com');
   const [fullName, setFullName] = useState('');
   const [roleKey, setRoleKey] = useState<RoleKey>('manager');
-  const [branchId, setBranchId] = useState('BR-JHB');
+  const [branchId, setBranchId] = useState('JHB');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const frame = useMemo(() => storyFrames[Math.floor((Date.now() / 3000) % storyFrames.length)], []);
