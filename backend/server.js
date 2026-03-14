@@ -3,12 +3,28 @@ import cors from 'cors';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import pg from 'pg';
 
+const { Pool } = pg;
 const app = express();
 const port = process.env.PORT || 4000;
 
 app.use(cors());
 app.use(express.json());
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const dataDir = path.join(__dirname, 'data');
+const stateFile = path.join(dataDir, 'automation-state.json');
+
+const DATABASE_URL = process.env.DATABASE_URL || '';
+const ENABLE_SQL = process.env.USE_SQL_AUTOMATION === 'true' && Boolean(DATABASE_URL);
+const pool = ENABLE_SQL
+  ? new Pool({
+      connectionString: DATABASE_URL,
+      ssl: process.env.PGSSL === 'false' ? false : { rejectUnauthorized: false }
+    })
+  : null;
 
 const roles = [
   { key: 'admin', label: 'Admin', description: 'Full platform visibility, settings, templates, automation rules, user management, audit access.', dashboards: ['system activity', 'approvals', 'branch health', 'audit highlights'] },
@@ -117,11 +133,6 @@ const settings = {
   business: { currency: 'ZAR', taxDefault: 'VAT Standard', paymentTerms: '30 days', defaultBranch: 'Johannesburg' }
 };
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const dataDir = path.join(__dirname, 'data');
-const stateFile = path.join(dataDir, 'automation-state.json');
-
 const branchDirectory = [
   { id: 'JHB', name: 'Johannesburg', managerName: 'Nadine Smit', managerEmail: 'jhb.manager@kryvexis.local' },
   { id: 'CPT', name: 'Cape Town', managerName: 'Rina Patel', managerEmail: 'cpt.manager@kryvexis.local' },
@@ -145,10 +156,19 @@ const branchSalesSeed = [
   { branch: 'Durban', target: 120000, totalSales: 98000, posSales: 42000, invoiceSales: 56000, cashSales: 19000, cardSales: 51000, eftSales: 28000, transactions: 31 }
 ];
 
+function envelope(data, extra = {}) { return { ok: true, ...extra, data }; }
+function findQuote(id) { return quotes.find((entry) => entry.id === id); }
+function findInvoice(id) { return invoices.find((entry) => entry.id === id); }
+function findPayment(id) { return payments.find((entry) => entry.id === id || entry.ref === id); }
+function findNotification(id) { return notifications.find((entry) => entry.id === id); }
+function findCustomer(id) { return customers.find((entry) => entry.id === id); }
+function activeNotifications() { return notifications.filter((item) => !item.dismissed); }
+function stampNow() { return 'Just now'; }
+function numericAmount(value) { return Number(String(value || '').replace(/[^\d.-]/g, '')) || 0; }
+
 function ensureDataDir() {
   if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
 }
-
 function defaultAutomationState() {
   return {
     automationSettings: baseAutomationSettings,
@@ -162,7 +182,6 @@ function defaultAutomationState() {
     scheduler: { enabled: false, lastAutoRunDate: null }
   };
 }
-
 function loadAutomationState() {
   try {
     ensureDataDir();
@@ -185,28 +204,23 @@ function loadAutomationState() {
     return defaultAutomationState();
   }
 }
-
 let automationState = loadAutomationState();
-
 function saveAutomationState() {
   ensureDataDir();
   fs.writeFileSync(stateFile, JSON.stringify(automationState, null, 2));
 }
-
 function formatCurrency(amount) {
-  return new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR', maximumFractionDigits: 0 }).format(amount).replace('ZAR', 'R').replace(/ /g, ' ');
+  return new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR', maximumFractionDigits: 0 })
+    .format(amount).replace('ZAR', 'R').replace(/\u00a0/g, ' ');
 }
-
 function formatPct(value) {
   return `${Math.round(value)}%`;
 }
-
 function isoDateOffset(days = 0) {
   const d = new Date();
   d.setDate(d.getDate() + days);
   return d.toISOString().slice(0, 10);
 }
-
 function buildDailySummary(date = isoDateOffset(-1)) {
   const branches = branchSalesSeed.map((item, index) => ({
     ...item,
@@ -226,7 +240,6 @@ function buildDailySummary(date = isoDateOffset(-1)) {
     transactions: acc.transactions + item.transactions,
     target: acc.target + item.target
   }), { totalSales: 0, posSales: 0, invoiceSales: 0, cashSales: 0, cardSales: 0, eftSales: 0, transactions: 0, target: 0 });
-
   return {
     date,
     branches,
@@ -237,14 +250,224 @@ function buildDailySummary(date = isoDateOffset(-1)) {
     }
   };
 }
-
 function buildEmailBody(summary) {
-  const lines = summary.branches.map((branch) => `${branch.branch} made ${formatCurrency(branch.totalSales)} yesterday against a target of ${formatCurrency(branch.target)} (${formatPct(branch.targetAchievedPct)}).`);
+  const lines = summary.branches.map((branch) =>
+    `${branch.branch} made ${formatCurrency(branch.totalSales)} yesterday against a target of ${formatCurrency(branch.target)} (${formatPct(branch.targetAchievedPct)}).`
+  );
   lines.push(`Total company sales yesterday: ${formatCurrency(summary.totals.totalSales)}.`);
   return lines.join('\n');
 }
+function recordPathFor(type, id) {
+  if (type === 'quote') return `/quotes/${id}`;
+  if (type === 'invoice') return `/invoices/${id}`;
+  if (type === 'payment') return `/payments/${id}`;
+  if (type === 'customer') return `/customers/${id}`;
+  return '/';
+}
+function pushNotification(notification) {
+  notifications = [notification, ...notifications];
+  return notification;
+}
+let auditLog = [
+  { id: 'AUD-1', title: 'Quote drafted', detail: 'Q-1045 prepared for Urban Build Supply with protected margin review.', actor: 'Alex Morgan', timestamp: 'Today 08:12', recordType: 'quote', recordId: 'Q-1045', recordPath: '/quotes/Q-1045', customerId: 'CUS-003', status: 'Drafted' }
+];
+function pushAudit(entry) {
+  const normalized = { id: `AUD-${Date.now()}-${Math.floor(Math.random() * 1000)}`, ...entry };
+  auditLog = [normalized, ...auditLog];
+  return normalized;
+}
+function operationalActionForNotification(item) {
+  const source = `${item.title} ${item.meta}`.toLowerCase();
+  const recordMatch = `${item.title} ${item.meta}`.match(/(Q-\d+|INV-\d+|PAY-\d+)/i);
+  const recordId = recordMatch ? recordMatch[1].toUpperCase() : '';
+  let recordType = 'system';
+  if (recordId.startsWith('Q-')) recordType = 'quote';
+  if (recordId.startsWith('INV-')) recordType = 'invoice';
+  if (recordId.startsWith('PAY-')) recordType = 'payment';
+  const recordPath = recordId ? recordPathFor(recordType, recordId) : '/notifications';
+  const actionLabel = source.includes('approval') ? 'Review approval' : source.includes('overdue') ? 'Collect now' : source.includes('proof') ? 'Resolve proof' : source.includes('allocate') ? 'Allocate payment' : 'Open record';
+  const priority = item.state === 'Urgent' ? 'high' : item.state === 'Pending' || item.state === 'Action' ? 'medium' : 'low';
+  return {
+    id: item.id,
+    title: item.title,
+    detail: item.meta,
+    owner: recordType === 'quote' ? 'Sales' : recordType === 'invoice' || recordType === 'payment' ? 'Finance' : 'Operations',
+    branch: recordId.startsWith('Q-') ? findQuote(recordId)?.branch || 'Unassigned' : recordId.startsWith('INV-') ? findInvoice(recordId)?.branch || 'Unassigned' : recordId.startsWith('PAY-') ? findCustomer(findPayment(recordId)?.customerId || '')?.branch || 'Unassigned' : 'System',
+    priority,
+    recordPath,
+    actionLabel,
+    status: item.state
+  };
+}
+function buildBranchSnapshots() {
+  const branches = [...new Set(customers.map((item) => item.branch))];
+  return branches.map((branch) => ({
+    branch,
+    approvals: quotes.filter((item) => item.branch === branch && item.status === 'Pending approval').length,
+    collections: invoices.filter((item) => item.branch === branch && /overdue|collections/i.test(item.status)).length,
+    exceptions: payments.filter((item) => findCustomer(item.customerId)?.branch === branch && (item.status === 'Pending proof' || item.status === 'Unallocated')).length
+  }));
+}
+const topClients = [
+  { customerId: 'CUS-001', name: 'Acme Retail Group', revenue: 'R78,240', invoices: 6, averageOrderValue: 'R13,040', overdueBalance: 'R5,040', trend: 'Growing this month' },
+  { customerId: 'CUS-003', name: 'Urban Build Supply', revenue: 'R63,580', invoices: 3, averageOrderValue: 'R21,193', overdueBalance: 'R12,000', trend: 'Large deal pending' },
+  { customerId: 'CUS-002', name: 'Northline Foods', revenue: 'R41,920', invoices: 5, averageOrderValue: 'R8,384', overdueBalance: 'R0', trend: 'Healthy collections' }
+];
+const dashboardByRole = {
+  admin: {
+    kpis: [
+      { label: 'System activity', value: '342', detail: 'Events in the last 24h' },
+      { label: 'Pending approvals', value: '6', detail: 'Quotes and exceptions' },
+      { label: 'Branch health', value: '92%', detail: 'Operational completion score' },
+      { label: 'Unread notifications', value: '11', detail: 'Across all roles' }
+    ],
+    panels: [
+      { title: 'Approvals queue', items: ['Q-1045 high-value quote', 'Payment exception PAY-7693', 'Role change request for Cape Town'] },
+      { title: 'Audit highlights', items: ['Theme changed to system', 'Invoice template updated', 'Branch settings edited'] }
+    ]
+  },
+  sales: {
+    kpis: [
+      { label: 'Quotes awaiting action', value: '9', detail: '3 need approval' },
+      { label: 'Invoices due', value: 'R45,230', detail: '12 active invoices' },
+      { label: 'Customer balances', value: 'R98,120', detail: 'Across key accounts' },
+      { label: 'Personal target', value: '74%', detail: 'Month-to-date progress' }
+    ],
+    panels: [
+      { title: 'Follow-up focus', items: ['Call Acme Retail Group', 'Send revised quote to Northline', 'Approve Urban Build pricing note'] },
+      { title: 'Recent communications', items: ['Invoice reminder sent', 'Quote viewed by customer', 'Statement export completed'] }
+    ]
+  },
+  finance: {
+    kpis: [
+      { label: 'Debtor aging', value: 'R184,900', detail: '31+ days: R42,300' },
+      { label: 'Receipts today', value: 'R18,400', detail: '3 collections booked' },
+      { label: 'Overdue accounts', value: '12', detail: '5 need escalation' },
+      { label: 'Cash-up alerts', value: '1', detail: 'Cape Town variance pending' }
+    ],
+    panels: [
+      { title: 'Collection actions', items: ['INV-2201 follow-up', 'Allocate PAY-7688', 'Send first reminder batch'] },
+      { title: 'Approvals and exceptions', items: ['Unallocated EFT review', 'Missing proof on PAY-7693', 'Tax override awaiting confirmation'] }
+    ]
+  }
+};
 
-function logAutomationEvent({ action, status = 'info', detail, actor = 'Antonie Meyer', branch = 'All branches', date = isoDateOffset(-1) }) {
+function buildDashboard(role) {
+  const dashboard = dashboardByRole[role] || dashboardByRole.admin;
+  const highlights = activeNotifications().slice(0, 5);
+  return {
+    role,
+    ...dashboard,
+    highlights,
+    recentCustomers: customers.slice(0, 3),
+    lowStockProducts: products.filter((item) => item.stock <= item.reorderAt),
+    topClients,
+    actionCenter: {
+      branchSnapshots: buildBranchSnapshots(),
+      actionQueue: activeNotifications().slice(0, 6).map(operationalActionForNotification),
+      auditHighlights: auditLog.slice(0, 6)
+    }
+  };
+}
+
+// SQL adapter for automation/report state only.
+async function ensureSqlSchema() {
+  if (!pool) return;
+  const schemaPath = path.join(__dirname, 'db', 'schema.sql');
+  const sql = fs.readFileSync(schemaPath, 'utf8');
+  await pool.query(sql);
+}
+async function sqlGetSettings() {
+  if (!pool) return null;
+  const row = await pool.query('select payload from automation_settings where id = $1', ['default']);
+  return row.rows[0]?.payload || null;
+}
+async function sqlSaveSettings(payload) {
+  if (!pool) return;
+  await pool.query(
+    `insert into automation_settings (id, payload, updated_at)
+     values ($1, $2::jsonb, now())
+     on conflict (id) do update set payload = excluded.payload, updated_at = now()`,
+    ['default', JSON.stringify(payload)]
+  );
+}
+async function sqlListCloseHistory() {
+  if (!pool) return [];
+  const result = await pool.query('select payload from day_close_records order by closed_at desc limit 30');
+  return result.rows.map((row) => row.payload);
+}
+async function sqlSaveCloseRecord(record) {
+  if (!pool) return;
+  await pool.query(
+    `insert into day_close_records (id, close_date, closed_at, payload)
+     values ($1, $2, $3, $4::jsonb)
+     on conflict (id) do update set close_date = excluded.close_date, closed_at = excluded.closed_at, payload = excluded.payload`,
+    [record.id, record.date, record.closedAt, JSON.stringify(record)]
+  );
+}
+async function sqlListDispatches() {
+  if (!pool) return [];
+  const result = await pool.query('select payload from email_dispatches order by sent_at desc limit 40');
+  return result.rows.map((row) => row.payload);
+}
+async function sqlSaveDispatch(dispatch) {
+  if (!pool) return;
+  await pool.query(
+    `insert into email_dispatches (id, dispatch_date, sent_at, payload)
+     values ($1, $2, $3, $4::jsonb)
+     on conflict (id) do update set dispatch_date = excluded.dispatch_date, sent_at = excluded.sent_at, payload = excluded.payload`,
+    [dispatch.id, dispatch.date, dispatch.sentAt, JSON.stringify(dispatch)]
+  );
+}
+async function sqlListAudit() {
+  if (!pool) return [];
+  const result = await pool.query('select payload from audit_events order by occurred_at desc limit 80');
+  return result.rows.map((row) => row.payload);
+}
+async function sqlSaveAudit(entry) {
+  if (!pool) return;
+  await pool.query(
+    `insert into audit_events (id, occurred_at, action, payload)
+     values ($1, $2, $3, $4::jsonb)
+     on conflict (id) do nothing`,
+    [entry.id, entry.occurredAt, entry.action, JSON.stringify(entry)]
+  );
+}
+async function hydrateAutomationState() {
+  if (!pool) return;
+  const [settingsPayload, closes, dispatches, audit] = await Promise.all([
+    sqlGetSettings(),
+    sqlListCloseHistory(),
+    sqlListDispatches(),
+    sqlListAudit()
+  ]);
+  if (settingsPayload) {
+    automationState.automationSettings = { ...baseAutomationSettings, ...settingsPayload };
+  }
+  automationState.dayCloseHistory = closes;
+  automationState.emailDispatches = dispatches;
+  automationState.auditTrail = audit;
+  const latestClose = closes[0] || null;
+  const latestDispatch = dispatches[0] || null;
+  automationState.lastClosedAt = latestClose?.closedAt || null;
+  automationState.lastClosedDate = latestClose?.date || null;
+  automationState.lastSummary = latestClose ? { date: latestClose.date, branches: latestClose.branchSummaries, totals: deriveVisibleTotals(latestClose.branchSummaries) } : null;
+  automationState.lastDispatchAt = latestDispatch?.sentAt || null;
+}
+async function persistAutomationState() {
+  if (!pool) {
+    saveAutomationState();
+    return;
+  }
+  await Promise.all([
+    sqlSaveSettings(automationState.automationSettings),
+    ...automationState.dayCloseHistory.slice(0, 30).map(sqlSaveCloseRecord),
+    ...automationState.emailDispatches.slice(0, 40).map(sqlSaveDispatch),
+    ...automationState.auditTrail.slice(0, 80).map(sqlSaveAudit)
+  ]);
+}
+
+async function logAutomationEvent({ action, status = 'info', detail, actor = 'Antonie Meyer', branch = 'All branches', date = isoDateOffset(-1) }) {
   const entry = {
     id: `AUTO-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
     occurredAt: new Date().toISOString(),
@@ -256,6 +479,7 @@ function logAutomationEvent({ action, status = 'info', detail, actor = 'Antonie 
     date
   };
   automationState.auditTrail = [entry, ...(automationState.auditTrail || [])].slice(0, 80);
+  if (pool) await sqlSaveAudit(entry);
   return entry;
 }
 
@@ -283,21 +507,18 @@ async function deliverSummaryEmail(summary, recipients) {
       const errorText = await response.text();
       throw new Error(`Resend send failed: ${errorText}`);
     }
-
     const payload = await response.json();
     return { provider: 'resend', messageId: payload.id || null, subject, body };
   }
 
   return { provider: 'log', messageId: `LOG-${Date.now()}`, subject, body };
 }
-
 function summarizeDispatchTargets() {
   const recipients = [];
   if (automationState.automationSettings.sendToManagers) recipients.push(...automationState.automationSettings.managerRecipients);
   if (automationState.automationSettings.sendToExecutives) recipients.push(...automationState.automationSettings.executiveRecipients);
   return [...new Set(recipients.filter(Boolean))];
 }
-
 function createDispatchRecord(result, recipients, summary, options = {}) {
   return {
     id: `MAIL-${Date.now()}`,
@@ -313,20 +534,17 @@ function createDispatchRecord(result, recipients, summary, options = {}) {
     closedRecordId: options.closedRecordId || null
   };
 }
-
 function latestCloseRecordFor(date) {
   return automationState.dayCloseHistory.find((item) => item.date === date) || null;
 }
-
 function latestDispatchFor(date) {
   return automationState.emailDispatches.find((item) => item.date === date) || null;
 }
-
 async function runDayClose({ trigger = 'manual', sendEmail = false, date = isoDateOffset(-1), force = false, actor = 'Antonie Meyer' } = {}) {
   const existing = latestCloseRecordFor(date);
   if (existing && !force) {
-    logAutomationEvent({ action: 'Day close blocked', status: 'blocked', detail: `Close already exists for ${date}. Use force to rerun.`, actor, date, branch: existing.branchSummaries?.map((item) => item.branch).join(', ') || 'All branches' });
-    saveAutomationState();
+    await logAutomationEvent({ action: 'Day close blocked', status: 'blocked', detail: `Close already exists for ${date}. Use force to rerun.`, actor, date, branch: existing.branchSummaries?.map((item) => item.branch).join(', ') || 'All branches' });
+    await persistAutomationState();
     throw new Error(`Day close for ${date} already exists. Use rerun confirmation to replace it.`);
   }
 
@@ -351,7 +569,7 @@ async function runDayClose({ trigger = 'manual', sendEmail = false, date = isoDa
   automationState.lastClosedDate = date;
   automationState.lastSummary = summary;
   automationState.dayCloseHistory = [record, ...automationState.dayCloseHistory.filter((item) => item.date !== date)].slice(0, 30);
-  logAutomationEvent({ action: existing ? 'Day close rerun' : 'Day close completed', status: 'success', detail: `${date} closed at ${formatCurrency(summary.totals.totalSales)}.`, actor, date, branch: summary.branches.map((item) => item.branch).join(', ') });
+  await logAutomationEvent({ action: existing ? 'Day close rerun' : 'Day close completed', status: 'success', detail: `${date} closed at ${formatCurrency(summary.totals.totalSales)}.`, actor, date, branch: summary.branches.map((item) => item.branch).join(', ') });
 
   let dispatch = null;
   if (sendEmail) {
@@ -361,38 +579,35 @@ async function runDayClose({ trigger = 'manual', sendEmail = false, date = isoDa
     automationState.lastDispatchAt = dispatch.sentAt;
     automationState.emailDispatches = [dispatch, ...automationState.emailDispatches.filter((item) => item.id !== dispatch.id)].slice(0, 40);
     automationState.dayCloseHistory = automationState.dayCloseHistory.map((item) => item.id === closeId ? { ...item, sentStatus: 'sent', sentAt: dispatch.sentAt, emailDispatchId: dispatch.id } : item);
-    logAutomationEvent({ action: existing ? 'Summary resent from rerun' : 'Summary email sent', status: 'success', detail: `Daily summary sent to ${recipients.join(', ') || 'no recipients configured'}.`, actor, date, branch: summary.branches.map((item) => item.branch).join(', ') });
+    await logAutomationEvent({ action: existing ? 'Summary resent from rerun' : 'Summary email sent', status: 'success', detail: `Daily summary sent to ${recipients.join(', ') || 'no recipients configured'}.`, actor, date, branch: summary.branches.map((item) => item.branch).join(', ') });
   }
 
-  saveAutomationState();
+  await persistAutomationState();
   return { summary, dispatch };
 }
-
 async function sendLatestSummary({ resend = false, actor = 'Antonie Meyer' } = {}) {
   const summary = automationState.lastSummary || buildDailySummary();
   const closeRecord = latestCloseRecordFor(summary.date);
   if (!closeRecord) {
-    logAutomationEvent({ action: 'Summary send blocked', status: 'blocked', detail: `No day close exists for ${summary.date}.`, actor, date: summary.date });
-    saveAutomationState();
+    await logAutomationEvent({ action: 'Summary send blocked', status: 'blocked', detail: `No day close exists for ${summary.date}.`, actor, date: summary.date });
+    await persistAutomationState();
     throw new Error('Run day close before sending a summary email.');
   }
   if (closeRecord.sentStatus === 'sent' && !resend) {
-    logAutomationEvent({ action: 'Duplicate summary blocked', status: 'blocked', detail: `Summary already sent for ${summary.date}. Use resend to send again.`, actor, date: summary.date, branch: closeRecord.branchSummaries.map((item) => item.branch).join(', ') });
-    saveAutomationState();
+    await logAutomationEvent({ action: 'Duplicate summary blocked', status: 'blocked', detail: `Summary already sent for ${summary.date}. Use resend to send again.`, actor, date: summary.date, branch: closeRecord.branchSummaries.map((item) => item.branch).join(', ') });
+    await persistAutomationState();
     throw new Error(`Summary already sent for ${summary.date}. Use resend summary if you need to send it again.`);
   }
-
   const recipients = summarizeDispatchTargets();
   const result = await deliverSummaryEmail(summary, recipients);
   const dispatch = createDispatchRecord(result, recipients, summary, { resend, closedRecordId: closeRecord.id });
   automationState.lastDispatchAt = dispatch.sentAt;
   automationState.emailDispatches = [dispatch, ...automationState.emailDispatches].slice(0, 40);
   automationState.dayCloseHistory = automationState.dayCloseHistory.map((item) => item.id === closeRecord.id ? { ...item, sentStatus: 'sent', sentAt: dispatch.sentAt, emailDispatchId: dispatch.id } : item);
-  logAutomationEvent({ action: resend ? 'Summary resent' : 'Summary email sent', status: 'success', detail: `Summary email ${resend ? 'resent' : 'sent'} to ${recipients.join(', ') || 'no recipients configured'}.`, actor, date: summary.date, branch: closeRecord.branchSummaries.map((item) => item.branch).join(', ') });
-  saveAutomationState();
+  await logAutomationEvent({ action: resend ? 'Summary resent' : 'Summary email sent', status: 'success', detail: `Summary email ${resend ? 'resent' : 'sent'} to ${recipients.join(', ') || 'no recipients configured'}.`, actor, date: summary.date, branch: closeRecord.branchSummaries.map((item) => item.branch).join(', ') });
+  await persistAutomationState();
   return dispatch;
 }
-
 function deriveVisibleTotals(branches) {
   const totals = branches.reduce((acc, item) => ({
     totalSales: acc.totalSales + item.totalSales,
@@ -410,21 +625,16 @@ function deriveVisibleTotals(branches) {
     targetAchievedPct: totals.target ? Math.round((totals.totalSales / totals.target) * 100) : 0
   };
 }
-
 function buildReportPayload(role = 'admin', branch = 'all') {
   const summary = automationState.lastSummary || buildDailySummary();
   const allowedBranch = role === 'manager' ? automationState.automationSettings.defaultManagerBranch || 'Johannesburg' : branch;
-  const visibleBranches = allowedBranch && allowedBranch !== 'all'
-    ? summary.branches.filter((item) => item.branch === allowedBranch)
-    : summary.branches;
+  const visibleBranches = allowedBranch && allowedBranch !== 'all' ? summary.branches.filter((item) => item.branch === allowedBranch) : summary.branches;
   const totals = deriveVisibleTotals(visibleBranches);
-
   const sellerBoard = [
     { name: 'Alex Morgan', branch: 'Johannesburg', sales: 84000, target: 90000 },
     { name: 'Rina Patel', branch: 'Cape Town', sales: 72500, target: 80000 },
     { name: 'Tariq Naidoo', branch: 'Durban', sales: 48800, target: 65000 }
   ].filter((item) => allowedBranch === 'all' || !allowedBranch || item.branch === allowedBranch);
-
   const closeRecord = latestCloseRecordFor(summary.date);
   const lastDispatch = latestDispatchFor(summary.date);
   const branchCloseHistory = automationState.dayCloseHistory
@@ -474,205 +684,12 @@ function buildReportPayload(role = 'admin', branch = 'all') {
   };
 }
 
-function startScheduler() {
-  if (process.env.ENABLE_DAY_CLOSE_SCHEDULER !== 'true') return;
-  automationState.scheduler.enabled = true;
-  saveAutomationState();
-  setInterval(async () => {
-    const now = new Date();
-    const hhmm = now.toTimeString().slice(0, 5);
-    if (automationState.automationSettings.triggerMode !== 'scheduled-close') return;
-    if (hhmm !== automationState.automationSettings.closeTime) return;
-    const today = now.toISOString().slice(0, 10);
-    if (automationState.scheduler.lastAutoRunDate === today) return;
-    try {
-      await runDayClose({ trigger: 'scheduled', sendEmail: true, date: today });
-      automationState.scheduler.lastAutoRunDate = today;
-      saveAutomationState();
-    } catch (error) {
-      console.error('Scheduled day close failed', error);
-    }
-  }, 60000);
-}
-
-const topClients = [
-  { customerId: 'CUS-001', name: 'Acme Retail Group', revenue: 'R78,240', invoices: 6, averageOrderValue: 'R13,040', overdueBalance: 'R5,040', trend: 'Growing this month' },
-  { customerId: 'CUS-003', name: 'Urban Build Supply', revenue: 'R63,580', invoices: 3, averageOrderValue: 'R21,193', overdueBalance: 'R12,000', trend: 'Large deal pending' },
-  { customerId: 'CUS-002', name: 'Northline Foods', revenue: 'R41,920', invoices: 5, averageOrderValue: 'R8,384', overdueBalance: 'R0', trend: 'Healthy collections' }
-];
-
-const baseCustomerSummaries = {
-  'CUS-001': {
-    customerId: 'CUS-001', totalSpend: 'R78,240', invoiceCount: 6, averageOrderValue: 'R13,040', overdueBalance: 'R5,040', lastPurchaseDate: '2026-03-09', lastPaymentDate: 'Today 10:42', collectionStatus: '1 overdue invoice needs follow-up',
-    topProducts: [
-      { sku: 'SKU-1001', name: 'Kryvexis Label Printer', quantity: 18, revenue: 'R44,982' },
-      { sku: 'SKU-1021', name: 'Thermal Roll Box', quantity: 56, revenue: 'R21,280' },
-      { sku: 'SKU-1033', name: 'Warehouse Scanner Dock', quantity: 9, revenue: 'R11,610' }
-    ],
-    purchaseHistory: [
-      { id: 'PH-1', date: '2026-03-10', type: 'payment', reference: 'PAY-7701', amount: 'R7,400', status: 'Allocated', note: 'Part-payment allocated to INV-2201' },
-      { id: 'PH-2', date: '2026-03-09', type: 'invoice', reference: 'INV-2201', amount: 'R12,440', status: 'Overdue', note: 'Reminder sent and follow-up queued' },
-      { id: 'PH-3', date: '2026-03-08', type: 'quote', reference: 'Q-1042', amount: 'R18,960', status: 'Sent to customer', note: 'Bundle pricing applied and customer opened the quote' }
-    ]
-  },
-  'CUS-002': {
-    customerId: 'CUS-002', totalSpend: 'R41,920', invoiceCount: 5, averageOrderValue: 'R8,384', overdueBalance: 'R0', lastPurchaseDate: '2026-03-10', lastPaymentDate: 'Today 09:17', collectionStatus: 'Awaiting proof for cash receipt',
-    topProducts: [
-      { sku: 'SKU-1021', name: 'Thermal Roll Box', quantity: 84, revenue: 'R31,920' },
-      { sku: 'SKU-1033', name: 'Warehouse Scanner Dock', quantity: 8, revenue: 'R10,000' }
-    ],
-    purchaseHistory: [
-      { id: 'PH-6', date: '2026-03-10', type: 'payment', reference: 'PAY-7693', amount: 'R4,980', status: 'Pending proof', note: 'Cash received but proof still outstanding' }
-    ]
-  },
-  'CUS-003': {
-    customerId: 'CUS-003', totalSpend: 'R63,580', invoiceCount: 3, averageOrderValue: 'R21,193', overdueBalance: 'R12,000', lastPurchaseDate: '2026-03-09', lastPaymentDate: 'Yesterday 16:10', collectionStatus: 'Receipt received but not yet allocated',
-    topProducts: [
-      { sku: 'SKU-1001', name: 'Kryvexis Label Printer', quantity: 12, revenue: 'R29,988' },
-      { sku: 'SKU-1021', name: 'Thermal Roll Box', quantity: 45, revenue: 'R17,100' },
-      { sku: 'SKU-1033', name: 'Warehouse Scanner Dock', quantity: 12, revenue: 'R15,480' }
-    ],
-    purchaseHistory: [
-      { id: 'PH-9', date: '2026-03-10', type: 'quote', reference: 'Q-1045', amount: 'R62,500', status: 'Pending approval', note: 'Waiting on manager approval before customer send' }
-    ]
-  }
-};
-
-const dashboardByRole = {
-  admin: {
-    kpis: [
-      { label: 'System activity', value: '342', detail: 'Events in the last 24h' },
-      { label: 'Pending approvals', value: '6', detail: 'Quotes and exceptions' },
-      { label: 'Branch health', value: '92%', detail: 'Operational completion score' },
-      { label: 'Unread notifications', value: '11', detail: 'Across all roles' }
-    ],
-    panels: [
-      { title: 'Approvals queue', items: ['Q-1045 high-value quote', 'Payment exception PAY-7693', 'Role change request for Cape Town'] },
-      { title: 'Audit highlights', items: ['Theme changed to system', 'Invoice template updated', 'Branch settings edited'] }
-    ]
-  },
-  sales: {
-    kpis: [
-      { label: 'Quotes awaiting action', value: '9', detail: '3 need approval' },
-      { label: 'Invoices due', value: 'R45,230', detail: '12 active invoices' },
-      { label: 'Customer balances', value: 'R98,120', detail: 'Across key accounts' },
-      { label: 'Personal target', value: '74%', detail: 'Month-to-date progress' }
-    ],
-    panels: [
-      { title: 'Follow-up focus', items: ['Call Acme Retail Group', 'Send revised quote to Northline', 'Approve Urban Build pricing note'] },
-      { title: 'Recent communications', items: ['Invoice reminder sent', 'Quote viewed by customer', 'Statement export completed'] }
-    ]
-  },
-  finance: {
-    kpis: [
-      { label: 'Debtor aging', value: 'R184,900', detail: '31+ days: R42,300' },
-      { label: 'Receipts today', value: 'R18,400', detail: '3 collections booked' },
-      { label: 'Overdue accounts', value: '12', detail: '5 need escalation' },
-      { label: 'Cash-up alerts', value: '1', detail: 'Cape Town variance pending' }
-    ],
-    panels: [
-      { title: 'Collection actions', items: ['INV-2201 follow-up', 'Allocate PAY-7688', 'Send first reminder batch'] },
-      { title: 'Approvals and exceptions', items: ['Unallocated EFT review', 'Missing proof on PAY-7693', 'Tax override awaiting confirmation'] }
-    ]
-  }
-};
-
-let auditLog = [
-  { id: 'AUD-1', title: 'Quote drafted', detail: 'Q-1045 prepared for Urban Build Supply with protected margin review.', actor: 'Alex Morgan', timestamp: 'Today 08:12', recordType: 'quote', recordId: 'Q-1045', recordPath: '/quotes/Q-1045', customerId: 'CUS-003', status: 'Drafted' },
-  { id: 'AUD-2', title: 'Quote sent to customer', detail: 'Q-1042 delivered to Acme Retail Group and tracked in audit.', actor: 'Rina Patel', timestamp: 'Today 09:06', recordType: 'quote', recordId: 'Q-1042', recordPath: '/quotes/Q-1042', customerId: 'CUS-001', status: 'Sent to customer' },
-  { id: 'AUD-3', title: 'Invoice overdue follow-up', detail: 'INV-2201 remains overdue and is queued for collections follow-up.', actor: 'Finance Bot', timestamp: 'Today 10:10', recordType: 'invoice', recordId: 'INV-2201', recordPath: '/invoices/INV-2201', customerId: 'CUS-001', status: 'Overdue' },
-  { id: 'AUD-4', title: 'Payment proof requested', detail: 'PAY-7693 still needs proof before final allocation.', actor: 'Finance Team', timestamp: 'Today 10:18', recordType: 'payment', recordId: 'PAY-7693', recordPath: '/payments/PAY-7693', customerId: 'CUS-002', status: 'Pending proof' },
-  { id: 'AUD-5', title: 'Receipt awaiting allocation', detail: 'PAY-7688 received for Urban Build Supply and is waiting for invoice allocation.', actor: 'Finance Team', timestamp: 'Today 10:24', recordType: 'payment', recordId: 'PAY-7688', recordPath: '/payments/PAY-7688', customerId: 'CUS-003', status: 'Unallocated' },
-  { id: 'AUD-6', title: 'Dashboard theme changed', detail: 'System theme preference updated to system mode.', actor: 'Admin', timestamp: 'Yesterday 16:00', recordType: 'system', recordId: 'settings', recordPath: '/settings', customerId: null, status: 'Applied' }
-];
-
-function envelope(data, extra = {}) { return { ok: true, ...extra, data }; }
-function findQuote(id) { return quotes.find((entry) => entry.id === id); }
-function findInvoice(id) { return invoices.find((entry) => entry.id === id); }
-function findPayment(id) { return payments.find((entry) => entry.id === id || entry.ref === id); }
-function findNotification(id) { return notifications.find((entry) => entry.id === id); }
-function findCustomer(id) { return customers.find((entry) => entry.id === id); }
-function activeNotifications() { return notifications.filter((item) => !item.dismissed); }
-function stampNow() { return 'Just now'; }
-function numericAmount(value) { return Number(String(value || '').replace(/[^\d.-]/g, '')) || 0; }
-function recordPathFor(type, id) {
-  if (type === 'quote') return `/quotes/${id}`;
-  if (type === 'invoice') return `/invoices/${id}`;
-  if (type === 'payment') return `/payments/${id}`;
-  if (type === 'customer') return `/customers/${id}`;
-  return '/';
-}
-
-function pushNotification(notification) {
-  notifications = [notification, ...notifications];
-  return notification;
-}
-
-function pushAudit(entry) {
-  const normalized = { id: `AUD-${Date.now()}-${Math.floor(Math.random() * 1000)}`, ...entry };
-  auditLog = [normalized, ...auditLog];
-  return normalized;
-}
-
-function operationalActionForNotification(item) {
-  const source = `${item.title} ${item.meta}`.toLowerCase();
-  const recordMatch = `${item.title} ${item.meta}`.match(/(Q-\d+|INV-\d+|PAY-\d+)/i);
-  const recordId = recordMatch ? recordMatch[1].toUpperCase() : '';
-  let recordType = 'system';
-  if (recordId.startsWith('Q-')) recordType = 'quote';
-  if (recordId.startsWith('INV-')) recordType = 'invoice';
-  if (recordId.startsWith('PAY-')) recordType = 'payment';
-  const recordPath = recordId ? recordPathFor(recordType, recordId) : '/notifications';
-  const actionLabel = source.includes('approval') ? 'Review approval' : source.includes('overdue') ? 'Collect now' : source.includes('proof') ? 'Resolve proof' : source.includes('allocate') ? 'Allocate payment' : 'Open record';
-  const priority = item.state === 'Urgent' ? 'high' : item.state === 'Pending' || item.state === 'Action' ? 'medium' : 'low';
-  return {
-    id: item.id,
-    title: item.title,
-    detail: item.meta,
-    owner: recordType === 'quote' ? 'Sales' : recordType === 'invoice' || recordType === 'payment' ? 'Finance' : 'Operations',
-    branch: recordId.startsWith('Q-') ? findQuote(recordId)?.branch || 'Unassigned' : recordId.startsWith('INV-') ? findInvoice(recordId)?.branch || 'Unassigned' : recordId.startsWith('PAY-') ? findCustomer(findPayment(recordId)?.customerId || '')?.branch || 'Unassigned' : 'System',
-    priority,
-    recordPath,
-    actionLabel,
-    status: item.state
-  };
-}
-
-function buildBranchSnapshots() {
-  const branches = [...new Set(customers.map((item) => item.branch))];
-  return branches.map((branch) => ({
-    branch,
-    approvals: quotes.filter((item) => item.branch === branch && item.status === 'Pending approval').length,
-    collections: invoices.filter((item) => item.branch === branch && /overdue|collections/i.test(item.status)).length,
-    exceptions: payments.filter((item) => findCustomer(item.customerId)?.branch === branch && (item.status === 'Pending proof' || item.status === 'Unallocated')).length
-  }));
-}
-
-function buildDashboard(role) {
-  const dashboard = dashboardByRole[role] || dashboardByRole.admin;
-  const highlights = activeNotifications().slice(0, 5);
-  return {
-    role,
-    ...dashboard,
-    highlights,
-    recentCustomers: customers.slice(0, 3),
-    lowStockProducts: products.filter((item) => item.stock <= item.reorderAt),
-    topClients,
-    actionCenter: {
-      branchSnapshots: buildBranchSnapshots(),
-      actionQueue: activeNotifications().slice(0, 6).map(operationalActionForNotification),
-      auditHighlights: auditLog.slice(0, 6)
-    }
-  };
-}
-
 function collectActivity({ recordType, recordId, customerId }) {
   return auditLog
     .filter((entry) => (recordType ? entry.recordType === recordType && entry.recordId === recordId : false) || (customerId ? entry.customerId === customerId : false))
     .filter((entry, index, list) => list.findIndex((check) => check.id === entry.id) === index)
     .slice(0, 8);
 }
-
 function buildQuoteDetail(quote) {
   return {
     ...quote,
@@ -680,7 +697,6 @@ function buildQuoteDetail(quote) {
     activityLog: collectActivity({ recordType: 'quote', recordId: quote.id, customerId: quote.customerId })
   };
 }
-
 function buildInvoiceDetail(invoice) {
   const sourceQuote = quotes.find((item) => item.id === invoice.source);
   const lines = sourceQuote?.lines ?? [];
@@ -690,11 +706,9 @@ function buildInvoiceDetail(invoice) {
     { label: 'Reminders', detail: invoice.reminders },
     { label: 'Next action', detail: invoice.nextAction }
   ];
-
   if (sourceQuote) {
     workflow.unshift({ label: 'Source quote', detail: `${sourceQuote.id} was converted for ${sourceQuote.customer}` });
   }
-
   return {
     ...invoice,
     sourceCustomerId: invoice.customerId,
@@ -707,7 +721,6 @@ function buildInvoiceDetail(invoice) {
     activityLog: collectActivity({ recordType: 'invoice', recordId: invoice.id, customerId: invoice.customerId })
   };
 }
-
 function buildPaymentDetail(payment) {
   const linkedInvoiceId = payment.appliedTo.startsWith('INV-') ? payment.appliedTo : null;
   return {
@@ -717,7 +730,19 @@ function buildPaymentDetail(payment) {
     activityLog: collectActivity({ recordType: 'payment', recordId: payment.id, customerId: payment.customerId })
   };
 }
-
+const baseCustomerSummaries = {
+  'CUS-001': {
+    customerId: 'CUS-001', totalSpend: 'R78,240', invoiceCount: 6, averageOrderValue: 'R13,040', overdueBalance: 'R5,040', lastPurchaseDate: '2026-03-09', lastPaymentDate: 'Today 10:42', collectionStatus: '1 overdue invoice needs follow-up',
+    topProducts: [
+      { sku: 'SKU-1001', name: 'Kryvexis Label Printer', quantity: 18, revenue: 'R44,982' },
+      { sku: 'SKU-1021', name: 'Thermal Roll Box', quantity: 56, revenue: 'R21,280' },
+      { sku: 'SKU-1033', name: 'Warehouse Scanner Dock', quantity: 9, revenue: 'R11,610' }
+    ],
+    purchaseHistory: [
+      { id: 'PH-1', date: '2026-03-10', type: 'payment', reference: 'PAY-7701', amount: 'R7,400', status: 'Allocated', note: 'Part-payment allocated to INV-2201' }
+    ]
+  }
+};
 function buildCustomerSummary(id) {
   const base = baseCustomerSummaries[id];
   const customer = findCustomer(id);
@@ -730,30 +755,20 @@ function buildCustomerSummary(id) {
   const openBalance = customer.balance;
   const health = overdueAmount > 10000 ? 'At risk' : customer.risk === 'Low' ? 'Healthy' : 'Needs attention';
   const linkedActivity = collectActivity({ customerId: id }).slice(0, 10);
-
-  return {
-    ...base,
-    openQuotes,
-    recentInvoices,
-    recentPayments,
-    overdueInvoices,
-    openBalance,
-    accountHealth: health,
-    linkedActivity
-  };
+  return { ...base, openQuotes, recentInvoices, recentPayments, overdueInvoices, openBalance, accountHealth: health, linkedActivity };
 }
 
-function listRoute(path, collection) {
-  app.get(`/api/${path}`, (_req, res) => res.json(envelope(collection)));
-  app.get(`/api/${path}/:id`, (req, res) => {
+function listRoute(routePath, collection) {
+  app.get(`/api/${routePath}`, (_req, res) => res.json(envelope(collection)));
+  app.get(`/api/${routePath}/:id`, (req, res) => {
     const item = collection.find((entry) => entry.id === req.params.id || entry.ref === req.params.id || entry.sku === req.params.id);
-    if (!item) return res.status(404).json({ ok: false, error: `${path} item not found` });
+    if (!item) return res.status(404).json({ ok: false, error: `${routePath} item not found` });
     return res.json(envelope(item));
   });
 }
 
-app.get('/', (_req, res) => res.json({ ok: true, service: 'kryvexis-os-api', status: 'running', phase: 'HL' }));
-app.get('/health', (_req, res) => res.json({ status: 'ok', phase: 'HL', service: 'kryvexis-os-api' }));
+app.get('/', (_req, res) => res.json({ ok: true, service: 'kryvexis-os-api', status: 'running', phase: 'SQL-A1' }));
+app.get('/health', (_req, res) => res.json({ status: 'ok', phase: 'SQL-A1', service: 'kryvexis-os-api', sqlAutomation: ENABLE_SQL }));
 app.get('/api/bootstrap', (_req, res) => res.json(envelope({ roles, themeOptions: settings.themes, support: { email: settings.supportEmail, whatsapp: settings.whatsapp } })));
 app.get('/api/dashboard', (req, res) => {
   const role = req.query.role || 'admin';
@@ -889,7 +904,6 @@ app.post('/api/payments/:id/allocate', (req, res) => {
   pushNotification({ id: `NT-${Date.now()}`, title: `Payment ${payment.ref} allocated`, meta: `${invoiceId} - Finance`, state: 'Done', read: true, type: 'payment', dismissed: false, snoozedUntil: null });
   return res.json(envelope({ payment: buildPaymentDetail(payment) }));
 });
-
 function buildEmailDraft(kind, id) {
   if (kind === 'quote-send') {
     const quote = findQuote(id);
@@ -910,7 +924,6 @@ function buildEmailDraft(kind, id) {
       closing: `Regards,\n${quote.owner}\nKryvexis Solutions`
     };
   }
-
   if (kind === 'invoice-reminder') {
     const invoice = findInvoice(id);
     if (!invoice) return null;
@@ -927,10 +940,9 @@ function buildEmailDraft(kind, id) {
         `The invoice is currently marked as ${invoice.status.toLowerCase()} and the due status is ${invoice.due}.`,
         `If payment has already been made, please send proof of payment so our finance team can update the record immediately.`
       ],
-      closing: 'Regards,\nFinance Team\nKryvexis Solutions'
+      closing: `Regards,\nFinance Team\nKryvexis Solutions`
     };
   }
-
   if (kind === 'payment-proof') {
     const payment = findPayment(id);
     if (!payment) return null;
@@ -947,10 +959,9 @@ function buildEmailDraft(kind, id) {
         `Our team still needs the supporting proof so we can complete allocation against ${payment.appliedTo}.`,
         `Please reply with the payment confirmation at your earliest convenience so we can close the finance action.`
       ],
-      closing: 'Regards,\nFinance Team\nKryvexis Solutions'
+      closing: `Regards,\nFinance Team\nKryvexis Solutions`
     };
   }
-
   return null;
 }
 
@@ -958,55 +969,91 @@ listRoute('customers', customers);
 listRoute('products', products);
 listRoute('suppliers', suppliers);
 listRoute('purchase-orders', purchaseOrders);
-
 app.get('/api/emails/:kind/:id', (req, res) => {
   const draft = buildEmailDraft(req.params.kind, req.params.id);
   if (!draft) return res.status(404).json({ ok: false, error: 'email draft not found' });
   return res.json(envelope(draft));
 });
-
-app.get('/api/reports', (req, res) => {
+app.get('/api/reports', async (req, res) => {
+  if (pool) await hydrateAutomationState();
   const role = String(req.query.role || 'admin');
   const branch = String(req.query.branch || 'all');
   return res.json(envelope(buildReportPayload(role, branch)));
 });
-
-app.get('/api/automation-settings', (_req, res) => {
+app.get('/api/automation-settings', async (_req, res) => {
+  if (pool) await hydrateAutomationState();
   return res.json(envelope(automationState.automationSettings));
 });
-
-app.post('/api/automation-settings', (req, res) => {
+app.post('/api/automation-settings', async (req, res) => {
   automationState.automationSettings = {
     ...automationState.automationSettings,
     ...req.body,
     managerRecipients: Array.isArray(req.body.managerRecipients) ? req.body.managerRecipients : automationState.automationSettings.managerRecipients,
     executiveRecipients: Array.isArray(req.body.executiveRecipients) ? req.body.executiveRecipients : automationState.automationSettings.executiveRecipients
   };
-  logAutomationEvent({ action: 'Automation settings updated', status: 'info', detail: 'Recipient rules or close cadence were updated.', actor: 'Antonie Meyer', date: isoDateOffset(0) });
-  saveAutomationState();
+  await logAutomationEvent({ action: 'Automation settings updated', status: 'info', detail: 'Recipient rules or close cadence were updated.', actor: 'Antonie Meyer', date: isoDateOffset(0) });
+  await persistAutomationState();
   return res.json(envelope(automationState.automationSettings));
 });
-
 app.post('/api/day-close/run', async (req, res) => {
   try {
+    if (pool) await hydrateAutomationState();
     const result = await runDayClose({ trigger: req.body?.trigger || 'manual', sendEmail: Boolean(req.body?.sendEmail), date: req.body?.date || isoDateOffset(-1), force: Boolean(req.body?.force), actor: req.body?.actor || 'Antonie Meyer' });
     return res.json(envelope(result));
   } catch (error) {
     return res.status(500).json({ ok: false, error: error.message || 'day close failed' });
   }
 });
-
 app.post('/api/day-close/send-summary', async (req, res) => {
   try {
+    if (pool) await hydrateAutomationState();
     const dispatch = await sendLatestSummary({ resend: Boolean(req.body?.resend), actor: req.body?.actor || 'Antonie Meyer' });
     return res.json(envelope(dispatch));
   } catch (error) {
     return res.status(500).json({ ok: false, error: error.message || 'email send failed' });
   }
 });
-
-app.get('/api/settings', (_req, res) => res.json(envelope({ ...settings, automation: automationState.automationSettings })));
+app.get('/api/settings', async (_req, res) => {
+  if (pool) await hydrateAutomationState();
+  return res.json(envelope({ ...settings, automation: automationState.automationSettings }));
+});
 app.get('/api/roles', (_req, res) => res.json(envelope(roles)));
 
-startScheduler();
-app.listen(port, () => console.log(`Kryvexis OS Phase HL backend running on ${port}`));
+function startScheduler() {
+  if (process.env.ENABLE_DAY_CLOSE_SCHEDULER !== 'true') return;
+  automationState.scheduler.enabled = true;
+  persistAutomationState().catch((error) => console.error('Failed to persist scheduler flag', error));
+  setInterval(async () => {
+    const now = new Date();
+    const hhmm = now.toTimeString().slice(0, 5);
+    if (automationState.automationSettings.triggerMode !== 'scheduled-close') return;
+    if (hhmm !== automationState.automationSettings.closeTime) return;
+    const today = now.toISOString().slice(0, 10);
+    if (automationState.scheduler.lastAutoRunDate === today) return;
+    try {
+      if (pool) await hydrateAutomationState();
+      await runDayClose({ trigger: 'scheduled', sendEmail: true, date: today });
+      automationState.scheduler.lastAutoRunDate = today;
+      await persistAutomationState();
+    } catch (error) {
+      console.error('Scheduled day close failed', error);
+    }
+  }, 60000);
+}
+
+async function boot() {
+  if (pool) {
+    await ensureSqlSchema();
+    await hydrateAutomationState();
+    console.log('Kryvexis OS SQL automation enabled');
+  } else {
+    console.log('Kryvexis OS using JSON automation state');
+  }
+  startScheduler();
+  app.listen(port, () => console.log(`Kryvexis OS backend running on ${port}`));
+}
+
+boot().catch((error) => {
+  console.error('Backend boot failed', error);
+  process.exit(1);
+});
