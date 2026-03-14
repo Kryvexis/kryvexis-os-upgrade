@@ -39,10 +39,6 @@ export type TopClient = { customerId: string; name: string; revenue: string; inv
 export type OperationalActionItem = { id: string; title: string; detail: string; owner: string; branch: string; priority: 'high' | 'medium' | 'low' | string; recordPath: string; actionLabel: string; status: string; };
 export type BranchSnapshot = { branch: string; approvals: number; collections: number; exceptions: number };
 export type DashboardResponse = { role: string; kpis: KPI[]; panels: PanelGroup[]; highlights: Notification[]; recentCustomers: Customer[]; lowStockProducts: Product[]; topClients: TopClient[]; actionCenter: { branchSnapshots: BranchSnapshot[]; actionQueue: OperationalActionItem[]; auditHighlights: ActivityEntry[]; }; };
-export type ActionCenterDomain = 'Finance' | 'Procurement' | 'Inventory' | 'Operations';
-export type ActionRecommendation = { id: string; domain: ActionCenterDomain | string; title: string; detail: string; reason: string; owner: string; branch: string; priority: 'critical' | 'high' | 'medium' | 'low' | string; score: number; impact: string; actionLabel: string; recordPath: string; status: string; autoReady?: boolean; };
-export type ActionCenterDomainSummary = { domain: ActionCenterDomain | string; count: number; urgent: number; headline: string; impact: string; };
-export type ActionCenterResponse = { generatedAt: string; topFocus: ActionRecommendation[]; quickWins: ActionRecommendation[]; recommendationFeed: ActionRecommendation[]; domainSummaries: ActionCenterDomainSummary[]; branchSnapshots: BranchSnapshot[]; auditHighlights: ActivityEntry[]; };
 export type PurchaseHistoryEntry = { id: string; date: string; type: 'invoice' | 'payment' | 'quote'; reference: string; amount: string; status: string; note: string; };
 export type TopProduct = { sku: string; name: string; quantity: number; revenue: string; };
 export type CustomerSummary = { customerId: string; totalSpend: string; invoiceCount: number; averageOrderValue: string; overdueBalance: string; lastPurchaseDate: string; lastPaymentDate: string; collectionStatus: string; topProducts: TopProduct[]; openQuotes: Quote[]; recentInvoices: Invoice[]; recentPayments: Payment[]; purchaseHistory: PurchaseHistoryEntry[]; overdueInvoices: number; openBalance: string; accountHealth: string; linkedActivity: ActivityEntry[]; };
@@ -75,3 +71,16 @@ export type AccountingOverview = {
   expenses: ExpenseRow[];
   creditors: CreditorRow[];
 };
+
+export type LedgerAccountRow = { code: string; name: string; type: string; balance: string; status: string; movement: string; };
+export type JournalEntryRow = { id: string; date: string; source: string; reference: string; status: string; total: string; owner: string; summary: string; };
+export type LedgerPayload = { summary: KPI[]; accounts: LedgerAccountRow[]; journals: JournalEntryRow[]; trialBalanceReady: boolean; };
+export type SupplierBillRow = { id: string; supplier: string; branch: string; amount: string; dueDate: string; status: string; matchStatus: string; recommendation: string; };
+export type SupplierBillsPayload = { kpis: KPI[]; bills: SupplierBillRow[]; };
+export type BankAccountRow = { id: string; name: string; balance: string; unreconciled: number; suggestedMatches: number; };
+export type ReconciliationItemRow = { id: string; account: string; date: string; description: string; amount: string; status: string; recommendation: string; };
+export type ReconciliationPayload = { bankAccounts: BankAccountRow[]; items: ReconciliationItemRow[]; };
+export type VatItemRow = { id: string; label: string; value: string; detail: string; };
+export type VatPayload = { period: string; outputVat: string; inputVat: string; payable: string; status: string; items: VatItemRow[]; };
+export type PeriodCloseItemRow = { id: string; label: string; status: string; owner: string; detail: string; };
+export type PeriodClosePayload = { readiness: string; status: string; checklist: PeriodCloseItemRow[]; };
