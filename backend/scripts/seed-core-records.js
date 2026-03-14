@@ -86,6 +86,19 @@ async function upsertSeedOrganization() {
 }
 
 
+
+async function loadExistingIds(tableName) {
+  const columns = await getTableColumns(tableName);
+  if (!columns.size || !columns.has('id')) return new Set();
+  const result = await pool.query(`select id from ${tableName}`);
+  return new Set(result.rows.map((row) => row.id).filter(Boolean));
+}
+
+function resolveInvoiceQuoteReference(source, validQuoteIds) {
+  const normalized = typeof source === 'string' ? source.trim() : '';
+  if (!normalized) return null;
+  return validQuoteIds.has(normalized) ? normalized : null;
+}
 async function insertCompatible(tableName, values, options = {}) {
   const columns = await getTableColumns(tableName);
   if (!columns.size) return;
@@ -253,7 +266,10 @@ async function seed() {
     }
   }
 
+  const validQuoteIds = new Set([...(await loadExistingIds('quotes')), ...quotes.map((quote) => quote.id)]);
+
   for (const invoice of invoices) {
+    const quoteReference = resolveInvoiceQuoteReference(invoice.source, validQuoteIds);
     await insertCompatible('invoices', {
       id: invoice.id,
       customer_id: invoice.customerId,
@@ -263,8 +279,8 @@ async function seed() {
       status: invoice.status,
       due_label: invoice.due,
       due_date: null,
-      source_quote_id: invoice.source,
-      quote_id: invoice.source,
+      source_quote_id: quoteReference,
+      quote_id: quoteReference,
       payment_status: invoice.paymentStatus,
       tax_label: invoice.tax,
       reminders: invoice.reminders,
