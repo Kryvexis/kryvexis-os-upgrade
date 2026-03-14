@@ -3,7 +3,6 @@ import type {
   Customer,
   CustomerSummary,
   DashboardResponse,
-  DayCloseRecord,
   EmailDispatch,
   EmailDraft,
   EmailTemplateKind,
@@ -109,11 +108,12 @@ export const api = {
     method: 'POST',
     body: JSON.stringify(settings)
   }),
-  runDayClose: (sendEmail = false, date?: string) => request<{ summary: ReportsResponse; dispatch: EmailDispatch | null }>(`/api/day-close/run`, {
+  runDayClose: (options?: { sendEmail?: boolean; date?: string; force?: boolean }) => request<{ summary: ReportsResponse; dispatch: EmailDispatch | null }>(`/api/day-close/run`, {
     method: 'POST',
-    body: JSON.stringify({ trigger: 'manual', sendEmail, date })
+    body: JSON.stringify({ trigger: 'manual', sendEmail: Boolean(options?.sendEmail), date: options?.date, force: Boolean(options?.force) })
   }),
-  sendSummaryEmail: () => request<EmailDispatch>('/api/day-close/send-summary', {
-    method: 'POST'
+  sendSummaryEmail: (options?: { resend?: boolean }) => request<EmailDispatch>('/api/day-close/send-summary', {
+    method: 'POST',
+    body: JSON.stringify({ resend: Boolean(options?.resend) })
   })
 };

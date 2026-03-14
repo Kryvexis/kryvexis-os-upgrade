@@ -158,8 +158,10 @@ function defaultAutomationState() {
     lastClosedAt: null,
     lastClosedDate: null,
     lastSummary: null,
+    lastDispatchAt: null,
     dayCloseHistory: [],
     emailDispatches: [],
+    auditTrail: [],
     scheduler: { enabled: false, lastAutoRunDate: null }
   };
 }
@@ -176,7 +178,10 @@ function loadAutomationState() {
     return {
       ...defaultAutomationState(),
       ...raw,
-      automationSettings: { ...baseAutomationSettings, ...(raw.automationSettings || {}) }
+      automationSettings: { ...baseAutomationSettings, ...(raw.automationSettings || {}) },
+      dayCloseHistory: Array.isArray(raw.dayCloseHistory) ? raw.dayCloseHistory : [],
+      emailDispatches: Array.isArray(raw.emailDispatches) ? raw.emailDispatches : [],
+      auditTrail: Array.isArray(raw.auditTrail) ? raw.auditTrail : []
     };
   } catch (error) {
     console.error('Failed to load automation state', error);
@@ -239,7 +244,23 @@ function buildDailySummary(date = isoDateOffset(-1)) {
 function buildEmailBody(summary) {
   const lines = summary.branches.map((branch) => `${branch.branch} made ${formatCurrency(branch.totalSales)} yesterday against a target of ${formatCurrency(branch.target)} (${formatPct(branch.targetAchievedPct)}).`);
   lines.push(`Total company sales yesterday: ${formatCurrency(summary.totals.totalSales)}.`);
-  return lines.join('\n');
+  return lines.join('
+');
+}
+
+function logAutomationEvent({ action, status = 'info', detail, actor = 'Antonie Meyer', branch = 'All branches', date = isoDateOffset(-1) }) {
+  const entry = {
+    id: `AUTO-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+    occurredAt: new Date().toISOString(),
+    actor,
+    action,
+    status,
+    detail,
+    branch,
+    date
+  };
+  automationState.auditTrail = [entry, ...(automationState.auditTrail || [])].slice(0, 80);
+  return entry;
 }
 
 async function deliverSummaryEmail(summary, recipients) {
@@ -281,56 +302,103 @@ function summarizeDispatchTargets() {
   return [...new Set(recipients.filter(Boolean))];
 }
 
-function createDispatchRecord(result, recipients, summary, status = 'Delivered') {
+function createDispatchRecord(result, recipients, summary, options = {}) {
   return {
     id: `MAIL-${Date.now()}`,
     sentAt: new Date().toISOString(),
     recipients,
     provider: result.provider,
     subject: result.subject,
-    status,
+    status: options.status || 'Delivered',
     date: summary.date,
     companyTotal: summary.totals.totalSales,
-    branchCount: summary.branches.length
+    branchCount: summary.branches.length,
+    resend: Boolean(options.resend),
+    closedRecordId: options.closedRecordId || null
   };
 }
 
-async function runDayClose({ trigger = 'manual', sendEmail = false, date = isoDateOffset(-1) } = {}) {
+function latestCloseRecordFor(date) {
+  return automationState.dayCloseHistory.find((item) => item.date === date) || null;
+}
+
+function latestDispatchFor(date) {
+  return automationState.emailDispatches.find((item) => item.date === date) || null;
+}
+
+async function runDayClose({ trigger = 'manual', sendEmail = false, date = isoDateOffset(-1), force = false, actor = 'Antonie Meyer' } = {}) {
+  const existing = latestCloseRecordFor(date);
+  if (existing && !force) {
+    logAutomationEvent({ action: 'Day close blocked', status: 'blocked', detail: `Close already exists for ${date}. Use force to rerun.`, actor, date, branch: existing.branchSummaries?.map((item) => item.branch).join(', ') || 'All branches' });
+    saveAutomationState();
+    throw new Error(`Day close for ${date} already exists. Use rerun confirmation to replace it.`);
+  }
+
   const summary = buildDailySummary(date);
-  automationState.lastClosedAt = new Date().toISOString();
+  const closeId = existing?.id || `CLOSE-${Date.now()}`;
+  const closedAt = new Date().toISOString();
+  const record = {
+    id: closeId,
+    closedAt,
+    trigger,
+    date,
+    totalSales: summary.totals.totalSales,
+    varianceToTarget: summary.totals.varianceToTarget,
+    sentStatus: 'pending',
+    sentAt: null,
+    closedBy: actor,
+    emailDispatchId: null,
+    branchSummaries: summary.branches
+  };
+
+  automationState.lastClosedAt = closedAt;
   automationState.lastClosedDate = date;
   automationState.lastSummary = summary;
-  automationState.dayCloseHistory = [
-    {
-      id: `CLOSE-${Date.now()}`,
-      closedAt: automationState.lastClosedAt,
-      trigger,
-      date,
-      totalSales: summary.totals.totalSales,
-      varianceToTarget: summary.totals.varianceToTarget
-    },
-    ...automationState.dayCloseHistory
-  ].slice(0, 30);
+  automationState.dayCloseHistory = [record, ...automationState.dayCloseHistory.filter((item) => item.date !== date)].slice(0, 30);
+  logAutomationEvent({ action: existing ? 'Day close rerun' : 'Day close completed', status: 'success', detail: `${date} closed at ${formatCurrency(summary.totals.totalSales)}.`, actor, date, branch: summary.branches.map((item) => item.branch).join(', ') });
 
   let dispatch = null;
   if (sendEmail) {
     const recipients = summarizeDispatchTargets();
     const result = await deliverSummaryEmail(summary, recipients);
-    dispatch = createDispatchRecord(result, recipients, summary);
-    automationState.emailDispatches = [dispatch, ...automationState.emailDispatches].slice(0, 40);
+    dispatch = createDispatchRecord(result, recipients, summary, { closedRecordId: closeId });
+    automationState.lastDispatchAt = dispatch.sentAt;
+    automationState.emailDispatches = [dispatch, ...automationState.emailDispatches.filter((item) => item.id !== dispatch.id)].slice(0, 40);
+    automationState.dayCloseHistory = automationState.dayCloseHistory.map((item) => item.id === closeId ? { ...item, sentStatus: 'sent', sentAt: dispatch.sentAt, emailDispatchId: dispatch.id } : item);
+    logAutomationEvent({ action: existing ? 'Summary resent from rerun' : 'Summary email sent', status: 'success', detail: `Daily summary sent to ${recipients.join(', ') || 'no recipients configured'}.`, actor, date, branch: summary.branches.map((item) => item.branch).join(', ') });
   }
 
   saveAutomationState();
   return { summary, dispatch };
 }
 
-function buildReportPayload(role = 'admin', branch = 'all') {
+async function sendLatestSummary({ resend = false, actor = 'Antonie Meyer' } = {}) {
   const summary = automationState.lastSummary || buildDailySummary();
-  const allowedBranch = role === 'manager' ? automationState.automationSettings.defaultManagerBranch || 'Johannesburg' : branch;
-  const visibleBranches = allowedBranch && allowedBranch !== 'all'
-    ? summary.branches.filter((item) => item.branch === allowedBranch)
-    : summary.branches;
-  const totals = visibleBranches.reduce((acc, item) => ({
+  const closeRecord = latestCloseRecordFor(summary.date);
+  if (!closeRecord) {
+    logAutomationEvent({ action: 'Summary send blocked', status: 'blocked', detail: `No day close exists for ${summary.date}.`, actor, date: summary.date });
+    saveAutomationState();
+    throw new Error('Run day close before sending a summary email.');
+  }
+  if (closeRecord.sentStatus === 'sent' && !resend) {
+    logAutomationEvent({ action: 'Duplicate summary blocked', status: 'blocked', detail: `Summary already sent for ${summary.date}. Use resend to send again.`, actor, date: summary.date, branch: closeRecord.branchSummaries.map((item) => item.branch).join(', ') });
+    saveAutomationState();
+    throw new Error(`Summary already sent for ${summary.date}. Use resend summary if you need to send it again.`);
+  }
+
+  const recipients = summarizeDispatchTargets();
+  const result = await deliverSummaryEmail(summary, recipients);
+  const dispatch = createDispatchRecord(result, recipients, summary, { resend, closedRecordId: closeRecord.id });
+  automationState.lastDispatchAt = dispatch.sentAt;
+  automationState.emailDispatches = [dispatch, ...automationState.emailDispatches].slice(0, 40);
+  automationState.dayCloseHistory = automationState.dayCloseHistory.map((item) => item.id === closeRecord.id ? { ...item, sentStatus: 'sent', sentAt: dispatch.sentAt, emailDispatchId: dispatch.id } : item);
+  logAutomationEvent({ action: resend ? 'Summary resent' : 'Summary email sent', status: 'success', detail: `Summary email ${resend ? 'resent' : 'sent'} to ${recipients.join(', ') || 'no recipients configured'}.`, actor, date: summary.date, branch: closeRecord.branchSummaries.map((item) => item.branch).join(', ') });
+  saveAutomationState();
+  return dispatch;
+}
+
+function deriveVisibleTotals(branches) {
+  const totals = branches.reduce((acc, item) => ({
     totalSales: acc.totalSales + item.totalSales,
     posSales: acc.posSales + item.posSales,
     invoiceSales: acc.invoiceSales + item.invoiceSales,
@@ -340,6 +408,20 @@ function buildReportPayload(role = 'admin', branch = 'all') {
     transactions: acc.transactions + item.transactions,
     target: acc.target + item.target
   }), { totalSales: 0, posSales: 0, invoiceSales: 0, cashSales: 0, cardSales: 0, eftSales: 0, transactions: 0, target: 0 });
+  return {
+    ...totals,
+    varianceToTarget: totals.totalSales - totals.target,
+    targetAchievedPct: totals.target ? Math.round((totals.totalSales / totals.target) * 100) : 0
+  };
+}
+
+function buildReportPayload(role = 'admin', branch = 'all') {
+  const summary = automationState.lastSummary || buildDailySummary();
+  const allowedBranch = role === 'manager' ? automationState.automationSettings.defaultManagerBranch || 'Johannesburg' : branch;
+  const visibleBranches = allowedBranch && allowedBranch !== 'all'
+    ? summary.branches.filter((item) => item.branch === allowedBranch)
+    : summary.branches;
+  const totals = deriveVisibleTotals(visibleBranches);
 
   const sellerBoard = [
     { name: 'Alex Morgan', branch: 'Johannesburg', sales: 84000, target: 90000 },
@@ -347,24 +429,52 @@ function buildReportPayload(role = 'admin', branch = 'all') {
     { name: 'Tariq Naidoo', branch: 'Durban', sales: 48800, target: 65000 }
   ].filter((item) => allowedBranch === 'all' || !allowedBranch || item.branch === allowedBranch);
 
+  const closeRecord = latestCloseRecordFor(summary.date);
+  const lastDispatch = latestDispatchFor(summary.date);
+  const branchCloseHistory = automationState.dayCloseHistory
+    .flatMap((record) => (record.branchSummaries || []).map((item) => ({
+      recordId: record.id,
+      branch: item.branch,
+      date: record.date,
+      closedAt: record.closedAt,
+      totalSales: item.totalSales,
+      varianceToTarget: item.varianceToTarget,
+      sentStatus: record.sentStatus
+    })))
+    .filter((item) => allowedBranch === 'all' || !allowedBranch || item.branch === allowedBranch)
+    .slice(0, 30);
+
   return {
     scope: role === 'manager' ? allowedBranch : branch,
     date: summary.date,
     canViewAllBranches: role === 'admin' || role === 'executive',
     visibleBranches,
-    totals: {
-      ...totals,
-      varianceToTarget: totals.totalSales - totals.target,
-      targetAchievedPct: totals.target ? Math.round((totals.totalSales / totals.target) * 100) : 0
-    },
+    totals,
     sellerBoard,
     emailPreview: {
       subject: `Daily Sales Summary - ${summary.date}`,
-      body: buildEmailBody({ ...summary, branches: visibleBranches.length ? visibleBranches : summary.branches, totals: { ...totals, varianceToTarget: totals.totalSales - totals.target, targetAchievedPct: totals.target ? Math.round((totals.totalSales / totals.target) * 100) : 0 } })
+      body: buildEmailBody({ ...summary, branches: visibleBranches.length ? visibleBranches : summary.branches, totals })
     },
-    emailDispatches: automationState.emailDispatches,
-    dayCloseHistory: automationState.dayCloseHistory,
-    automation: automationState.automationSettings
+    emailDispatches: automationState.emailDispatches.filter((item) => allowedBranch === 'all' || !allowedBranch || closeRecord?.branchSummaries?.some((branchItem) => branchItem.branch === allowedBranch && item.closedRecordId === closeRecord.id)).slice(0, 20),
+    dayCloseHistory: automationState.dayCloseHistory.filter((item) => allowedBranch === 'all' || !allowedBranch || item.branchSummaries.some((branchItem) => branchItem.branch === allowedBranch)).slice(0, 20),
+    branchCloseHistory,
+    automation: automationState.automationSettings,
+    closeStatus: {
+      date: summary.date,
+      state: closeRecord ? 'closed' : 'open',
+      label: closeRecord ? 'Closed' : 'Open',
+      lastClosedAt: closeRecord?.closedAt || null,
+      lastClosedBy: closeRecord?.closedBy || null,
+      recordId: closeRecord?.id || null
+    },
+    sendStatus: {
+      state: closeRecord ? (closeRecord.sentStatus === 'sent' ? 'sent' : 'pending') : 'not-ready',
+      label: closeRecord ? (closeRecord.sentStatus === 'sent' ? 'Sent' : 'Pending send') : 'Close required',
+      lastSentAt: lastDispatch?.sentAt || closeRecord?.sentAt || null,
+      duplicateBlocked: Boolean(closeRecord && closeRecord.sentStatus === 'sent'),
+      lastDispatchId: lastDispatch?.id || closeRecord?.emailDispatchId || null
+    },
+    auditTrail: (automationState.auditTrail || []).filter((item) => allowedBranch === 'all' || !allowedBranch || item.branch.includes(allowedBranch)).slice(0, 20)
   };
 }
 
@@ -884,27 +994,23 @@ app.post('/api/automation-settings', (req, res) => {
     managerRecipients: Array.isArray(req.body.managerRecipients) ? req.body.managerRecipients : automationState.automationSettings.managerRecipients,
     executiveRecipients: Array.isArray(req.body.executiveRecipients) ? req.body.executiveRecipients : automationState.automationSettings.executiveRecipients
   };
+  logAutomationEvent({ action: 'Automation settings updated', status: 'info', detail: 'Recipient rules or close cadence were updated.', actor: 'Antonie Meyer', date: isoDateOffset(0) });
   saveAutomationState();
   return res.json(envelope(automationState.automationSettings));
 });
 
 app.post('/api/day-close/run', async (req, res) => {
   try {
-    const result = await runDayClose({ trigger: req.body?.trigger || 'manual', sendEmail: Boolean(req.body?.sendEmail), date: req.body?.date || isoDateOffset(-1) });
+    const result = await runDayClose({ trigger: req.body?.trigger || 'manual', sendEmail: Boolean(req.body?.sendEmail), date: req.body?.date || isoDateOffset(-1), force: Boolean(req.body?.force), actor: req.body?.actor || 'Antonie Meyer' });
     return res.json(envelope(result));
   } catch (error) {
     return res.status(500).json({ ok: false, error: error.message || 'day close failed' });
   }
 });
 
-app.post('/api/day-close/send-summary', async (_req, res) => {
+app.post('/api/day-close/send-summary', async (req, res) => {
   try {
-    const summary = automationState.lastSummary || buildDailySummary();
-    const recipients = summarizeDispatchTargets();
-    const result = await deliverSummaryEmail(summary, recipients);
-    const dispatch = createDispatchRecord(result, recipients, summary);
-    automationState.emailDispatches = [dispatch, ...automationState.emailDispatches].slice(0, 40);
-    saveAutomationState();
+    const dispatch = await sendLatestSummary({ resend: Boolean(req.body?.resend), actor: req.body?.actor || 'Antonie Meyer' });
     return res.json(envelope(dispatch));
   } catch (error) {
     return res.status(500).json({ ok: false, error: error.message || 'email send failed' });

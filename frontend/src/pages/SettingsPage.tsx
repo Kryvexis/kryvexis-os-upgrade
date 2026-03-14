@@ -80,12 +80,12 @@ export function SettingsPage() {
           </label>
 
           <label className="stack-field form-span-2">
-            <span>Manager recipients</span>
+            <span>Manager recipients</span><small className="field-help">Separate multiple emails with commas.</small>
             <textarea value={automation.managerRecipients.join(', ')} onChange={(event) => setAutomation({ ...automation, managerRecipients: event.target.value.split(',').map((item) => item.trim()).filter(Boolean) })} />
           </label>
 
           <label className="stack-field form-span-2">
-            <span>Executive recipients</span>
+            <span>Executive recipients</span><small className="field-help">Separate multiple emails with commas.</small>
             <textarea value={automation.executiveRecipients.join(', ')} onChange={(event) => setAutomation({ ...automation, executiveRecipients: event.target.value.split(',').map((item) => item.trim()).filter(Boolean) })} />
           </label>
         </div>

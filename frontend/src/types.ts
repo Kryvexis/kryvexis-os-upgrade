@@ -1,4 +1,4 @@
-export type RoleKey = 'admin' | 'sales' | 'finance' | 'warehouse' | 'procurement' | 'operations' | 'manager' | 'executive';
+export type RoleKey = 'admin' | 'manager' | 'sales' | 'finance' | 'warehouse' | 'procurement' | 'operations' | 'executive';
 export type KPI = { label: string; value: string; detail: string };
 export type PanelGroup = { title: string; items: string[] };
 export type Customer = {
@@ -252,6 +252,8 @@ export type EmailDispatch = {
   date: string;
   companyTotal: number;
   branchCount: number;
+  resend: boolean;
+  closedRecordId?: string | null;
 };
 export type DayCloseRecord = {
   id: string;
@@ -260,6 +262,45 @@ export type DayCloseRecord = {
   date: string;
   totalSales: number;
   varianceToTarget: number;
+  sentStatus: 'pending' | 'sent';
+  sentAt?: string | null;
+  closedBy: string;
+  emailDispatchId?: string | null;
+  branchSummaries: ReportBranch[];
+};
+export type CloseStatus = {
+  date: string;
+  state: 'open' | 'closed';
+  label: string;
+  lastClosedAt: string | null;
+  lastClosedBy: string | null;
+  recordId: string | null;
+};
+export type SendStatus = {
+  state: 'not-ready' | 'pending' | 'sent';
+  label: string;
+  lastSentAt: string | null;
+  duplicateBlocked: boolean;
+  lastDispatchId: string | null;
+};
+export type AutomationAuditEntry = {
+  id: string;
+  occurredAt: string;
+  actor: string;
+  action: string;
+  status: 'success' | 'blocked' | 'info' | 'error';
+  detail: string;
+  branch: string;
+  date: string;
+};
+export type BranchCloseHistoryRow = {
+  recordId: string;
+  branch: string;
+  date: string;
+  closedAt: string;
+  totalSales: number;
+  varianceToTarget: number;
+  sentStatus: 'pending' | 'sent';
 };
 export type ReportsResponse = {
   scope: string;
@@ -271,5 +312,9 @@ export type ReportsResponse = {
   emailPreview: { subject: string; body: string };
   emailDispatches: EmailDispatch[];
   dayCloseHistory: DayCloseRecord[];
+  branchCloseHistory: BranchCloseHistoryRow[];
   automation: AutomationSettings;
+  closeStatus: CloseStatus;
+  sendStatus: SendStatus;
+  auditTrail: AutomationAuditEntry[];
 };
