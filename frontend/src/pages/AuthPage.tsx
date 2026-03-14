@@ -63,7 +63,6 @@ export function AuthPage({ onAuthenticated }: { onAuthenticated: (session: AuthS
       <div className="entry-ambient entry-ambient-b" />
       <section className="entry-stage">
         <div className="entry-hero">
-          <p className="eyebrow">Kryvexis OS</p>
           <img src={logo} alt="Kryvexis" className="entry-logo entry-logo-large" />
           <h1>Secure access before system ignition.</h1>
           <p className="entry-copy">{frame}</p>

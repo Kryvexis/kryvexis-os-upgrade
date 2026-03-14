@@ -20,6 +20,7 @@ const fallbackPermissionCatalog = {
 
 const memorySessions = new Map();
 const memoryInvitations = [];
+let appUsersHasIsActiveCache = null;
 
 function sanitizeToken(token) {
   return String(token || '').replace(/^Bearer\s+/i, '').trim();
@@ -31,10 +32,34 @@ function expiryDate(days = 7) {
   return d.toISOString();
 }
 
+async function appUsersHasIsActive() {
+  if (!dbConfig.enableSql) return true;
+  if (appUsersHasIsActiveCache !== null) return appUsersHasIsActiveCache;
+  const result = await query(`
+    select exists (
+      select 1
+      from information_schema.columns
+      where table_schema = current_schema()
+        and table_name = 'app_users'
+        and column_name = 'is_active'
+    ) as exists
+  `);
+  appUsersHasIsActiveCache = Boolean(result.rows[0]?.exists);
+  return appUsersHasIsActiveCache;
+}
+
+async function appUsersSelectFields(alias = 'u') {
+  const hasIsActive = await appUsersHasIsActive();
+  return hasIsActive
+    ? `${alias}.id, ${alias}.full_name, ${alias}.email, ${alias}.role_key, ${alias}.branch_id, b.name as branch_name, ${alias}.is_active`
+    : `${alias}.id, ${alias}.full_name, ${alias}.email, ${alias}.role_key, ${alias}.branch_id, b.name as branch_name, true as is_active`;
+}
+
 export async function listUsers() {
   if (!dbConfig.enableSql) return fallbackUsers;
+  const fields = await appUsersSelectFields('u');
   const result = await query(`
-    select u.id, u.full_name, u.email, u.role_key, u.branch_id, b.name as branch_name, u.is_active
+    select ${fields}
     from app_users u
     left join branches b on b.id = u.branch_id
     order by u.full_name asc
@@ -71,8 +96,9 @@ async function loadUserByEmail(email) {
     const user = fallbackUsers.find((entry) => entry.email.toLowerCase() === normalized);
     return user ? { ...user } : null;
   }
+  const fields = await appUsersSelectFields('u');
   const result = await query(`
-    select u.id, u.full_name, u.email, u.role_key, u.branch_id, b.name as branch_name, u.is_active
+    select ${fields}
     from app_users u
     left join branches b on b.id = u.branch_id
     where lower(u.email) = $1
@@ -97,7 +123,6 @@ async function loadPermissionsForRole(roleKey) {
   return result.rows.map((row) => row.permission_key);
 }
 
-
 export async function registerUser({ email, fullName, roleKey = 'manager', branchId = null }) {
   const normalized = String(email || '').trim().toLowerCase();
   const name = String(fullName || '').trim();
@@ -110,11 +135,18 @@ export async function registerUser({ email, fullName, roleKey = 'manager', branc
     fallbackUsers.push(user);
     return user;
   }
-  const result = await query(`
-    insert into app_users (role_key, full_name, email, branch_id, is_active)
-    values ($1, $2, $3, $4, true)
-    returning id, full_name, email, role_key, branch_id, is_active
-  `, [roleKey, name, normalized, branchId || null]);
+  const hasIsActive = await appUsersHasIsActive();
+  const result = hasIsActive
+    ? await query(`
+        insert into app_users (role_key, full_name, email, branch_id, is_active)
+        values ($1, $2, $3, $4, true)
+        returning id, full_name, email, role_key, branch_id, is_active
+      `, [roleKey, name, normalized, branchId || null])
+    : await query(`
+        insert into app_users (role_key, full_name, email, branch_id)
+        values ($1, $2, $3, $4)
+        returning id, full_name, email, role_key, branch_id, true as is_active
+      `, [roleKey, name, normalized, branchId || null]);
   return {
     id: result.rows[0].id,
     fullName: result.rows[0].full_name,
@@ -156,9 +188,11 @@ export async function getSessionFromRequest(req) {
     return session;
   }
   const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+  const hasIsActive = await appUsersHasIsActive();
+  const activeField = hasIsActive ? 'u.is_active' : 'true as is_active';
   const result = await query(`
     select s.id, s.expires_at, s.branch_id as session_branch_id,
-           u.id as user_id, u.full_name, u.email, u.role_key, u.branch_id, u.is_active,
+           u.id as user_id, u.full_name, u.email, u.role_key, u.branch_id, ${activeField},
            b.name as branch_name
     from auth_sessions s
     join app_users u on u.id = s.user_id
