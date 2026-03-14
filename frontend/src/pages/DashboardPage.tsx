@@ -1,126 +1,151 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../lib/api';
-import type { DashboardResponse, KPI, RoleKey, TopClient } from '../types';
+import type { DashboardResponse, KPI, Notification, RoleKey, TopClient } from '../types';
 
-function moneyText(value: string | undefined, fallback = 'R0') {
-  return value || fallback;
-}
-
-function getKpi(kpis: KPI[], matcher: RegExp) {
-  return kpis.find((item) => matcher.test(item.label));
-}
-
-function numericFromMoney(value: string) {
+function revenueNumber(value: string) {
   return Number(value.replace(/[^\d.]/g, '')) || 0;
 }
 
+function fallbackDashboard(role: RoleKey): DashboardResponse {
+  return {
+    role,
+    kpis: [
+      { label: 'Open Invoices', value: 'R45,230', detail: 'Overdue' },
+      { label: 'Pending Approvals', value: '6', detail: 'Requests' },
+      { label: 'Debtors & Creditors', value: 'R32,450', detail: 'Open invoices' },
+      { label: 'Tasks & Reminders', value: '4', detail: 'Today' }
+    ],
+    panels: [],
+    highlights: [
+      { id: 'n1', title: 'Quote approval required', meta: 'Alex mentioned priority, 1 item here', state: 'Pending', read: false, type: 'approval' }
+    ] as Notification[],
+    recentCustomers: [],
+    lowStockProducts: [],
+    topClients: [
+      { customerId: 'c1', name: 'Nov', revenue: 'R28,000', invoices: 1, averageOrderValue: 'R18,000', overdueBalance: 'R0', trend: 'R12,000' },
+      { customerId: 'c2', name: 'Dec', revenue: 'R35,000', invoices: 1, averageOrderValue: 'R22,000', overdueBalance: 'R0', trend: 'R17,000' },
+      { customerId: 'c3', name: 'Jan', revenue: 'R31,000', invoices: 1, averageOrderValue: 'R15,000', overdueBalance: 'R0', trend: 'R14,000' },
+      { customerId: 'c4', name: 'Feb', revenue: 'R42,000', invoices: 1, averageOrderValue: 'R20,000', overdueBalance: 'R0', trend: 'R18,000' },
+      { customerId: 'c5', name: 'Mar', revenue: 'R58,000', invoices: 1, averageOrderValue: 'R31,000', overdueBalance: 'R0', trend: 'R21,000' },
+      { customerId: 'c6', name: 'May', revenue: 'R56,000', invoices: 1, averageOrderValue: 'R25,000', overdueBalance: 'R0', trend: 'R25,000' },
+      { customerId: 'c7', name: 'Jun', revenue: 'R71,000', invoices: 1, averageOrderValue: 'R29,000', overdueBalance: 'R0', trend: 'R33,000' }
+    ],
+    actionCenter: {
+      branchSnapshots: [{ branch: 'Johannesburg', approvals: 6, collections: 3, exceptions: 4 }],
+      actionQueue: [],
+      auditHighlights: []
+    }
+  };
+}
+
+const salesTiles = [
+  { label: 'Customers', to: '/customers', icon: '👥' },
+  { label: 'Quotes', to: '/quotes', icon: '🧾' },
+  { label: 'Invoices', to: '/invoices', icon: '📄' },
+  { label: 'Payments', to: '/payments', icon: '💳' }
+] as const;
+
 export function DashboardPage({ role }: { role: RoleKey }) {
-  const [data, setData] = useState<DashboardResponse | null>(null);
+  const [data, setData] = useState<DashboardResponse>(fallbackDashboard(role));
 
   useEffect(() => {
-    api.dashboard(role).then(setData).catch(() => setData(null));
+    let active = true;
+    api.dashboard(role).then((result) => {
+      if (active) setData(result);
+    }).catch(() => {
+      if (active) setData(fallbackDashboard(role));
+    });
+    return () => {
+      active = false;
+    };
   }, [role]);
 
-  const chartRows = useMemo(() => {
-    if (!data) return [] as Array<TopClient & { actualPct: number; targetPct: number }>;
-    const maxRevenue = Math.max(...data.topClients.map((item) => numericFromMoney(item.revenue)), 1);
-    return data.topClients.slice(0, 6).map((item, index) => {
-      const actualPct = Math.max(18, Math.round((numericFromMoney(item.revenue) / maxRevenue) * 100));
-      const targetPct = Math.max(14, actualPct - 16 + index * 2);
-      return { ...item, actualPct, targetPct };
-    });
-  }, [data]);
+  const openInvoices = data.kpis.find((item) => /invoice/i.test(item.label)) ?? data.kpis[0] ?? { label: 'Open Invoices', value: 'R0', detail: 'Overdue' };
+  const approvals = data.kpis.find((item) => /approval/i.test(item.label)) ?? data.kpis[1] ?? { label: 'Pending Approvals', value: '0', detail: 'Requests' };
+  const debtors = data.kpis.find((item) => /debtor|creditor/i.test(item.label)) ?? { label: 'Debtors & Creditors', value: 'R32,450', detail: 'Open invoices' };
+  const reminders = data.kpis.find((item) => /task|reminder/i.test(item.label)) ?? { label: 'Tasks & Reminders', value: '4', detail: 'Today' };
+  const chartSource = data.topClients.length ? data.topClients : fallbackDashboard(role).topClients;
+  const maxActual = Math.max(...chartSource.map((item) => revenueNumber(item.revenue)), 1);
+  const maxTarget = Math.max(...chartSource.map((item) => revenueNumber(item.trend)), 1);
+  const salesHeadline = chartSource.reduce((sum, item) => sum + revenueNumber(item.revenue), 0);
+  const note = data.highlights[0]?.meta ?? 'Alex mentioned priority, 1 item here';
 
-  if (!data) {
-    return <div className="loading-state">Loading dashboard...</div>;
+  function formatMoneyFromNumber(value: number) {
+    return `R${value.toLocaleString('en-ZA')}`;
   }
 
-  const openInvoices = getKpi(data.kpis, /invoice/i);
-  const approvals = getKpi(data.kpis, /approval/i);
-  const firstSnapshot = data.actionCenter.branchSnapshots[0];
-  const debtorsValue = firstSnapshot ? `${firstSnapshot.collections} collections` : `${data.lowStockProducts.length} alerts`;
-  const taskValue = data.actionCenter.actionQueue[0]?.title ?? 'No urgent tasks';
-
   return (
-    <div className="mock-dashboard-page">
-      <div className="mock-dashboard-grid">
-        <section className="mock-dashboard-left">
-          <div className="mock-kpi-row">
-            <article className="mock-kpi-card">
-              <div className="mock-kpi-icon red">◔</div>
-              <div>
-                <span>Open Invoices</span>
-                <strong>{moneyText(openInvoices?.value)}</strong>
-                <p>{openInvoices?.detail ?? 'Overdue balance'}</p>
-              </div>
-            </article>
-            <article className="mock-kpi-card">
-              <div className="mock-kpi-icon amber">◉</div>
-              <div>
-                <span>Pending Approvals</span>
-                <strong>{approvals?.value ?? '0'}</strong>
-                <p>{approvals?.detail ?? 'Requests waiting'}</p>
-              </div>
-            </article>
+    <div className="mockup-dashboard">
+      <div className="mockup-kpi-row">
+        <article className="mockup-kpi-card danger">
+          <div className="mockup-kpi-icon">◉</div>
+          <div>
+            <span>{openInvoices.label}</span>
+            <strong>{openInvoices.value}</strong>
+            <p>{openInvoices.detail}</p>
+          </div>
+        </article>
+        <article className="mockup-kpi-card warning">
+          <div className="mockup-kpi-icon">◉</div>
+          <div>
+            <span>{approvals.label}</span>
+            <strong>{approvals.value}</strong>
+            <p>{approvals.detail}</p>
+          </div>
+        </article>
+      </div>
+
+      <div className="mockup-dashboard-grid">
+        <section className="mockup-sales-panel">
+          <div className="mockup-card-head">
+            <div>
+              <h3>Sales Overview</h3>
+              <strong>{formatMoneyFromNumber(salesHeadline)}</strong>
+            </div>
+            <div className="mockup-legend">
+              <span>Revenue</span>
+              <span>Target</span>
+            </div>
           </div>
 
-          <section className="mock-sales-card">
-            <div className="mock-sales-head">
-              <div>
-                <h2>Sales Overview</h2>
-                <strong>{moneyText(data.topClients[0]?.revenue, moneyText(openInvoices?.value))}</strong>
-              </div>
-              <div className="mock-chart-legend">
-                <span><i className="actual" /> Revenue</span>
-                <span><i className="target" /> Target</span>
-              </div>
-            </div>
-
-            <div className="mock-sales-chart">
-              {chartRows.map((item) => (
-                <div key={item.customerId} className="mock-sales-column">
-                  <div className="mock-sales-bars">
-                    <span className="target-bar" style={{ height: `${item.targetPct}%` }} />
-                    <span className="actual-bar" style={{ height: `${item.actualPct}%` }} />
+          <div className="mockup-chart-area">
+            {chartSource.map((item) => {
+              const actual = Math.max(18, Math.round((revenueNumber(item.revenue) / maxActual) * 100));
+              const target = Math.max(18, Math.round((revenueNumber(item.trend) / maxTarget) * 100));
+              return (
+                <div key={item.customerId} className="mockup-chart-group">
+                  <div className="mockup-bars">
+                    <span className="mockup-bar actual" style={{ height: `${actual}%` }} />
+                    <span className="mockup-bar target" style={{ height: `${target}%` }} />
                   </div>
-                  <small>{item.name.slice(0, 3)}</small>
+                  <small>{item.name}</small>
                 </div>
-              ))}
-            </div>
-          </section>
+              );
+            })}
+          </div>
 
-          <div className="mock-footer-row">
-            <article className="mock-footer-card">
+          <div className="mockup-bottom-row">
+            <article className="mockup-mini-card">
               <span>Debtors &amp; Creditors</span>
-              <strong>{debtorsValue}</strong>
+              <strong>{debtors.value}</strong>
+              <p>{debtors.detail}</p>
             </article>
-            <article className="mock-footer-card">
+            <article className="mockup-mini-card">
               <span>Tasks &amp; Reminders</span>
-              <strong>{taskValue}</strong>
+              <strong>{reminders.value}</strong>
+              <p>{note}</p>
             </article>
           </div>
         </section>
 
-        <aside className="mock-dashboard-right">
-          <div className="mock-module-grid">
-            <Link to="/customers" className="mock-module-tile">
-              <span className="mock-module-icon">◌</span>
-              <strong>Customers</strong>
+        <aside className="mockup-launcher-panel">
+          {salesTiles.map((tile) => (
+            <Link key={tile.to} to={tile.to} className="mockup-launcher-tile">
+              <span className="mockup-launcher-icon">{tile.icon}</span>
+              <strong>{tile.label}</strong>
             </Link>
-            <Link to="/quotes" className="mock-module-tile">
-              <span className="mock-module-icon">▤</span>
-              <strong>Quotes</strong>
-            </Link>
-            <Link to="/invoices" className="mock-module-tile">
-              <span className="mock-module-icon">▥</span>
-              <strong>Invoices</strong>
-            </Link>
-            <Link to="/payments" className="mock-module-tile">
-              <span className="mock-module-icon">◍</span>
-              <strong>Payments</strong>
-            </Link>
-          </div>
+          ))}
         </aside>
       </div>
     </div>

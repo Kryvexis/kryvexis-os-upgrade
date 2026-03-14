@@ -1,25 +1,23 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { api } from '../lib/api';
 import type { Notification, RoleKey } from '../types';
 
-type ThemeMode = 'dark' | 'light' | 'system';
+const primaryNav = [
+  ['/', 'Dashboard', '◔'],
+  ['/customers', 'Customers', '◫'],
+  ['/sales', 'Sales', '▣'],
+  ['/procurement', 'Purchasing', '◌'],
+  ['/accounting', 'Accounting', '◎'],
+  ['/operations', 'Operations', '↗'],
+  ['/reports', 'Reports', '▤']
+] as const;
 
-const navItems: Array<{ to: string; label: string; icon: string }> = [
-  { to: '/', label: 'Dashboard', icon: '◔' },
-  { to: '/customers', label: 'Customers', icon: '◧' },
-  { to: '/sales', label: 'Sales', icon: '◫' },
-  { to: '/procurement', label: 'Purchasing', icon: '▿' },
-  { to: '/accounting', label: 'Accounting', icon: '◎' },
-  { to: '/operations', label: 'Operations', icon: '↗' },
-  { to: '/reports', label: 'Reports', icon: '▣' }
-];
-
-const utilityItems: Array<{ to: string; label: string; icon: string }> = [
-  { to: '/notifications', label: 'Notifications', icon: '◉' },
-  { to: '/roles', label: 'Roles', icon: '⌘' },
-  { to: '/settings', label: 'Settings', icon: '⚙' }
-];
+const utilityNav = [
+  ['/notifications', 'Notifications', '✦'],
+  ['/roles', 'Roles', '⌘'],
+  ['/settings', 'Settings', '⚙']
+] as const;
 
 const roleLabels: Record<RoleKey, string> = {
   admin: 'Admin',
@@ -42,7 +40,11 @@ const pageTitles: Array<[string, string]> = [
   ['/reports', 'Reports'],
   ['/notifications', 'Notifications'],
   ['/roles', 'Roles'],
-  ['/settings', 'Settings']
+  ['/settings', 'Settings'],
+  ['/quotes', 'Quotes'],
+  ['/invoices', 'Invoices'],
+  ['/payments', 'Payments'],
+  ['/products', 'Products']
 ];
 
 export function AppShell({
@@ -53,128 +55,118 @@ export function AppShell({
 }: {
   role: RoleKey;
   setRole: (role: RoleKey) => void;
-  theme: ThemeMode;
-  setTheme: (theme: ThemeMode) => void;
+  theme: 'dark' | 'light' | 'system';
+  setTheme: (theme: 'dark' | 'light' | 'system') => void;
 }) {
   const location = useLocation();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [userOpen, setUserOpen] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement | null>(null);
-
-  const unreadCount = notifications.filter((item) => !item.read && !item.dismissed).length;
-  const title = useMemo(() => {
-    const match = pageTitles.find(([prefix]) => location.pathname === prefix || location.pathname.startsWith(`${prefix}/`));
-    return match?.[1] ?? 'Dashboard';
-  }, [location.pathname]);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
 
   useEffect(() => {
     api.notifications().then(setNotifications).catch(() => setNotifications([]));
   }, [location.pathname]);
 
   useEffect(() => {
-    function handleClick(event: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setUserOpen(false);
-      }
-    }
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, []);
-
-  useEffect(() => {
-    setUserOpen(false);
-    setSidebarOpen(false);
+    setUserMenuOpen(false);
+    if (typeof window !== 'undefined' && window.innerWidth <= 860) setSidebarOpen(false);
   }, [location.pathname]);
 
+  const unread = notifications.filter((item) => !item.read && !item.dismissed).length;
+  const activeLabel = useMemo(() => {
+    return pageTitles.find(([prefix]) => location.pathname === prefix || location.pathname.startsWith(`${prefix}/`))?.[1] ?? 'Dashboard';
+  }, [location.pathname]);
+
+  function toggleNav() {
+    if (typeof window !== 'undefined' && window.innerWidth <= 860) {
+      setSidebarOpen((value) => !value);
+    } else {
+      setSidebarCollapsed((value) => !value);
+    }
+  }
+
   return (
-    <div className={`mock-shell ${sidebarOpen ? 'mock-shell-sidebar-open' : ''}`}>
-      <aside className="mock-sidebar">
-        <div className="mock-brand">
-          <span className="mock-brand-mark" />
+    <div className={`app-shell mockup-shell ${sidebarCollapsed ? 'sidebar-collapsed' : ''} ${sidebarOpen ? 'sidebar-open' : ''}`.trim()}>
+      <aside className="sidebar mockup-sidebar">
+        <div className="mockup-brand">
+          <span className="mockup-brand-mark" />
           <strong>Kryvexis OS</strong>
         </div>
 
-        <nav className="mock-sidebar-nav">
-          {navItems.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.to === '/'}
-              className={({ isActive }) => `mock-nav-link ${isActive ? 'active' : ''}`}
-            >
-              <span className="mock-nav-icon">{item.icon}</span>
-              <span>{item.label}</span>
+        <nav className="mockup-nav">
+          {primaryNav.map(([to, label, icon]) => (
+            <NavLink key={to} to={to} end={to === '/'} className={({ isActive }) => `mockup-nav-link ${isActive ? 'active' : ''}`}>
+              <span className="mockup-nav-icon">{icon}</span>
+              <span>{label}</span>
             </NavLink>
           ))}
         </nav>
 
-        <div className="mock-sidebar-divider" />
+        <div className="mockup-sidebar-divider" />
 
-        <nav className="mock-sidebar-nav mock-sidebar-nav-secondary">
-          {utilityItems.map((item) => (
-            <NavLink key={item.to} to={item.to} className={({ isActive }) => `mock-nav-link ${isActive ? 'active' : ''}`}>
-              <span className="mock-nav-icon">{item.icon}</span>
-              <span>{item.label}</span>
-              {item.to === '/notifications' && unreadCount > 0 ? <em className="mock-notification-badge">{unreadCount}</em> : null}
+        <nav className="mockup-nav mockup-nav-utility">
+          {utilityNav.map(([to, label, icon]) => (
+            <NavLink key={to} to={to} className={({ isActive }) => `mockup-nav-link ${isActive ? 'active' : ''}`}>
+              <span className="mockup-nav-icon">{icon}</span>
+              <span>{label}</span>
             </NavLink>
           ))}
         </nav>
       </aside>
 
-      {sidebarOpen ? <button className="mock-sidebar-overlay" type="button" aria-label="Close navigation" onClick={() => setSidebarOpen(false)} /> : null}
-
-      <main className="mock-main">
-        <header className="mock-topbar">
-          <div className="mock-topbar-left">
-            <button className="mock-menu-button" type="button" onClick={() => setSidebarOpen((value) => !value)} aria-label="Toggle menu">
-              ≡
-            </button>
-            <strong>{title}</strong>
+      <main className="main-area mockup-main">
+        <header className="mockup-topbar">
+          <div className="mockup-topbar-left">
+            <button type="button" className="menu-chip mockup-menu" aria-label="Toggle navigation" onClick={toggleNav}>☰</button>
+            <strong>{activeLabel}</strong>
           </div>
 
-          <div className="mock-topbar-right" ref={dropdownRef}>
-            <Link to="/notifications" className="mock-icon-button" aria-label="Notifications">
+          <div className="mockup-topbar-right">
+            <Link to="/notifications" className="mockup-bell" aria-label="Notifications">
               🔔
-              {unreadCount > 0 ? <span className="mock-icon-dot" /> : null}
+              {unread ? <span className="mockup-bell-badge">{unread}</span> : null}
             </Link>
-            <button className="mock-user-chip" type="button" onClick={() => setUserOpen((value) => !value)}>
-              <span className="mock-avatar">A</span>
-              <div>
-                <strong>Antonie Meyer</strong>
-                <span>{roleLabels[role]}</span>
-              </div>
-            </button>
 
-            {userOpen ? (
-              <div className="mock-user-menu">
-                <label>
-                  <span>Role view</span>
-                  <select value={role} onChange={(event) => setRole(event.target.value as RoleKey)}>
-                    <option value="admin">Admin</option>
-                    <option value="manager">Manager</option>
-                    <option value="executive">Executive</option>
-                    <option value="sales">Sales</option>
-                    <option value="finance">Finance</option>
-                    <option value="warehouse">Warehouse</option>
-                    <option value="procurement">Procurement</option>
-                    <option value="operations">Operations</option>
-                  </select>
-                </label>
-                <label>
-                  <span>Theme</span>
-                  <select value={theme} onChange={(event) => setTheme(event.target.value as ThemeMode)}>
-                    <option value="dark">Dark</option>
-                    <option value="light">Light</option>
-                    <option value="system">System</option>
-                  </select>
-                </label>
-              </div>
-            ) : null}
+            <div className={`mockup-user-wrap ${userMenuOpen ? 'open' : ''}`}>
+              <button type="button" className="mockup-user-chip" onClick={() => setUserMenuOpen((value) => !value)}>
+                <span className="mockup-user-avatar">A</span>
+                <span className="mockup-user-copy">
+                  <strong>Antonie Meyer</strong>
+                  <small>{roleLabels[role]}</small>
+                </span>
+              </button>
+
+              {userMenuOpen ? (
+                <div className="mockup-user-menu">
+                  <label className="mockup-menu-field">
+                    <span>Role view</span>
+                    <select value={role} onChange={(event) => setRole(event.target.value as RoleKey)}>
+                      <option value="admin">Admin</option>
+                      <option value="manager">Manager</option>
+                      <option value="executive">Executive</option>
+                      <option value="sales">Sales</option>
+                      <option value="finance">Finance</option>
+                      <option value="warehouse">Warehouse</option>
+                      <option value="procurement">Procurement</option>
+                      <option value="operations">Operations</option>
+                    </select>
+                  </label>
+                  <label className="mockup-menu-field">
+                    <span>Theme</span>
+                    <select value={theme} onChange={(event) => setTheme(event.target.value as 'dark' | 'light' | 'system')}>
+                      <option value="dark">Dark</option>
+                      <option value="light">Light</option>
+                      <option value="system">System</option>
+                    </select>
+                  </label>
+                </div>
+              ) : null}
+            </div>
           </div>
         </header>
 
-        <section className="mock-page-wrap">
+        <section className="page-body mockup-page-body">
           <Outlet />
         </section>
       </main>

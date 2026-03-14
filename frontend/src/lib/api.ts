@@ -55,65 +55,26 @@ export const api = {
   quotes: () => request<Quote[]>('/api/quotes'),
   quote: (id: string) => request<QuoteDetail>(`/api/quotes/${id}`),
   updateQuoteStatus: (id: string, status: QuoteStatus) =>
-    request<{ quote: QuoteDetail }>(`/api/quotes/${id}/status`, {
-      method: 'POST',
-      body: JSON.stringify({ status })
-    }),
-  convertQuote: (id: string) =>
-    request<QuoteConversionResult>(`/api/quotes/${id}/convert`, {
-      method: 'POST'
-    }),
-  approveQuote: (id: string) =>
-    request<{ quote: QuoteDetail }>(`/api/quotes/${id}/approve`, {
-      method: 'POST'
-    }),
+    request<{ quote: QuoteDetail }>(`/api/quotes/${id}/status`, { method: 'POST', body: JSON.stringify({ status }) }),
+  convertQuote: (id: string) => request<QuoteConversionResult>(`/api/quotes/${id}/convert`, { method: 'POST' }),
+  approveQuote: (id: string) => request<{ quote: QuoteDetail }>(`/api/quotes/${id}/approve`, { method: 'POST' }),
   invoices: () => request<Invoice[]>('/api/invoices'),
   invoice: (id: string) => request<InvoiceDetail>(`/api/invoices/${id}`),
-  sendInvoiceReminder: (id: string) =>
-    request<{ invoice: InvoiceDetail }>(`/api/invoices/${id}/reminder`, {
-      method: 'POST'
-    }),
+  sendInvoiceReminder: (id: string) => request<{ invoice: InvoiceDetail }>(`/api/invoices/${id}/reminder`, { method: 'POST' }),
   payments: () => request<Payment[]>('/api/payments'),
   payment: (id: string) => request<Payment>(`/api/payments/${id}`),
-  resolvePaymentProof: (id: string) =>
-    request<{ payment: Payment }>(`/api/payments/${id}/resolve-proof`, {
-      method: 'POST'
-    }),
-  allocatePayment: (id: string, invoiceId?: string) =>
-    request<{ payment: Payment }>(`/api/payments/${id}/allocate`, {
-      method: 'POST',
-      body: JSON.stringify({ invoiceId })
-    }),
+  resolvePaymentProof: (id: string) => request<{ payment: Payment }>(`/api/payments/${id}/resolve-proof`, { method: 'POST' }),
+  allocatePayment: (id: string, invoiceId?: string) => request<{ payment: Payment }>(`/api/payments/${id}/allocate`, { method: 'POST', body: JSON.stringify({ invoiceId }) }),
   notifications: () => request<Notification[]>('/api/notifications'),
-  markNotificationRead: (id: string, read: boolean) =>
-    request<Notification>(`/api/notifications/${id}/read`, {
-      method: 'PATCH',
-      body: JSON.stringify({ read })
-    }),
-  snoozeNotification: (id: string, until: string) =>
-    request<Notification>(`/api/notifications/${id}/snooze`, {
-      method: 'PATCH',
-      body: JSON.stringify({ until })
-    }),
-  dismissNotification: (id: string) =>
-    request<Notification>(`/api/notifications/${id}/dismiss`, {
-      method: 'PATCH'
-    }),
+  markNotificationRead: (id: string, read: boolean) => request<Notification>(`/api/notifications/${id}/read`, { method: 'PATCH', body: JSON.stringify({ read }) }),
+  snoozeNotification: (id: string, until: string) => request<Notification>(`/api/notifications/${id}/snooze`, { method: 'PATCH', body: JSON.stringify({ until }) }),
+  dismissNotification: (id: string) => request<Notification>(`/api/notifications/${id}/dismiss`, { method: 'PATCH' }),
   emailDraft: (kind: EmailTemplateKind, id: string) => request<EmailDraft>(`/api/emails/${kind}/${id}`),
   settings: () => request<Settings>('/api/settings'),
   roles: () => request<Role[]>('/api/roles'),
   reports: (role: RoleKey, branch = 'all') => request<ReportsResponse>(`/api/reports?role=${role}&branch=${encodeURIComponent(branch)}`),
   automationSettings: () => request<AutomationSettings>('/api/automation-settings'),
-  updateAutomationSettings: (settings: AutomationSettings) => request<AutomationSettings>('/api/automation-settings', {
-    method: 'POST',
-    body: JSON.stringify(settings)
-  }),
-  runDayClose: (options?: { sendEmail?: boolean; date?: string; force?: boolean }) => request<{ summary: ReportsResponse; dispatch: EmailDispatch | null }>(`/api/day-close/run`, {
-    method: 'POST',
-    body: JSON.stringify({ trigger: 'manual', sendEmail: Boolean(options?.sendEmail), date: options?.date, force: Boolean(options?.force) })
-  }),
-  sendSummaryEmail: (options?: { resend?: boolean }) => request<EmailDispatch>('/api/day-close/send-summary', {
-    method: 'POST',
-    body: JSON.stringify({ resend: Boolean(options?.resend) })
-  })
+  updateAutomationSettings: (settings: AutomationSettings) => request<AutomationSettings>('/api/automation-settings', { method: 'POST', body: JSON.stringify(settings) }),
+  runDayClose: (options?: { sendEmail?: boolean; date?: string; force?: boolean }) => request<{ summary: ReportsResponse; dispatch: EmailDispatch | null }>(`/api/day-close/run`, { method: 'POST', body: JSON.stringify({ trigger: 'manual', sendEmail: Boolean(options?.sendEmail), date: options?.date, force: Boolean(options?.force) }) }),
+  sendSummaryEmail: (options?: { resend?: boolean }) => request<EmailDispatch>('/api/day-close/send-summary', { method: 'POST', body: JSON.stringify({ resend: Boolean(options?.resend) }) })
 };
