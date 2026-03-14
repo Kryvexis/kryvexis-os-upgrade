@@ -1,0 +1,212 @@
+import crypto from 'crypto';
+import { query, dbConfig } from '../lib/db.js';
+
+const fallbackUsers = [
+  { id: 'DEV-ADMIN', fullName: 'Antonie Meyer', email: 'kryvexissolutions@gmail.com', roleKey: 'admin', branchId: 'BR-JHB', branchName: 'Johannesburg', isActive: true },
+  { id: 'DEV-MANAGER', fullName: 'Nadine Smit', email: 'jhb.manager@kryvexis.local', roleKey: 'manager', branchId: 'BR-JHB', branchName: 'Johannesburg', isActive: true },
+  { id: 'DEV-SALES', fullName: 'Alex Morgan', email: 'alex@kryvexis.local', roleKey: 'sales', branchId: 'BR-CPT', branchName: 'Cape Town', isActive: true }
+];
+
+const fallbackPermissionCatalog = {
+  admin: ['dashboard.view','customers.read','products.read','suppliers.read','quotes.read','quotes.write','quotes.approve','quotes.convert','invoices.read','invoices.write','payments.read','payments.allocate','payments.resolve','notifications.read','notifications.manage','reports.read','automation.manage','roles.read','settings.read','settings.write','users.read','users.manage'],
+  executive: ['dashboard.view','customers.read','products.read','suppliers.read','quotes.read','invoices.read','payments.read','notifications.read','reports.read'],
+  manager: ['dashboard.view','customers.read','products.read','suppliers.read','quotes.read','quotes.approve','quotes.convert','invoices.read','payments.read','payments.allocate','notifications.read','reports.read'],
+  sales: ['dashboard.view','customers.read','quotes.read','quotes.write','quotes.convert','invoices.read','notifications.read'],
+  finance: ['dashboard.view','customers.read','invoices.read','invoices.write','payments.read','payments.allocate','payments.resolve','notifications.read','reports.read'],
+  warehouse: ['dashboard.view','products.read','notifications.read'],
+  procurement: ['dashboard.view','products.read','suppliers.read','notifications.read'],
+  operations: ['dashboard.view','notifications.read','reports.read']
+};
+
+const memorySessions = new Map();
+const memoryInvitations = [];
+
+function sanitizeToken(token) {
+  return String(token || '').replace(/^Bearer\s+/i, '').trim();
+}
+
+function expiryDate(days = 7) {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return d.toISOString();
+}
+
+export async function listUsers() {
+  if (!dbConfig.enableSql) return fallbackUsers;
+  const result = await query(`
+    select u.id, u.full_name, u.email, u.role_key, u.branch_id, b.name as branch_name, u.is_active
+    from app_users u
+    left join branches b on b.id = u.branch_id
+    order by u.full_name asc
+  `);
+  return result.rows.map((row) => ({
+    id: row.id,
+    fullName: row.full_name,
+    email: row.email,
+    roleKey: row.role_key,
+    branchId: row.branch_id,
+    branchName: row.branch_name,
+    isActive: row.is_active
+  }));
+}
+
+export async function listRolePermissions() {
+  if (!dbConfig.enableSql) {
+    return Object.entries(fallbackPermissionCatalog).map(([roleKey, permissions]) => ({ roleKey, permissions }));
+  }
+  const result = await query(`select role_key, permission_key from permissions order by role_key, permission_key`);
+  const grouped = new Map();
+  for (const row of result.rows) {
+    const list = grouped.get(row.role_key) || [];
+    list.push(row.permission_key);
+    grouped.set(row.role_key, list);
+  }
+  return Array.from(grouped.entries()).map(([roleKey, permissions]) => ({ roleKey, permissions }));
+}
+
+async function loadUserByEmail(email) {
+  const normalized = String(email || '').trim().toLowerCase();
+  if (!normalized) return null;
+  if (!dbConfig.enableSql) {
+    const user = fallbackUsers.find((entry) => entry.email.toLowerCase() === normalized);
+    return user ? { ...user } : null;
+  }
+  const result = await query(`
+    select u.id, u.full_name, u.email, u.role_key, u.branch_id, b.name as branch_name, u.is_active
+    from app_users u
+    left join branches b on b.id = u.branch_id
+    where lower(u.email) = $1
+    limit 1
+  `, [normalized]);
+  const row = result.rows[0];
+  if (!row) return null;
+  return {
+    id: row.id,
+    fullName: row.full_name,
+    email: row.email,
+    roleKey: row.role_key,
+    branchId: row.branch_id,
+    branchName: row.branch_name,
+    isActive: row.is_active
+  };
+}
+
+async function loadPermissionsForRole(roleKey) {
+  if (!dbConfig.enableSql) return fallbackPermissionCatalog[roleKey] || [];
+  const result = await query(`select permission_key from permissions where role_key = $1 order by permission_key`, [roleKey]);
+  return result.rows.map((row) => row.permission_key);
+}
+
+export async function createSessionForEmail(email, meta = {}) {
+  const user = await loadUserByEmail(email);
+  if (!user || !user.isActive) return null;
+  const permissions = await loadPermissionsForRole(user.roleKey);
+  const token = crypto.randomBytes(24).toString('hex');
+  const expiresAt = expiryDate(7);
+  if (!dbConfig.enableSql) {
+    memorySessions.set(token, { token, user, permissions, expiresAt });
+  } else {
+    await query(`
+      insert into auth_sessions (id, user_id, token_hash, branch_id, expires_at, user_agent, created_by)
+      values (gen_random_uuid(), $1, $2, $3, $4::timestamptz, $5, $6)
+    `, [user.id, crypto.createHash('sha256').update(token).digest('hex'), user.branchId, expiresAt, meta.userAgent || null, meta.createdBy || user.email]);
+  }
+  return { token, expiresAt, user, permissions };
+}
+
+export async function getSessionFromRequest(req) {
+  const token = sanitizeToken(req.headers.authorization || req.headers['x-session-token']);
+  if (!token) return null;
+  if (!dbConfig.enableSql) {
+    const session = memorySessions.get(token);
+    if (!session) return null;
+    if (new Date(session.expiresAt).getTime() <= Date.now()) {
+      memorySessions.delete(token);
+      return null;
+    }
+    return session;
+  }
+  const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+  const result = await query(`
+    select s.id, s.expires_at, s.branch_id as session_branch_id,
+           u.id as user_id, u.full_name, u.email, u.role_key, u.branch_id, u.is_active,
+           b.name as branch_name
+    from auth_sessions s
+    join app_users u on u.id = s.user_id
+    left join branches b on b.id = coalesce(s.branch_id, u.branch_id)
+    where s.token_hash = $1 and s.revoked_at is null and s.expires_at > now()
+    limit 1
+  `, [tokenHash]);
+  const row = result.rows[0];
+  if (!row || !row.is_active) return null;
+  const permissions = await loadPermissionsForRole(row.role_key);
+  return {
+    token,
+    expiresAt: row.expires_at,
+    permissions,
+    user: {
+      id: row.user_id,
+      fullName: row.full_name,
+      email: row.email,
+      roleKey: row.role_key,
+      branchId: row.session_branch_id || row.branch_id,
+      branchName: row.branch_name,
+      isActive: row.is_active
+    }
+  };
+}
+
+export async function revokeSession(token) {
+  const clean = sanitizeToken(token);
+  if (!clean) return;
+  if (!dbConfig.enableSql) {
+    memorySessions.delete(clean);
+    return;
+  }
+  const tokenHash = crypto.createHash('sha256').update(clean).digest('hex');
+  await query(`update auth_sessions set revoked_at = now() where token_hash = $1 and revoked_at is null`, [tokenHash]);
+}
+
+export async function switchSessionBranch(token, branchId) {
+  const clean = sanitizeToken(token);
+  if (!clean) return null;
+  if (!dbConfig.enableSql) {
+    const session = memorySessions.get(clean);
+    if (!session) return null;
+    session.user.branchId = branchId;
+    return session;
+  }
+  const tokenHash = crypto.createHash('sha256').update(clean).digest('hex');
+  await query(`update auth_sessions set branch_id = $2 where token_hash = $1 and revoked_at is null`, [tokenHash, branchId]);
+  return true;
+}
+
+export async function listInvitations() {
+  if (!dbConfig.enableSql) return memoryInvitations;
+  const result = await query(`
+    select id, email, role_key, branch_id, invite_token, expires_at, accepted_at, created_at
+    from user_invitations
+    order by created_at desc
+  `);
+  return result.rows;
+}
+
+export async function createInvitation({ email, roleKey, branchId, createdBy }) {
+  const inviteToken = crypto.randomBytes(16).toString('hex');
+  const expiresAt = expiryDate(14);
+  if (!dbConfig.enableSql) {
+    const invitation = { id: `INVITE-${memoryInvitations.length + 1}`, email, role_key: roleKey, branch_id: branchId, invite_token: inviteToken, expires_at: expiresAt, accepted_at: null, created_at: new Date().toISOString(), created_by: createdBy };
+    memoryInvitations.unshift(invitation);
+    return invitation;
+  }
+  const result = await query(`
+    insert into user_invitations (email, role_key, branch_id, invite_token, expires_at, created_by)
+    values ($1, $2, $3, $4, $5::timestamptz, $6)
+    returning id, email, role_key, branch_id, invite_token, expires_at, accepted_at, created_at
+  `, [email, roleKey, branchId || null, inviteToken, expiresAt, createdBy || 'system']);
+  return result.rows[0];
+}
+
+export function hasPermission(session, permission) {
+  return Boolean(session?.permissions?.includes(permission));
+}

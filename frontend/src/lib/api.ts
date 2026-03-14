@@ -1,15 +1,20 @@
 import type {
   AutomationSettings,
+  AuthLoginResponse,
+  AuthMeResponse,
+  AuthUser,
   Customer,
   CustomerSummary,
   DashboardResponse,
   EmailDispatch,
   EmailDraft,
   EmailTemplateKind,
+  Invitation,
   Invoice,
   InvoiceDetail,
   Notification,
   Payment,
+  PermissionBundle,
   Product,
   PurchaseOrder,
   ReportsResponse,
@@ -24,11 +29,24 @@ import type {
 } from '../types';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
+const TOKEN_KEY = 'kryvexis_os_session_token';
+
+export function getStoredSessionToken() {
+  return typeof window === 'undefined' ? '' : window.localStorage.getItem(TOKEN_KEY) || '';
+}
+
+export function setStoredSessionToken(token: string) {
+  if (typeof window === 'undefined') return;
+  if (token) window.localStorage.setItem(TOKEN_KEY, token);
+  else window.localStorage.removeItem(TOKEN_KEY);
+}
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const token = getStoredSessionToken();
   const response = await fetch(`${API_BASE}${path}`, {
     headers: {
       'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(init?.headers ?? {})
     },
     ...init
@@ -44,6 +62,24 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  login: async (email: string) => {
+    const session = await request<AuthLoginResponse>('/api/auth/login', { method: 'POST', body: JSON.stringify({ email }) });
+    setStoredSessionToken(session.token);
+    return session;
+  },
+  me: () => request<AuthMeResponse>('/api/auth/me'),
+  logout: async () => {
+    try {
+      await request<{ loggedOut: boolean }>('/api/auth/logout', { method: 'POST' });
+    } finally {
+      setStoredSessionToken('');
+    }
+  },
+  switchBranch: (branchId: string) => request<{ branchId: string }>('/api/auth/branch', { method: 'PATCH', body: JSON.stringify({ branchId }) }),
+  users: () => request<AuthUser[]>('/api/users'),
+  permissions: () => request<PermissionBundle[]>('/api/permissions'),
+  invitations: () => request<Invitation[]>('/api/invitations'),
+  createInvitation: (email: string, roleKey: RoleKey, branchId?: string) => request<Invitation>('/api/invitations', { method: 'POST', body: JSON.stringify({ email, roleKey, branchId }) }),
   dashboard: (role: RoleKey) => request<DashboardResponse>(`/api/dashboard?role=${role}`),
   customers: () => request<Customer[]>('/api/customers'),
   customer: (id: string) => request<Customer>(`/api/customers/${id}`),

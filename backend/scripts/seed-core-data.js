@@ -11,6 +11,17 @@ const roles = [
   ['executive', 'Executive', 'Cross-branch leadership and reporting']
 ];
 
+const permissionCatalog = {
+  admin: ['dashboard.view','customers.read','products.read','suppliers.read','quotes.read','quotes.write','quotes.approve','quotes.convert','invoices.read','invoices.write','payments.read','payments.allocate','payments.resolve','notifications.read','notifications.manage','reports.read','automation.manage','roles.read','settings.read','settings.write','users.read','users.manage'],
+  executive: ['dashboard.view','customers.read','products.read','suppliers.read','quotes.read','invoices.read','payments.read','notifications.read','reports.read'],
+  manager: ['dashboard.view','customers.read','products.read','suppliers.read','quotes.read','quotes.approve','quotes.convert','invoices.read','payments.read','payments.allocate','notifications.read','reports.read'],
+  sales: ['dashboard.view','customers.read','quotes.read','quotes.write','quotes.convert','invoices.read','notifications.read'],
+  finance: ['dashboard.view','customers.read','invoices.read','invoices.write','payments.read','payments.allocate','payments.resolve','notifications.read','reports.read'],
+  warehouse: ['dashboard.view','products.read','notifications.read'],
+  procurement: ['dashboard.view','products.read','suppliers.read','notifications.read'],
+  operations: ['dashboard.view','notifications.read','reports.read']
+};
+
 async function main() {
   if (!dbConfig.enableSql) {
     throw new Error('USE_SQL_AUTOMATION=true and DATABASE_URL are required to seed data.');
@@ -25,15 +36,26 @@ async function main() {
       ('BR-JHB', 'ORG-KRYVEXIS', 'JHB', 'Johannesburg', 'Johannesburg', 'Antonie Meyer', 'kryvexissolutions@gmail.com'),
       ('BR-CPT', 'ORG-KRYVEXIS', 'CPT', 'Cape Town', 'Cape Town', 'Alex Morgan', 'alex@kryvexis.local'),
       ('BR-DBN', 'ORG-KRYVEXIS', 'DBN', 'Durban', 'Durban', 'Tariq Naidoo', 'tariq@kryvexis.local')
-    on conflict (id) do nothing`);
+    on conflict (id) do update set manager_name = excluded.manager_name, manager_email = excluded.manager_email`);
 
   for (const [key, label, description] of roles) {
     await query(`insert into roles (key, label, description) values ($1, $2, $3)
       on conflict (key) do update set label = excluded.label, description = excluded.description`, [key, label, description]);
   }
 
+  for (const [roleKey, permissions] of Object.entries(permissionCatalog)) {
+    for (const permission of permissions) {
+      await query(`insert into permissions (role_key, permission_key) values ($1, $2) on conflict (role_key, permission_key) do nothing`, [roleKey, permission]);
+    }
+  }
+
   await query(`insert into app_users (role_key, full_name, email, branch_id)
-    values ('admin', 'Antonie Meyer', 'kryvexissolutions@gmail.com', 'BR-JHB')
+    values
+      ('admin', 'Antonie Meyer', 'kryvexissolutions@gmail.com', 'BR-JHB'),
+      ('manager', 'Nadine Smit', 'jhb.manager@kryvexis.local', 'BR-JHB'),
+      ('sales', 'Alex Morgan', 'alex@kryvexis.local', 'BR-CPT'),
+      ('finance', 'Rina Patel', 'rina@kryvexis.local', 'BR-JHB'),
+      ('operations', 'Tariq Naidoo', 'tariq@kryvexis.local', 'BR-DBN')
     on conflict (email) do nothing`);
 
   await query(`insert into customers (id, name, owner, branch_id, status, balance, credit_terms_days, price_list, risk_level, contact_email, phone, notes)
@@ -57,7 +79,7 @@ async function main() {
       ('PRD-1033', 'SKU-1033', 'Warehouse Scanner Dock', 'BR-JHB', 'Healthy', 21, 6, 1290.00, 790.00, 'SUP-001', '6001001001033', 'USB-C')
     on conflict (id) do nothing`);
 
-  console.log(JSON.stringify({ ok: true, seeded: ['organizations', 'branches', 'roles', 'app_users', 'customers', 'suppliers', 'products'] }, null, 2));
+  console.log(JSON.stringify({ ok: true, seeded: ['organizations', 'branches', 'roles', 'permissions', 'app_users', 'customers', 'suppliers', 'products'] }, null, 2));
 }
 
 main().catch((error) => {
