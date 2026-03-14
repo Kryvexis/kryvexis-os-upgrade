@@ -4,6 +4,8 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import pg from 'pg';
+import { createSessionForEmail, revokeSession, switchSessionBranch, listRolePermissions } from './src/auth/auth-service.js';
+import { attachSession, requireAuth, requirePermission } from './src/middleware/auth.js';
 
 const { Pool } = pg;
 const app = express();
@@ -11,6 +13,7 @@ const port = process.env.PORT || 4000;
 
 app.use(cors());
 app.use(express.json());
+app.use(attachSession);
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -205,6 +208,34 @@ const branchDirectory = [
   { id: 'CPT', name: 'Cape Town', managerName: 'Rina Patel', managerEmail: 'cpt.manager@kryvexis.local' },
   { id: 'DBN', name: 'Durban', managerName: 'Tariq Naidoo', managerEmail: 'dbn.manager@kryvexis.local' }
 ];
+
+function normalizeBranchKey(value) {
+  return String(value || '').trim().toLowerCase().replace(/^br-/, '').replace(/[^a-z]/g, '');
+}
+
+function findBranchByIdOrName(value) {
+  const key = normalizeBranchKey(value);
+  if (!key) return null;
+  return branchDirectory.find((branch) => {
+    const idKey = normalizeBranchKey(branch.id);
+    const nameKey = normalizeBranchKey(branch.name);
+    return key === idKey || key === nameKey || key === `br${idKey}`;
+  }) || null;
+}
+
+function sessionPayload(session) {
+  if (!session?.user) return null;
+  return {
+    email: session.user.email,
+    name: session.user.fullName,
+    role: session.user.roleKey,
+    branch: session.user.branchName || session.user.branchId || 'Unassigned',
+    branchId: session.user.branchId || null,
+    token: session.token,
+    lastLoginAt: new Date().toISOString(),
+    permissions: session.permissions || []
+  };
+}
 
 const baseAutomationSettings = {
   triggerMode: 'manual-close',
@@ -835,6 +866,46 @@ function listRoute(routePath, collection) {
 }
 
 app.get('/', (_req, res) => res.json({ ok: true, service: 'kryvexis-os-api', status: 'running', phase: 'SQL-A1' }));
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const email = String(req.body?.email || '').trim().toLowerCase();
+    if (!email) return res.status(400).json({ ok: false, error: 'email is required' });
+    const session = await createSessionForEmail(email, { userAgent: req.headers['user-agent'] || null, createdBy: email });
+    if (!session) return res.status(401).json({ ok: false, error: 'No active Kryvexis user found for that email.' });
+    return res.json(envelope(sessionPayload(session)));
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'login failed' });
+  }
+});
+app.get('/api/auth/me', requireAuth, (req, res) => res.json(envelope(sessionPayload(req.session))));
+app.post('/api/auth/logout', requireAuth, async (req, res) => {
+  await revokeSession(req.session?.token || req.headers.authorization || req.headers['x-session-token']);
+  return res.json(envelope({ success: true }));
+});
+app.post('/api/auth/switch-branch', requireAuth, async (req, res) => {
+  try {
+    const branch = findBranchByIdOrName(req.body?.branch || req.body?.branchId);
+    if (!branch) return res.status(400).json({ ok: false, error: 'valid branch is required' });
+    await switchSessionBranch(req.session?.token || req.headers.authorization || req.headers['x-session-token'], `BR-${branch.id}`);
+    if (req.session?.user) {
+      req.session.user.branchId = `BR-${branch.id}`;
+      req.session.user.branchName = branch.name;
+    }
+    return res.json(envelope(sessionPayload(req.session)));
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'branch switch failed' });
+  }
+});
+app.get('/api/auth/permissions', requireAuth, async (_req, res) => {
+  const catalog = await listRolePermissions();
+  return res.json(envelope(catalog));
+});
+
+app.use('/api', (req, res, next) => {
+  if (req.path === '/bootstrap') return next();
+  if (req.path.startsWith('/auth/')) return next();
+  return requireAuth(req, res, next);
+});
 app.get('/health', (_req, res) => res.json({ status: 'ok', phase: 'SQL-A1', service: 'kryvexis-os-api', sqlAutomation: ENABLE_SQL }));
 app.get('/api/bootstrap', (_req, res) => res.json(envelope({ roles, themeOptions: settings.themes, support: { email: settings.supportEmail, whatsapp: settings.whatsapp } })));
 app.get('/api/dashboard', (req, res) => {
@@ -889,7 +960,7 @@ app.patch('/api/notifications/:id/dismiss', (req, res) => {
   pushAudit({ title: 'Notification dismissed', detail: `${notification.title} removed from active inbox.`, actor: 'Ops Desk', timestamp: stampNow(), recordType: 'system', recordId: notification.id, recordPath: '/notifications', customerId: null, status: 'Dismissed' });
   return res.json(envelope(notification));
 });
-app.post('/api/quotes/:id/status', (req, res) => {
+app.post('/api/quotes/:id/status', requirePermission('quotes.write'), (req, res) => {
   const quote = findQuote(req.params.id);
   if (!quote) return res.status(404).json({ ok: false, error: 'quote item not found' });
   const nextStatus = req.body?.status;
@@ -903,7 +974,7 @@ app.post('/api/quotes/:id/status', (req, res) => {
   pushAudit({ title: 'Quote status changed', detail: `${quote.id} moved to ${nextStatus}.`, actor: quote.owner, timestamp: stampNow(), recordType: 'quote', recordId: quote.id, recordPath: recordPathFor('quote', quote.id), customerId: quote.customerId, status: nextStatus });
   return res.json(envelope({ quote: buildQuoteDetail(quote) }));
 });
-app.post('/api/quotes/:id/approve', (req, res) => {
+app.post('/api/quotes/:id/approve', requirePermission('quotes.approve'), (req, res) => {
   const quote = findQuote(req.params.id);
   if (!quote) return res.status(404).json({ ok: false, error: 'quote item not found' });
   quote.status = 'Approved';
@@ -914,7 +985,7 @@ app.post('/api/quotes/:id/approve', (req, res) => {
   pushNotification({ id: `NT-${Date.now()}`, title: `Quote ${quote.id} approved`, meta: `${quote.customer} - Sales`, state: 'New', read: false, type: 'approval', dismissed: false, snoozedUntil: null });
   return res.json(envelope({ quote: buildQuoteDetail(quote) }));
 });
-app.post('/api/quotes/:id/convert', (req, res) => {
+app.post('/api/quotes/:id/convert', requirePermission('quotes.convert'), (req, res) => {
   const quote = findQuote(req.params.id);
   if (!quote) return res.status(404).json({ ok: false, error: 'quote item not found' });
   const existingInvoice = invoices.find((entry) => entry.source === quote.id);
@@ -933,7 +1004,7 @@ app.post('/api/quotes/:id/convert', (req, res) => {
   pushAudit({ title: 'Invoice created', detail: `${invoice.id} created from quote ${quote.id}.`, actor: quote.owner, timestamp: stampNow(), recordType: 'invoice', recordId: invoice.id, recordPath: recordPathFor('invoice', invoice.id), customerId: quote.customerId, status: 'Draft' });
   return res.json(envelope({ quote: buildQuoteDetail(quote), invoice: buildInvoiceDetail(invoice), reused: false }));
 });
-app.post('/api/invoices/:id/reminder', (req, res) => {
+app.post('/api/invoices/:id/reminder', requirePermission('invoices.write'), (req, res) => {
   const invoice = findInvoice(req.params.id);
   if (!invoice) return res.status(404).json({ ok: false, error: 'invoice item not found' });
   invoice.reminders = 'Reminder sent today';
@@ -942,7 +1013,7 @@ app.post('/api/invoices/:id/reminder', (req, res) => {
   pushNotification({ id: `NT-${Date.now()}`, title: `Reminder sent for ${invoice.id}`, meta: `${invoice.customer} - Finance`, state: 'Done', read: true, type: 'collection', dismissed: false, snoozedUntil: null });
   return res.json(envelope({ invoice: buildInvoiceDetail(invoice) }));
 });
-app.post('/api/payments/:id/resolve-proof', (req, res) => {
+app.post('/api/payments/:id/resolve-proof', requirePermission('payments.resolve'), (req, res) => {
   const payment = findPayment(req.params.id);
   if (!payment) return res.status(404).json({ ok: false, error: 'payment item not found' });
   payment.proof = 'Attached and verified';
@@ -952,7 +1023,7 @@ app.post('/api/payments/:id/resolve-proof', (req, res) => {
   pushNotification({ id: `NT-${Date.now()}`, title: `Payment proof resolved`, meta: `${payment.ref} - Finance`, state: 'Done', read: true, type: 'payment', dismissed: false, snoozedUntil: null });
   return res.json(envelope({ payment: buildPaymentDetail(payment) }));
 });
-app.post('/api/payments/:id/allocate', (req, res) => {
+app.post('/api/payments/:id/allocate', requirePermission('payments.allocate'), (req, res) => {
   const payment = findPayment(req.params.id);
   if (!payment) return res.status(404).json({ ok: false, error: 'payment item not found' });
   const invoiceId = req.body?.invoiceId || invoices.find((entry) => entry.customerId === payment.customerId && entry.status !== 'Paid')?.id;
@@ -1044,7 +1115,7 @@ app.get('/api/emails/:kind/:id', (req, res) => {
 app.get('/api/accounting/overview', (_req, res) => res.json(envelope(buildAccountingOverview())));
 app.get('/api/accounting/debtors', (_req, res) => res.json(envelope(buildDebtorRows())));
 app.get('/api/accounting/statements', (_req, res) => res.json(envelope(buildStatementRows())));
-app.post('/api/accounting/statements/:customerId/send', (req, res) => {
+app.post('/api/accounting/statements/:customerId/send', requirePermission('invoices.write'), (req, res) => {
   const customer = findCustomer(req.params.customerId);
   if (!customer) return res.status(404).json({ ok: false, error: 'customer not found' });
   pushAudit({ title: 'Statement sent', detail: `Statement queued for ${customer.name}.`, actor: 'Finance Team', timestamp: stampNow(), recordType: 'system', recordId: `STM-${customer.id}`, recordPath: `/accounting/statements`, customerId: customer.id, status: 'Sent' });
@@ -1052,7 +1123,7 @@ app.post('/api/accounting/statements/:customerId/send', (req, res) => {
   return res.json(envelope(buildStatementRows().find((item) => item.customerId === customer.id)));
 });
 app.get('/api/accounting/cash-ups', (_req, res) => res.json(envelope(cashUps)));
-app.post('/api/accounting/cash-ups/:id/approve', (req, res) => {
+app.post('/api/accounting/cash-ups/:id/approve', requirePermission('invoices.write'), (req, res) => {
   const item = cashUps.find((entry) => entry.id === req.params.id);
   if (!item) return res.status(404).json({ ok: false, error: 'cash-up not found' });
   item.status = 'Approved';
@@ -1061,7 +1132,7 @@ app.post('/api/accounting/cash-ups/:id/approve', (req, res) => {
   return res.json(envelope(item));
 });
 app.get('/api/accounting/expenses', (_req, res) => res.json(envelope(expenses)));
-app.post('/api/accounting/expenses/:id/approve', (req, res) => {
+app.post('/api/accounting/expenses/:id/approve', requirePermission('invoices.write'), (req, res) => {
   const item = expenses.find((entry) => entry.id === req.params.id);
   if (!item) return res.status(404).json({ ok: false, error: 'expense not found' });
   item.status = 'Approved';
@@ -1087,7 +1158,7 @@ app.get('/api/automation-settings', async (_req, res) => {
   if (pool) await hydrateAutomationState();
   return res.json(envelope(automationState.automationSettings));
 });
-app.post('/api/automation-settings', async (req, res) => {
+app.post('/api/automation-settings', requirePermission('automation.manage'), async (req, res) => {
   automationState.automationSettings = {
     ...automationState.automationSettings,
     ...req.body,
@@ -1098,7 +1169,7 @@ app.post('/api/automation-settings', async (req, res) => {
   await persistAutomationState();
   return res.json(envelope(automationState.automationSettings));
 });
-app.post('/api/day-close/run', async (req, res) => {
+app.post('/api/day-close/run', requirePermission('automation.manage'), async (req, res) => {
   try {
     if (pool) await hydrateAutomationState();
     const result = await runDayClose({ trigger: req.body?.trigger || 'manual', sendEmail: Boolean(req.body?.sendEmail), date: req.body?.date || isoDateOffset(-1), force: Boolean(req.body?.force), actor: req.body?.actor || 'Antonie Meyer' });
@@ -1107,7 +1178,7 @@ app.post('/api/day-close/run', async (req, res) => {
     return res.status(500).json({ ok: false, error: error.message || 'day close failed' });
   }
 });
-app.post('/api/day-close/send-summary', async (req, res) => {
+app.post('/api/day-close/send-summary', requirePermission('automation.manage'), async (req, res) => {
   try {
     if (pool) await hydrateAutomationState();
     const dispatch = await sendLatestSummary({ resend: Boolean(req.body?.resend), actor: req.body?.actor || 'Antonie Meyer' });

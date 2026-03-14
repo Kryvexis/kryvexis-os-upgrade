@@ -69,26 +69,6 @@ function writeSession(session: AuthSession | null) {
   window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(session));
 }
 
-function inferRole(email: string): RoleKey {
-  const value = email.toLowerCase();
-  if (value.includes('finance') || value.includes('rina')) return 'finance';
-  if (value.includes('warehouse') || value.includes('stock')) return 'warehouse';
-  if (value.includes('procurement') || value.includes('buyer')) return 'procurement';
-  if (value.includes('ops') || value.includes('operations')) return 'operations';
-  if (value.includes('exec')) return 'executive';
-  if (value.includes('manager')) return 'manager';
-  if (value.includes('admin')) return 'admin';
-  return 'sales';
-}
-
-function inferBranch(email: string): string {
-  const value = email.toLowerCase();
-  if (value.includes('ct') || value.includes('cape')) return 'Cape Town';
-  if (value.includes('dbn') || value.includes('durban')) return 'Durban';
-  if (value.includes('pta') || value.includes('pretoria')) return 'Pretoria';
-  return 'Johannesburg';
-}
-
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const session = readSession();
   const response = await fetch(`${API_BASE}${path}`, {
@@ -102,6 +82,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
   if (!response.ok) {
     const payload = await response.json().catch(() => null);
+    if (response.status === 401) writeSession(null);
     throw new Error(payload?.error || `Failed to load ${path}`);
   }
 
@@ -113,27 +94,39 @@ export const api = {
   async login(email: string): Promise<AuthSession> {
     const cleanEmail = email.trim().toLowerCase();
     if (!cleanEmail) throw new Error('Please enter your work email');
-    const session: AuthSession = {
-      email: cleanEmail,
-      name: cleanEmail.split('@')[0].split(/[._-]/).map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(' '),
-      role: inferRole(cleanEmail),
-      branch: inferBranch(cleanEmail),
-      token: `demo-${btoa(cleanEmail)}`,
-      lastLoginAt: new Date().toISOString()
-    };
+    const session = await request<AuthSession>('/api/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email: cleanEmail })
+    });
     writeSession(session);
     return session;
   },
   async logout(): Promise<void> {
-    writeSession(null);
+    try {
+      await request<{ success: boolean }>('/api/auth/logout', { method: 'POST' });
+    } finally {
+      writeSession(null);
+    }
   },
   async me(): Promise<AuthSession | null> {
-    return readSession();
+    const current = readSession();
+    if (!current?.token) return null;
+    try {
+      const session = await request<AuthSession>('/api/auth/me');
+      writeSession(session);
+      return session;
+    } catch {
+      writeSession(null);
+      return null;
+    }
   },
   async switchBranch(branch: string): Promise<AuthSession | null> {
     const current = readSession();
-    if (!current) return null;
-    const next = { ...current, branch };
+    if (!current?.token) return null;
+    const next = await request<AuthSession>('/api/auth/switch-branch', {
+      method: 'POST',
+      body: JSON.stringify({ branch })
+    });
     writeSession(next);
     return next;
   },
