@@ -1,10 +1,17 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Card } from '../components/Card';
 import { api } from '../lib/api';
-import type { DashboardResponse, RoleKey } from '../types';
+import type { DashboardResponse, KPI, RoleKey, TopClient } from '../types';
 
-function numericCurrency(value: string) {
+function moneyText(value: string | undefined, fallback = 'R0') {
+  return value || fallback;
+}
+
+function getKpi(kpis: KPI[], matcher: RegExp) {
+  return kpis.find((item) => matcher.test(item.label));
+}
+
+function numericFromMoney(value: string) {
   return Number(value.replace(/[^\d.]/g, '')) || 0;
 }
 
@@ -15,99 +22,107 @@ export function DashboardPage({ role }: { role: RoleKey }) {
     api.dashboard(role).then(setData).catch(() => setData(null));
   }, [role]);
 
-  const salesTrend = useMemo(() => {
-    if (!data) return [];
-    const top = data.topClients.slice(0, 6);
-    const max = Math.max(1, ...top.map((item) => numericCurrency(item.revenue)));
-    return top.map((item, index) => ({
-      ...item,
-      month: ['Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Jun'][index] ?? `M${index + 1}`,
-      actualHeight: Math.max(18, Math.round((numericCurrency(item.revenue) / max) * 100)),
-      targetHeight: Math.max(14, 48 + index * 6)
-    }));
+  const chartRows = useMemo(() => {
+    if (!data) return [] as Array<TopClient & { actualPct: number; targetPct: number }>;
+    const maxRevenue = Math.max(...data.topClients.map((item) => numericFromMoney(item.revenue)), 1);
+    return data.topClients.slice(0, 6).map((item, index) => {
+      const actualPct = Math.max(18, Math.round((numericFromMoney(item.revenue) / maxRevenue) * 100));
+      const targetPct = Math.max(14, actualPct - 16 + index * 2);
+      return { ...item, actualPct, targetPct };
+    });
   }, [data]);
 
-  if (!data) return <div className="loading-state">Loading dashboard...</div>;
+  if (!data) {
+    return <div className="loading-state">Loading dashboard...</div>;
+  }
 
-  const openInvoices = data.kpis.find((item) => /invoice/i.test(item.label));
-  const approvals = data.kpis.find((item) => /approval/i.test(item.label));
-  const totalSales = data.topClients[0]?.revenue ?? openInvoices?.value ?? 'R0';
-  const debtorValue = data.actionCenter?.branchSnapshots?.[0]?.sales ?? data.lowStockProducts.length.toString();
-  const reminder = data.actionCenter?.actionQueue?.[0]?.title ?? 'No urgent action right now';
-
-  const workspaceTiles = [
-    { label: 'Customers', path: '/customers', icon: '◔' },
-    { label: 'Quotes', path: '/quotes', icon: '⌁' },
-    { label: 'Invoices', path: '/invoices', icon: '▤' },
-    { label: 'Payments', path: '/payments', icon: '◌' }
-  ];
+  const openInvoices = getKpi(data.kpis, /invoice/i);
+  const approvals = getKpi(data.kpis, /approval/i);
+  const firstSnapshot = data.actionCenter.branchSnapshots[0];
+  const debtorsValue = firstSnapshot ? `${firstSnapshot.collections} collections` : `${data.lowStockProducts.length} alerts`;
+  const taskValue = data.actionCenter.actionQueue[0]?.title ?? 'No urgent tasks';
 
   return (
-    <div className="page-grid dashboard-mockup-grid">
-      <section className="dashboard-mockup-main">
-        <div className="dashboard-top-stats">
-          <Card className="mockup-stat-card warning">
-            <div className="mockup-stat-icon red">◉</div>
-            <div>
-              <span className="eyebrow">Open invoices</span>
-              <strong>{openInvoices?.value ?? 'R0'}</strong>
-              <p>{openInvoices?.meta ?? 'Overdue balance'}</p>
-            </div>
-          </Card>
-          <Card className="mockup-stat-card amber">
-            <div className="mockup-stat-icon amber">◎</div>
-            <div>
-              <span className="eyebrow">Pending approvals</span>
-              <strong>{approvals?.value ?? '0'}</strong>
-              <p>{approvals?.meta ?? 'Requests waiting'}</p>
-            </div>
-          </Card>
-        </div>
-
-        <Card className="mockup-chart-card" title="Sales overview">
-          <div className="mockup-chart-header">
-            <strong className="mockup-chart-total">{totalSales}</strong>
-            <div className="mockup-chart-legend">
-              <span><i className="legend-dot revenue" /> Revenue</span>
-              <span><i className="legend-dot target" /> Target</span>
-            </div>
+    <div className="mock-dashboard-page">
+      <div className="mock-dashboard-grid">
+        <section className="mock-dashboard-left">
+          <div className="mock-kpi-row">
+            <article className="mock-kpi-card">
+              <div className="mock-kpi-icon red">◔</div>
+              <div>
+                <span>Open Invoices</span>
+                <strong>{moneyText(openInvoices?.value)}</strong>
+                <p>{openInvoices?.detail ?? 'Overdue balance'}</p>
+              </div>
+            </article>
+            <article className="mock-kpi-card">
+              <div className="mock-kpi-icon amber">◉</div>
+              <div>
+                <span>Pending Approvals</span>
+                <strong>{approvals?.value ?? '0'}</strong>
+                <p>{approvals?.detail ?? 'Requests waiting'}</p>
+              </div>
+            </article>
           </div>
-          <div className="mockup-chart-visual">
-            <div className="chart-grid-lines" />
-            <div className="mockup-bars-row">
-              {salesTrend.map((item) => (
-                <div key={item.customerId} className="mockup-bar-group">
-                  <div className="mockup-bars">
-                    <span className="mockup-bar revenue" style={{ height: `${item.actualHeight}%` }} />
-                    <span className="mockup-bar target" style={{ height: `${item.targetHeight}%` }} />
+
+          <section className="mock-sales-card">
+            <div className="mock-sales-head">
+              <div>
+                <h2>Sales Overview</h2>
+                <strong>{moneyText(data.topClients[0]?.revenue, moneyText(openInvoices?.value))}</strong>
+              </div>
+              <div className="mock-chart-legend">
+                <span><i className="actual" /> Revenue</span>
+                <span><i className="target" /> Target</span>
+              </div>
+            </div>
+
+            <div className="mock-sales-chart">
+              {chartRows.map((item) => (
+                <div key={item.customerId} className="mock-sales-column">
+                  <div className="mock-sales-bars">
+                    <span className="target-bar" style={{ height: `${item.targetPct}%` }} />
+                    <span className="actual-bar" style={{ height: `${item.actualPct}%` }} />
                   </div>
-                  <span>{item.month}</span>
+                  <small>{item.name.slice(0, 3)}</small>
                 </div>
               ))}
             </div>
+          </section>
+
+          <div className="mock-footer-row">
+            <article className="mock-footer-card">
+              <span>Debtors &amp; Creditors</span>
+              <strong>{debtorsValue}</strong>
+            </article>
+            <article className="mock-footer-card">
+              <span>Tasks &amp; Reminders</span>
+              <strong>{taskValue}</strong>
+            </article>
           </div>
-        </Card>
+        </section>
 
-        <div className="dashboard-bottom-row">
-          <Card className="mockup-footer-card" title="Debtors & creditors">
-            <strong>{debtorValue}</strong>
-          </Card>
-          <Card className="mockup-footer-card" title="Tasks & reminders">
-            <p>{reminder}</p>
-          </Card>
-        </div>
-      </section>
-
-      <section className="dashboard-mockup-side">
-        <div className="mockup-side-grid">
-          {workspaceTiles.map((tile) => (
-            <Link key={tile.path} to={tile.path} className="mockup-launch-tile">
-              <span className="mockup-launch-icon">{tile.icon}</span>
-              <strong>{tile.label}</strong>
+        <aside className="mock-dashboard-right">
+          <div className="mock-module-grid">
+            <Link to="/customers" className="mock-module-tile">
+              <span className="mock-module-icon">◌</span>
+              <strong>Customers</strong>
             </Link>
-          ))}
-        </div>
-      </section>
+            <Link to="/quotes" className="mock-module-tile">
+              <span className="mock-module-icon">▤</span>
+              <strong>Quotes</strong>
+            </Link>
+            <Link to="/invoices" className="mock-module-tile">
+              <span className="mock-module-icon">▥</span>
+              <strong>Invoices</strong>
+            </Link>
+            <Link to="/payments" className="mock-module-tile">
+              <span className="mock-module-icon">◍</span>
+              <strong>Payments</strong>
+            </Link>
+          </div>
+        </aside>
+      </div>
     </div>
   );
 }
