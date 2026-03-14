@@ -1068,13 +1068,72 @@ function branchIdByName(name) {
   return match || null;
 }
 
+async function getTableColumns(tableName) {
+  if (!pool) return new Set();
+  const result = await pool.query(
+    `select column_name from information_schema.columns where table_schema = 'public' and table_name = $1`,
+    [tableName]
+  );
+  return new Set(result.rows.map((row) => row.column_name));
+}
+
+async function upsertSeedOrganization() {
+  const columns = await getTableColumns('organizations');
+  if (!columns.size) return;
+
+  const values = { id: 'ORG-1' };
+  if (columns.has('name')) values.name = 'Kryvexis';
+  if (columns.has('legal_name')) values.legal_name = 'Kryvexis';
+  if (columns.has('trading_name')) values.trading_name = 'Kryvexis';
+  if (columns.has('country_code')) values.country_code = 'ZA';
+  if (columns.has('currency_code')) values.currency_code = 'ZAR';
+
+  const keys = Object.keys(values);
+  const placeholders = keys.map((_, index) => `$${index + 1}`).join(', ');
+  const updates = keys
+    .filter((key) => key !== 'id')
+    .map((key) => `${key} = excluded.${key}`)
+    .join(', ');
+
+  await pool.query(
+    `insert into organizations (${keys.join(', ')}) values (${placeholders}) on conflict (id) do update set ${updates || 'id = excluded.id'}`,
+    keys.map((key) => values[key])
+  );
+}
+
+async function upsertSeedBranches() {
+  const columns = await getTableColumns('branches');
+  if (!columns.size) return;
+
+  const branchSeeds = [
+    { id: 'JHB', organization_id: 'ORG-1', code: 'JHB', name: 'Johannesburg', manager_name: 'Antonie Meyer', manager_email: 'kryvexissolutions@gmail.com', city: 'Johannesburg', is_active: true },
+    { id: 'CPT', organization_id: 'ORG-1', code: 'CPT', name: 'Cape Town', manager_name: 'Alex Morgan', manager_email: 'capetown@kryvexis.local', city: 'Cape Town', is_active: true },
+    { id: 'DBN', organization_id: 'ORG-1', code: 'DBN', name: 'Durban', manager_name: 'Tariq Naidoo', manager_email: 'durban@kryvexis.local', city: 'Durban', is_active: true }
+  ];
+
+  for (const branch of branchSeeds) {
+    const values = Object.fromEntries(Object.entries(branch).filter(([key]) => columns.has(key)));
+    const keys = Object.keys(values);
+    const placeholders = keys.map((_, index) => `$${index + 1}`).join(', ');
+    const updates = keys
+      .filter((key) => key !== 'id')
+      .map((key) => `${key} = excluded.${key}`)
+      .join(', ');
+
+    await pool.query(
+      `insert into branches (${keys.join(', ')}) values (${placeholders}) on conflict (id) do update set ${updates || 'id = excluded.id'}`,
+      keys.map((key) => values[key])
+    );
+  }
+}
+
 async function ensureCoreSqlSeed() {
   if (!pool) return;
   const { rows } = await pool.query('select count(*)::int as count from customers');
   if ((rows[0]?.count || 0) > 0) return;
 
-  await pool.query("insert into organizations (id, name) values ('ORG-1', 'Kryvexis') on conflict (id) do nothing");
-  await pool.query("insert into branches (id, organization_id, name, manager_name, manager_email) values ('JHB','ORG-1','Johannesburg','Antonie Meyer','kryvexissolutions@gmail.com'), ('CPT','ORG-1','Cape Town','Alex Morgan','capetown@kryvexis.local'), ('DBN','ORG-1','Durban','Tariq Naidoo','durban@kryvexis.local') on conflict (id) do nothing");
+  await upsertSeedOrganization();
+  await upsertSeedBranches();
 
   for (const role of roles) {
     await pool.query('insert into roles (key, label, description, dashboards) values ($1, $2, $3, $4::jsonb) on conflict (key) do nothing', [role.key, role.label, role.description, JSON.stringify(role.dashboards)]);

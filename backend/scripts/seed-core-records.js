@@ -58,17 +58,64 @@ function branchIdByName(name) {
   return branches.find((entry) => entry.name === name)?.id || null;
 }
 
+async function getTableColumns(tableName) {
+  const result = await pool.query(
+    `select column_name from information_schema.columns where table_schema = 'public' and table_name = $1`,
+    [tableName]
+  );
+  return new Set(result.rows.map((row) => row.column_name));
+}
+
+async function upsertSeedOrganization() {
+  const columns = await getTableColumns('organizations');
+  const values = { id: 'ORG-1' };
+  if (columns.has('name')) values.name = 'Kryvexis';
+  if (columns.has('legal_name')) values.legal_name = 'Kryvexis';
+  if (columns.has('trading_name')) values.trading_name = 'Kryvexis';
+  if (columns.has('country_code')) values.country_code = 'ZA';
+  if (columns.has('currency_code')) values.currency_code = 'ZAR';
+
+  const keys = Object.keys(values);
+  const placeholders = keys.map((_, index) => `$${index + 1}`).join(', ');
+  const updates = keys.filter((key) => key !== 'id').map((key) => `${key} = excluded.${key}`).join(', ');
+
+  await pool.query(
+    `insert into organizations (${keys.join(', ')}) values (${placeholders}) on conflict (id) do update set ${updates || 'id = excluded.id'}`,
+    keys.map((key) => values[key])
+  );
+}
+
+async function upsertSeedBranches() {
+  const columns = await getTableColumns('branches');
+  for (const branch of branches) {
+    const seed = {
+      id: branch.id,
+      organization_id: 'ORG-1',
+      code: branch.id,
+      name: branch.name,
+      manager_name: branch.manager_name,
+      manager_email: branch.manager_email,
+      city: branch.name,
+      is_active: true
+    };
+    const values = Object.fromEntries(Object.entries(seed).filter(([key]) => columns.has(key)));
+    const keys = Object.keys(values);
+    const placeholders = keys.map((_, index) => `$${index + 1}`).join(', ');
+    const updates = keys.filter((key) => key !== 'id').map((key) => `${key} = excluded.${key}`).join(', ');
+
+    await pool.query(
+      `insert into branches (${keys.join(', ')}) values (${placeholders}) on conflict (id) do update set ${updates || 'id = excluded.id'}`,
+      keys.map((key) => values[key])
+    );
+  }
+}
+
 async function seed() {
   if (!SQL_ENABLED || !pool) throw new Error('SQL mode is not enabled');
   await runMigrations();
 
-  await pool.query(`insert into organizations (id, name) values ('ORG-1', 'Kryvexis') on conflict (id) do nothing`);
-  for (const branch of branches) {
-    await pool.query(`insert into branches (id, organization_id, name, manager_name, manager_email)
-      values ($1, 'ORG-1', $2, $3, $4)
-      on conflict (id) do update set name = excluded.name, manager_name = excluded.manager_name, manager_email = excluded.manager_email`,
-      [branch.id, branch.name, branch.manager_name, branch.manager_email]);
-  }
+  await upsertSeedOrganization();
+  await upsertSeedBranches();
 
   for (const role of roles) {
     await pool.query(`insert into roles (key, label, description, dashboards)
