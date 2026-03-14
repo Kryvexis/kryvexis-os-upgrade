@@ -25,55 +25,21 @@ import { AccountingWorkspacePage } from './pages/AccountingWorkspacePage';
 import { OperationsWorkspacePage } from './pages/OperationsWorkspacePage';
 import { ReportsPage } from './pages/ReportsPage';
 import { applyTheme, getStoredTheme, type ThemeMode } from './lib/theme';
-import { api, getStoredSessionToken, setStoredSessionToken } from './lib/api';
-import { AuthPage } from './pages/AuthPage';
-import type { AuthUser, RoleKey } from './types';
+import type { RoleKey } from './types';
 
 export default function App() {
   const [role, setRole] = useState<RoleKey>('manager');
   const [theme, setTheme] = useState<ThemeMode>(getStoredTheme());
-  const [user, setUser] = useState<AuthUser | null>(null);
-  const [permissions, setPermissions] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     applyTheme(theme);
   }, [theme]);
 
-  async function refreshSession() {
-    const token = getStoredSessionToken();
-    if (!token) {
-      setUser(null);
-      setPermissions([]);
-      setLoading(false);
-      return;
-    }
-    try {
-      const session = await api.me();
-      setUser(session.user);
-      setPermissions(session.permissions);
-      setRole(session.user.roleKey);
-    } catch {
-      setStoredSessionToken('');
-      setUser(null);
-      setPermissions([]);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    refreshSession();
-  }, []);
-
-  if (loading) return <main className="auth-screen"><section className="auth-card card"><strong>Loading workspace...</strong></section></main>;
-  if (!user) return <AuthPage onAuthenticated={refreshSession} />;
-
   return (
     <Routes>
       <Route path="/quotes/:id/print" element={<QuotePrintPage />} />
       <Route path="/invoices/:id/print" element={<InvoicePrintPage />} />
-      <Route element={<AppShell role={role} setRole={setRole} theme={theme} setTheme={setTheme} user={user} permissions={permissions} onLogout={async () => { await api.logout(); setUser(null); setPermissions([]); }} />}>
+      <Route element={<AppShell role={role} setRole={setRole} theme={theme} setTheme={setTheme} />}>
         <Route path="/" element={<DashboardPage role={role} />} />
         <Route path="/sales" element={<SalesWorkspacePage />} />
         <Route path="/inventory" element={<InventoryWorkspacePage />} />
@@ -92,8 +58,8 @@ export default function App() {
         <Route path="/payments" element={<PaymentsPage />} />
         <Route path="/payments/:id" element={<PaymentDetailPage />} />
         <Route path="/notifications" element={<NotificationsPage />} />
-        <Route path="/roles" element={permissions.includes('roles.read') ? <RolesPage /> : <Navigate to="/" replace />} />
-        <Route path="/settings" element={permissions.includes('settings.read') ? <SettingsPage /> : <Navigate to="/" replace />} />
+        <Route path="/roles" element={<RolesPage />} />
+        <Route path="/settings" element={<SettingsPage />} />
         <Route path="/emails/:kind/:id" element={<EmailComposerPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>

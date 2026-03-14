@@ -3,22 +3,31 @@ import cors from 'cors';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { applyMigrations, dbConfig, pool } from './src/lib/db.js';
-import { attachSession, requireAuth, requirePermission } from './src/middleware/auth.js';
-import { createInvitation, createSessionForEmail, listInvitations, listRolePermissions, listUsers, revokeSession, switchSessionBranch } from './src/auth/auth-service.js';
+import { dbHealth, pool, runMigrations, SQL_ENABLED as ENABLE_SQL } from './lib/db.js';
+import { moneyToNumber, parseRelativeDue } from './lib/format.js';
+import { createCustomersRepository } from './repositories/customersRepository.js';
+import { createProductsRepository } from './repositories/productsRepository.js';
+import { createSuppliersRepository } from './repositories/suppliersRepository.js';
+import { createQuotesRepository } from './repositories/quotesRepository.js';
+import { createInvoicesRepository } from './repositories/invoicesRepository.js';
+import { createPaymentsRepository } from './repositories/paymentsRepository.js';
 const app = express();
 const port = process.env.PORT || 4000;
 
 app.use(cors());
 app.use(express.json());
-app.use(attachSession);
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const dataDir = path.join(__dirname, 'data');
 const stateFile = path.join(dataDir, 'automation-state.json');
 
-const ENABLE_SQL = dbConfig.enableSql;
+const customersRepo = ENABLE_SQL ? createCustomersRepository(pool) : null;
+const productsRepo = ENABLE_SQL ? createProductsRepository(pool) : null;
+const suppliersRepo = ENABLE_SQL ? createSuppliersRepository(pool) : null;
+const quotesRepo = ENABLE_SQL ? createQuotesRepository(pool) : null;
+const invoicesRepo = ENABLE_SQL ? createInvoicesRepository(pool) : null;
+const paymentsRepo = ENABLE_SQL ? createPaymentsRepository(pool) : null;
 
 const roles = [
   { key: 'admin', label: 'Admin', description: 'Full platform visibility, settings, templates, automation rules, user management, audit access.', dashboards: ['system activity', 'approvals', 'branch health', 'audit highlights'] },
@@ -364,10 +373,12 @@ function buildDashboard(role) {
   };
 }
 
-// SQL adapter and migration runner for the OS foundation.
+// SQL adapter for automation/report state only.
 async function ensureSqlSchema() {
   if (!pool) return;
-  await applyMigrations(console);
+  const schemaPath = path.join(__dirname, 'db', 'schema.sql');
+  const sql = fs.readFileSync(schemaPath, 'utf8');
+  await pool.query(sql);
 }
 async function sqlGetSettings() {
   if (!pool) return null;
@@ -761,90 +772,47 @@ function listRoute(routePath, collection) {
 
 app.get('/', (_req, res) => res.json({ ok: true, service: 'kryvexis-os-api', status: 'running', phase: 'SQL-A1' }));
 app.get('/health', async (_req, res) => {
-  let database = { enabled: ENABLE_SQL, ready: false, migrations: 'json-mode' };
-  if (pool) {
-    try {
-      await pool.query('select 1');
-      const migrationCheck = await pool.query('select count(*)::int as count from schema_migrations');
-      database = { enabled: true, ready: true, migrations: migrationCheck.rows[0]?.count ?? 0 };
-    } catch (error) {
-      database = { enabled: true, ready: false, error: error.message };
-    }
+  try {
+    const sql = await dbHealth();
+    return res.json({ status: 'ok', phase: 'SQL-A1', service: 'kryvexis-os-api', sqlAutomation: ENABLE_SQL, db: sql });
+  } catch (error) {
+    return res.status(500).json({ status: 'error', service: 'kryvexis-os-api', sqlAutomation: ENABLE_SQL, error: error.message || 'db health failed' });
   }
-  return res.json({ status: database.ready || !ENABLE_SQL ? 'ok' : 'degraded', phase: 'AUTH-B1', service: 'kryvexis-os-api', sqlAutomation: ENABLE_SQL, authMode: ENABLE_SQL ? 'database-sessions' : 'memory-sessions', database });
 });
 app.get('/api/bootstrap', (_req, res) => res.json(envelope({ roles, themeOptions: settings.themes, support: { email: settings.supportEmail, whatsapp: settings.whatsapp } })));
-
-app.post('/api/auth/login', async (req, res) => {
-  try {
-    const email = String(req.body?.email || '').trim().toLowerCase();
-    if (!email) return res.status(400).json({ ok: false, error: 'email is required' });
-    const session = await createSessionForEmail(email, { userAgent: req.headers['user-agent'], createdBy: email });
-    if (!session) return res.status(401).json({ ok: false, error: 'user not found or inactive' });
-    return res.json(envelope(session));
-  } catch (error) {
-    return res.status(500).json({ ok: false, error: error.message || 'login failed' });
-  }
-});
-app.post('/api/auth/logout', requireAuth, async (req, res) => {
-  await revokeSession(req.headers.authorization || req.headers['x-session-token']);
-  return res.json(envelope({ loggedOut: true }));
-});
-app.get('/api/auth/me', requireAuth, (req, res) => {
-  return res.json(envelope({ user: req.user, permissions: req.session.permissions, expiresAt: req.session.expiresAt }));
-});
-app.patch('/api/auth/branch', requireAuth, async (req, res) => {
-  const branchId = String(req.body?.branchId || '').trim();
-  if (!branchId) return res.status(400).json({ ok: false, error: 'branchId is required' });
-  await switchSessionBranch(req.headers.authorization || req.headers['x-session-token'], branchId);
-  return res.json(envelope({ branchId }));
-});
-app.get('/api/users', requirePermission('users.read'), async (_req, res) => {
-  return res.json(envelope(await listUsers()));
-});
-app.get('/api/permissions', requirePermission('roles.read'), async (_req, res) => {
-  return res.json(envelope(await listRolePermissions()));
-});
-app.get('/api/invitations', requirePermission('users.manage'), async (_req, res) => {
-  return res.json(envelope(await listInvitations()));
-});
-app.post('/api/invitations', requirePermission('users.manage'), async (req, res) => {
-  const email = String(req.body?.email || '').trim().toLowerCase();
-  const roleKey = String(req.body?.roleKey || '').trim();
-  if (!email || !roleKey) return res.status(400).json({ ok: false, error: 'email and roleKey are required' });
-  const invitation = await createInvitation({ email, roleKey, branchId: req.body?.branchId || null, createdBy: req.user?.email || 'system' });
-  return res.status(201).json(envelope(invitation));
-});
-
-app.use('/api', (req, res, next) => {
-  if (req.path.startsWith('/auth/') || req.path === '/bootstrap') return next();
-  if (!req.session) return res.status(401).json({ ok: false, error: 'authentication required' });
-  return next();
-});
 app.get('/api/dashboard', (req, res) => {
   const role = req.query.role || 'admin';
   res.json(envelope(buildDashboard(role)));
 });
-app.get('/api/customers/:id/summary', (req, res) => {
+app.get('/api/customers/:id/summary', async (req, res) => {
   const summary = buildCustomerSummary(req.params.id);
   if (!summary) return res.status(404).json({ ok: false, error: 'customer summary not found' });
   return res.json(envelope(summary));
 });
-app.get('/api/quotes', (_req, res) => res.json(envelope(quotes)));
-app.get('/api/quotes/:id', (req, res) => {
-  const quote = findQuote(req.params.id);
+app.get('/api/quotes', async (_req, res) => {
+  const data = ENABLE_SQL ? await quotesRepo.listView() : quotes;
+  return res.json(envelope(data));
+});
+app.get('/api/quotes/:id', async (req, res) => {
+  const quote = ENABLE_SQL ? await quotesRepo.detail(req.params.id) : findQuote(req.params.id);
   if (!quote) return res.status(404).json({ ok: false, error: 'quote item not found' });
   return res.json(envelope(buildQuoteDetail(quote)));
 });
-app.get('/api/invoices', (_req, res) => res.json(envelope(invoices)));
-app.get('/api/invoices/:id', (req, res) => {
-  const invoice = findInvoice(req.params.id);
+app.get('/api/invoices', async (_req, res) => {
+  const data = ENABLE_SQL ? await invoicesRepo.listView() : invoices;
+  return res.json(envelope(data));
+});
+app.get('/api/invoices/:id', async (req, res) => {
+  const invoice = ENABLE_SQL ? await invoicesRepo.detail(req.params.id) : findInvoice(req.params.id);
   if (!invoice) return res.status(404).json({ ok: false, error: 'invoice item not found' });
   return res.json(envelope(buildInvoiceDetail(invoice)));
 });
-app.get('/api/payments', (_req, res) => res.json(envelope(payments)));
-app.get('/api/payments/:id', (req, res) => {
-  const payment = findPayment(req.params.id);
+app.get('/api/payments', async (_req, res) => {
+  const data = ENABLE_SQL ? await paymentsRepo.listView() : payments;
+  return res.json(envelope(data));
+});
+app.get('/api/payments/:id', async (req, res) => {
+  const payment = ENABLE_SQL ? await paymentsRepo.detail(req.params.id) : findPayment(req.params.id);
   if (!payment) return res.status(404).json({ ok: false, error: 'payment item not found' });
   return res.json(envelope(buildPaymentDetail(payment)));
 });
@@ -873,7 +841,7 @@ app.patch('/api/notifications/:id/dismiss', (req, res) => {
   pushAudit({ title: 'Notification dismissed', detail: `${notification.title} removed from active inbox.`, actor: 'Ops Desk', timestamp: stampNow(), recordType: 'system', recordId: notification.id, recordPath: '/notifications', customerId: null, status: 'Dismissed' });
   return res.json(envelope(notification));
 });
-app.post('/api/quotes/:id/status', requirePermission('quotes.write'), (req, res) => {
+app.post('/api/quotes/:id/status', (req, res) => {
   const quote = findQuote(req.params.id);
   if (!quote) return res.status(404).json({ ok: false, error: 'quote item not found' });
   const nextStatus = req.body?.status;
@@ -887,7 +855,7 @@ app.post('/api/quotes/:id/status', requirePermission('quotes.write'), (req, res)
   pushAudit({ title: 'Quote status changed', detail: `${quote.id} moved to ${nextStatus}.`, actor: quote.owner, timestamp: stampNow(), recordType: 'quote', recordId: quote.id, recordPath: recordPathFor('quote', quote.id), customerId: quote.customerId, status: nextStatus });
   return res.json(envelope({ quote: buildQuoteDetail(quote) }));
 });
-app.post('/api/quotes/:id/approve', requirePermission('quotes.approve'), (req, res) => {
+app.post('/api/quotes/:id/approve', (req, res) => {
   const quote = findQuote(req.params.id);
   if (!quote) return res.status(404).json({ ok: false, error: 'quote item not found' });
   quote.status = 'Approved';
@@ -898,7 +866,7 @@ app.post('/api/quotes/:id/approve', requirePermission('quotes.approve'), (req, r
   pushNotification({ id: `NT-${Date.now()}`, title: `Quote ${quote.id} approved`, meta: `${quote.customer} - Sales`, state: 'New', read: false, type: 'approval', dismissed: false, snoozedUntil: null });
   return res.json(envelope({ quote: buildQuoteDetail(quote) }));
 });
-app.post('/api/quotes/:id/convert', requirePermission('quotes.convert'), (req, res) => {
+app.post('/api/quotes/:id/convert', (req, res) => {
   const quote = findQuote(req.params.id);
   if (!quote) return res.status(404).json({ ok: false, error: 'quote item not found' });
   const existingInvoice = invoices.find((entry) => entry.source === quote.id);
@@ -917,7 +885,7 @@ app.post('/api/quotes/:id/convert', requirePermission('quotes.convert'), (req, r
   pushAudit({ title: 'Invoice created', detail: `${invoice.id} created from quote ${quote.id}.`, actor: quote.owner, timestamp: stampNow(), recordType: 'invoice', recordId: invoice.id, recordPath: recordPathFor('invoice', invoice.id), customerId: quote.customerId, status: 'Draft' });
   return res.json(envelope({ quote: buildQuoteDetail(quote), invoice: buildInvoiceDetail(invoice), reused: false }));
 });
-app.post('/api/invoices/:id/reminder', requirePermission('invoices.write'), (req, res) => {
+app.post('/api/invoices/:id/reminder', (req, res) => {
   const invoice = findInvoice(req.params.id);
   if (!invoice) return res.status(404).json({ ok: false, error: 'invoice item not found' });
   invoice.reminders = 'Reminder sent today';
@@ -926,7 +894,7 @@ app.post('/api/invoices/:id/reminder', requirePermission('invoices.write'), (req
   pushNotification({ id: `NT-${Date.now()}`, title: `Reminder sent for ${invoice.id}`, meta: `${invoice.customer} - Finance`, state: 'Done', read: true, type: 'collection', dismissed: false, snoozedUntil: null });
   return res.json(envelope({ invoice: buildInvoiceDetail(invoice) }));
 });
-app.post('/api/payments/:id/resolve-proof', requirePermission('payments.resolve'), (req, res) => {
+app.post('/api/payments/:id/resolve-proof', (req, res) => {
   const payment = findPayment(req.params.id);
   if (!payment) return res.status(404).json({ ok: false, error: 'payment item not found' });
   payment.proof = 'Attached and verified';
@@ -936,7 +904,7 @@ app.post('/api/payments/:id/resolve-proof', requirePermission('payments.resolve'
   pushNotification({ id: `NT-${Date.now()}`, title: `Payment proof resolved`, meta: `${payment.ref} - Finance`, state: 'Done', read: true, type: 'payment', dismissed: false, snoozedUntil: null });
   return res.json(envelope({ payment: buildPaymentDetail(payment) }));
 });
-app.post('/api/payments/:id/allocate', requirePermission('payments.allocate'), (req, res) => {
+app.post('/api/payments/:id/allocate', (req, res) => {
   const payment = findPayment(req.params.id);
   if (!payment) return res.status(404).json({ ok: false, error: 'payment item not found' });
   const invoiceId = req.body?.invoiceId || invoices.find((entry) => entry.customerId === payment.customerId && entry.status !== 'Paid')?.id;
@@ -1016,9 +984,33 @@ function buildEmailDraft(kind, id) {
   return null;
 }
 
-listRoute('customers', customers);
-listRoute('products', products);
-listRoute('suppliers', suppliers);
+app.get('/api/customers', async (_req, res) => {
+  const data = ENABLE_SQL ? await customersRepo.listView() : customers;
+  return res.json(envelope(data));
+});
+app.get('/api/customers/:id', async (req, res) => {
+  const item = ENABLE_SQL ? await customersRepo.detail(req.params.id) : findCustomer(req.params.id);
+  if (!item) return res.status(404).json({ ok: false, error: 'customers item not found' });
+  return res.json(envelope(item));
+});
+app.get('/api/products', async (_req, res) => {
+  const data = ENABLE_SQL ? await productsRepo.listView() : products;
+  return res.json(envelope(data));
+});
+app.get('/api/products/:id', async (req, res) => {
+  const item = ENABLE_SQL ? await productsRepo.detail(req.params.id) : products.find((entry) => entry.id === req.params.id);
+  if (!item) return res.status(404).json({ ok: false, error: 'products item not found' });
+  return res.json(envelope(item));
+});
+app.get('/api/suppliers', async (_req, res) => {
+  const data = ENABLE_SQL ? await suppliersRepo.listView() : suppliers;
+  return res.json(envelope(data));
+});
+app.get('/api/suppliers/:id', async (req, res) => {
+  const item = ENABLE_SQL ? await suppliersRepo.detail(req.params.id) : suppliers.find((entry) => entry.id === req.params.id);
+  if (!item) return res.status(404).json({ ok: false, error: 'suppliers item not found' });
+  return res.json(envelope(item));
+});
 listRoute('purchase-orders', purchaseOrders);
 app.get('/api/emails/:kind/:id', (req, res) => {
   const draft = buildEmailDraft(req.params.kind, req.params.id);
@@ -1035,30 +1027,30 @@ app.get('/api/automation-settings', async (_req, res) => {
   if (pool) await hydrateAutomationState();
   return res.json(envelope(automationState.automationSettings));
 });
-app.post('/api/automation-settings', requirePermission('automation.manage'), async (req, res) => {
+app.post('/api/automation-settings', async (req, res) => {
   automationState.automationSettings = {
     ...automationState.automationSettings,
     ...req.body,
     managerRecipients: Array.isArray(req.body.managerRecipients) ? req.body.managerRecipients : automationState.automationSettings.managerRecipients,
     executiveRecipients: Array.isArray(req.body.executiveRecipients) ? req.body.executiveRecipients : automationState.automationSettings.executiveRecipients
   };
-  await logAutomationEvent({ action: 'Automation settings updated', status: 'info', detail: 'Recipient rules or close cadence were updated.', actor: req.user?.fullName || 'Antonie Meyer', date: isoDateOffset(0) });
+  await logAutomationEvent({ action: 'Automation settings updated', status: 'info', detail: 'Recipient rules or close cadence were updated.', actor: 'Antonie Meyer', date: isoDateOffset(0) });
   await persistAutomationState();
   return res.json(envelope(automationState.automationSettings));
 });
-app.post('/api/day-close/run', requirePermission('reports.read'), async (req, res) => {
+app.post('/api/day-close/run', async (req, res) => {
   try {
     if (pool) await hydrateAutomationState();
-    const result = await runDayClose({ trigger: req.body?.trigger || 'manual', sendEmail: Boolean(req.body?.sendEmail), date: req.body?.date || isoDateOffset(-1), force: Boolean(req.body?.force), actor: req.user?.fullName || req.body?.actor || 'Antonie Meyer' });
+    const result = await runDayClose({ trigger: req.body?.trigger || 'manual', sendEmail: Boolean(req.body?.sendEmail), date: req.body?.date || isoDateOffset(-1), force: Boolean(req.body?.force), actor: req.body?.actor || 'Antonie Meyer' });
     return res.json(envelope(result));
   } catch (error) {
     return res.status(500).json({ ok: false, error: error.message || 'day close failed' });
   }
 });
-app.post('/api/day-close/send-summary', requirePermission('reports.read'), async (req, res) => {
+app.post('/api/day-close/send-summary', async (req, res) => {
   try {
     if (pool) await hydrateAutomationState();
-    const dispatch = await sendLatestSummary({ resend: Boolean(req.body?.resend), actor: req.user?.fullName || req.body?.actor || 'Antonie Meyer' });
+    const dispatch = await sendLatestSummary({ resend: Boolean(req.body?.resend), actor: req.body?.actor || 'Antonie Meyer' });
     return res.json(envelope(dispatch));
   } catch (error) {
     return res.status(500).json({ ok: false, error: error.message || 'email send failed' });
@@ -1068,7 +1060,77 @@ app.get('/api/settings', async (_req, res) => {
   if (pool) await hydrateAutomationState();
   return res.json(envelope({ ...settings, automation: automationState.automationSettings }));
 });
-app.get('/api/roles', requirePermission('roles.read'), (_req, res) => res.json(envelope(roles)));
+app.get('/api/roles', (_req, res) => res.json(envelope(roles)));
+
+
+function branchIdByName(name) {
+  const match = { Johannesburg: 'JHB', 'Cape Town': 'CPT', Durban: 'DBN' }[name];
+  return match || null;
+}
+
+async function ensureCoreSqlSeed() {
+  if (!pool) return;
+  const { rows } = await pool.query('select count(*)::int as count from customers');
+  if ((rows[0]?.count || 0) > 0) return;
+
+  await pool.query("insert into organizations (id, name) values ('ORG-1', 'Kryvexis') on conflict (id) do nothing");
+  await pool.query("insert into branches (id, organization_id, name, manager_name, manager_email) values ('JHB','ORG-1','Johannesburg','Antonie Meyer','kryvexissolutions@gmail.com'), ('CPT','ORG-1','Cape Town','Alex Morgan','capetown@kryvexis.local'), ('DBN','ORG-1','Durban','Tariq Naidoo','durban@kryvexis.local') on conflict (id) do nothing");
+
+  for (const role of roles) {
+    await pool.query('insert into roles (key, label, description, dashboards) values ($1, $2, $3, $4::jsonb) on conflict (key) do nothing', [role.key, role.label, role.description, JSON.stringify(role.dashboards)]);
+  }
+
+  for (const customer of customers) {
+    await pool.query(
+      'insert into customers (id, name, owner, branch_id, status, balance, risk, credit_terms, price_list, contact_email, phone, notes, next_action) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) on conflict (id) do nothing',
+      [customer.id, customer.name, customer.owner, branchIdByName(customer.branch), customer.status, moneyToNumber(customer.balance), customer.risk, customer.creditTerms, customer.priceList, customer.contact, customer.phone, customer.notes, customer.nextAction]
+    );
+    for (const activity of customer.activity || []) {
+      await pool.query('insert into customer_activity (customer_id, activity_text) values ($1, $2)', [customer.id, activity]);
+    }
+  }
+
+  for (const supplier of suppliers) {
+    await pool.query(
+      'insert into suppliers (id, name, category, lead_time, status, contact_email, next_action) values ($1,$2,$3,$4,$5,$6,$7) on conflict (id) do nothing',
+      [supplier.id, supplier.name, supplier.category, supplier.leadTime, supplier.status, supplier.contact, supplier.nextAction]
+    );
+  }
+
+  for (const product of products) {
+    await pool.query(
+      'insert into products (id, sku, name, branch_id, status, stock, reorder_at, price, cost, supplier_id, barcode, variants, movement_summary, next_action) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) on conflict (id) do nothing',
+      [product.id, product.sku, product.name, branchIdByName(product.branch), product.status, product.stock, product.reorderAt, moneyToNumber(product.price), moneyToNumber(product.cost), suppliers.find((s) => s.name === product.supplier)?.id || null, product.barcode, product.variants, product.movementSummary, product.nextAction]
+    );
+  }
+
+  for (const quote of quotes) {
+    await pool.query(
+      'insert into quotes (id, customer_id, customer_name, owner, branch_id, value_total, status, validity_date, trigger_reason, updated_label, notes, next_action, subtotal, tax, margin_band, approval_owner) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) on conflict (id) do nothing',
+      [quote.id, quote.customerId, quote.customer, quote.owner, branchIdByName(quote.branch), moneyToNumber(quote.total), quote.status, quote.validity, quote.trigger, quote.updated, quote.notes, quote.nextAction, moneyToNumber(quote.subtotal), moneyToNumber(quote.tax), quote.marginBand, quote.approvalOwner]
+    );
+    for (const line of quote.lines || []) {
+      await pool.query('insert into quote_lines (id, quote_id, sku, description, qty, unit_price, total) values ($1,$2,$3,$4,$5,$6,$7) on conflict (id) do nothing', [line.id, quote.id, line.sku, line.description, line.qty, moneyToNumber(line.unitPrice), moneyToNumber(line.total)]);
+    }
+    for (const event of quote.workflow || []) {
+      await pool.query('insert into quote_workflow_events (quote_id, label, detail) values ($1,$2,$3)', [quote.id, event.label, event.detail]);
+    }
+  }
+
+  for (const invoice of invoices) {
+    await pool.query(
+      'insert into invoices (id, customer_id, customer_name, amount, branch_id, status, due_label, source_quote_id, payment_status, tax_label, reminders, next_action, due_in_days) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) on conflict (id) do nothing',
+      [invoice.id, invoice.customerId, invoice.customer, moneyToNumber(invoice.amount), branchIdByName(invoice.branch), invoice.status, invoice.due, invoice.source, invoice.paymentStatus, invoice.tax, invoice.reminders, invoice.nextAction, parseRelativeDue(invoice.due)]
+    );
+  }
+
+  for (const payment of payments) {
+    await pool.query(
+      'insert into payments (id, customer_id, party, amount, branch_id, status, method, ref, proof, applied_to, next_action) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) on conflict (id) do nothing',
+      [payment.id, payment.customerId, payment.party, moneyToNumber(payment.amount), branchIdByName(payment.branch), payment.status, payment.method, payment.ref, payment.proof, payment.appliedTo, payment.nextAction]
+    );
+  }
+}
 
 function startScheduler() {
   if (process.env.ENABLE_DAY_CLOSE_SCHEDULER !== 'true') return;
@@ -1094,9 +1156,10 @@ function startScheduler() {
 
 async function boot() {
   if (pool) {
-    await ensureSqlSchema();
+    const applied = await runMigrations();
+    await ensureCoreSqlSeed();
     await hydrateAutomationState();
-    console.log('Kryvexis OS SQL automation enabled');
+    console.log('Kryvexis OS SQL automation enabled', applied.length ? { applied } : '');
   } else {
     console.log('Kryvexis OS using JSON automation state');
   }

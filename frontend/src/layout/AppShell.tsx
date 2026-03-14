@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { NavLink, Outlet, useLocation, Link } from 'react-router-dom';
 import { api } from '../lib/api';
-import type { AuthUser, Notification, RoleKey } from '../types';
+import type { Notification, RoleKey } from '../types';
 
 const coreModules = [
   ['/', 'Dashboard', '◔'],
@@ -53,7 +53,7 @@ const pageTitles: Array<[string, string]> = [
   ['/settings', 'Settings']
 ];
 
-export function AppShell({ role, setRole, theme, setTheme, user, permissions, onLogout }: { role: RoleKey; setRole: (role: RoleKey) => void; theme: 'dark' | 'light' | 'system'; setTheme: (theme: 'dark' | 'light' | 'system') => void; user: AuthUser; permissions: string[]; onLogout: () => Promise<void>; }) {
+export function AppShell({ role, setRole, theme, setTheme }: { role: RoleKey; setRole: (role: RoleKey) => void; theme: 'dark' | 'light' | 'system'; setTheme: (theme: 'dark' | 'light' | 'system') => void; }) {
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -89,7 +89,6 @@ export function AppShell({ role, setRole, theme, setTheme, user, permissions, on
     const section = pageTitles.find(([prefix]) => location.pathname === prefix || location.pathname.startsWith(`${prefix}/`))?.[1] ?? 'Dashboard';
     return section === 'Dashboard' ? 'Daily operating view' : `Module / ${section}`;
   }, [location.pathname]);
-  const canViewAdminNav = permissions.includes('roles.read') || permissions.includes('settings.read');
 
   return (
     <div className={shellClass}>
@@ -113,24 +112,29 @@ export function AppShell({ role, setRole, theme, setTheme, user, permissions, on
           </nav>
         </div>
 
-        {canViewAdminNav ? (
-          <div className="nav-section admin-nav-section">
-            <nav className="nav-list nav-list-icons">
-              {adminItems.filter(([to]) => (to === '/roles' ? permissions.includes('roles.read') : permissions.includes('settings.read'))).map(([to, label, icon]) => (
-                <NavLink key={to} to={to} className={({ isActive }) => `nav-link nav-link-icon ${isActive ? 'active' : ''}`}>
-                  <span className="nav-link-icon-mark">{icon}</span>
-                  <span>{label}</span>
-                </NavLink>
-              ))}
-            </nav>
-          </div>
-        ) : null}
+        <div className="nav-section admin-nav-section">
+          <nav className="nav-list nav-list-icons">
+            {adminItems.map(([to, label, icon]) => (
+              <NavLink key={to} to={to} className={({ isActive }) => `nav-link nav-link-icon ${isActive ? 'active' : ''}`}>
+                <span className="nav-link-icon-mark">{icon}</span>
+                <span>{label}</span>
+              </NavLink>
+            ))}
+          </nav>
+        </div>
 
         <div className="sidebar-foot">
           <label className="stack-field">
-            <span>Signed in role</span>
-            <select value={role} onChange={(e) => setRole(e.target.value as RoleKey)} disabled>
-              <option value={role}>{roleLabels[role]}</option>
+            <span>Role view</span>
+            <select value={role} onChange={(e) => setRole(e.target.value as RoleKey)}>
+              <option value="admin">Admin</option>
+              <option value="manager">Manager</option>
+              <option value="executive">Executive</option>
+              <option value="sales">Sales</option>
+              <option value="finance">Finance</option>
+              <option value="warehouse">Warehouse</option>
+              <option value="procurement">Procurement</option>
+              <option value="operations">Operations</option>
             </select>
           </label>
 
@@ -192,13 +196,12 @@ export function AppShell({ role, setRole, theme, setTheme, user, permissions, on
             </div>
 
             <div className="user-chip enhanced-user-chip">
-              <span className="user-avatar">{user.fullName.slice(0, 1).toUpperCase()}</span>
+              <span className="user-avatar">A</span>
               <div>
-                <strong>{user.fullName}</strong>
-                <p>{roleLabels[role]} • {user.branchName || 'All branches'}</p>
+                <strong>Antonie Meyer</strong>
+                <p>{roleLabels[role]}</p>
               </div>
             </div>
-            <button className="ghost-button" type="button" onClick={() => void onLogout()}>Sign out</button>
           </div>
         </header>
 

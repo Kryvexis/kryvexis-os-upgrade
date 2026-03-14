@@ -1,13 +1,13 @@
 {
-  "name": "kryvexis-os-phase-2-backend",
+  "name": "kryvexis-os-phase-1-backend",
   "private": true,
-  "version": "0.6.0",
+  "version": "0.5.0",
   "type": "module",
   "scripts": {
     "dev": "node server.js",
     "start": "node server.js",
-    "db:migrate": "node scripts/apply-migrations.js",
-    "db:seed": "node scripts/seed-core-data.js"
+    "migrate": "node -e \"import('./lib/db.js').then(async (m) => { await m.runMigrations(); console.log('migrations complete'); if (m.pool) await m.pool.end(); }).catch((err) => { console.error(err); process.exit(1); })\"",
+    "seed:core": "node scripts/seed-core-records.js"
   },
   "dependencies": {
     "cors": "^2.8.5",
