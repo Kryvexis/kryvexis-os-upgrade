@@ -758,6 +758,164 @@ function buildCustomerSummary(id) {
   return { ...base, openQuotes, recentInvoices, recentPayments, overdueInvoices, openBalance, accountHealth: health, linkedActivity };
 }
 
+
+const cashUps = [
+  { id: 'CU-1001', branch: 'Johannesburg', date: isoDateOffset(-1), expected: 'R38,000', counted: 'R37,940', variance: 'R-60', status: 'Review required', owner: 'Nadine Smit', recommendation: 'Approve after supervisor note confirms petty cash movement.' },
+  { id: 'CU-1002', branch: 'Cape Town', date: isoDateOffset(-1), expected: 'R26,000', counted: 'R25,740', variance: 'R-260', status: 'Escalate', owner: 'Rina Patel', recommendation: 'Investigate till variance before branch close release.' },
+  { id: 'CU-1003', branch: 'Durban', date: isoDateOffset(-1), expected: 'R19,000', counted: 'R19,010', variance: 'R10', status: 'Approved', owner: 'Tariq Naidoo', recommendation: 'Released to close history' }
+];
+
+const expenses = [
+  { id: 'EXP-8801', branch: 'Johannesburg', category: 'Delivery fuel', supplier: 'FleetCard SA', amount: 'R2,480', status: 'Pending', submittedBy: 'Alex Morgan', incurredOn: isoDateOffset(-1), recommendation: 'Approve - within normal cost band for route volume.' },
+  { id: 'EXP-8802', branch: 'Cape Town', category: 'Emergency labels', supplier: 'Cape Paper Supply', amount: 'R6,940', status: 'Review', submittedBy: 'Rina Patel', incurredOn: isoDateOffset(-2), recommendation: 'Check against open PO before approval.' },
+  { id: 'EXP-8803', branch: 'Durban', category: 'Warehouse sundries', supplier: 'Metro Warehouse Goods', amount: 'R1,260', status: 'Approved', submittedBy: 'Tariq Naidoo', incurredOn: isoDateOffset(-3), recommendation: 'Posted and cleared for reporting' }
+];
+
+function money(value) { return formatCurrency(numericAmount(value)); }
+function customerInvoices(customerId) { return invoices.filter((item) => item.customerId === customerId); }
+function customerPayments(customerId) { return payments.filter((item) => item.customerId === customerId); }
+function severityFromScore(score) { return score >= 85 ? 'Critical' : score >= 70 ? 'High' : score >= 45 ? 'Medium' : 'Low'; }
+function parseDueBucket(invoice) {
+  const source = `${invoice.status} ${invoice.due}`.toLowerCase();
+  if (source.includes('overdue')) return '31+ days';
+  if (source.includes('today')) return 'Due today';
+  if (source.includes('2 days')) return '1-7 days';
+  return 'Current';
+}
+function buildDebtorRows() {
+  return customers
+    .map((customer) => {
+      const invoiceRows = customerInvoices(customer.id);
+      const paymentRows = customerPayments(customer.id);
+      const openInvoices = invoiceRows.filter((item) => item.status !== 'Paid');
+      const overdueInvoices = openInvoices.filter((item) => /overdue|collections/i.test(item.status));
+      const currentInvoices = openInvoices.filter((item) => !/overdue|collections/i.test(item.status));
+      const overdueAmount = overdueInvoices.reduce((sum, item) => sum + numericAmount(item.amount), 0);
+      const currentAmount = currentInvoices.reduce((sum, item) => sum + numericAmount(item.amount), 0);
+      const balanceSizeScore = Math.min(30, Math.round((overdueAmount + currentAmount) / 1000));
+      const overdueScore = Math.min(35, overdueInvoices.length * 12 + (overdueAmount >= 10000 ? 10 : 0));
+      const riskScore = customer.risk === 'High' ? 25 : customer.risk === 'Medium' ? 14 : 6;
+      const frictionScore = paymentRows.some((item) => item.status === 'Pending proof' || item.status === 'Unallocated') ? 12 : 0;
+      const score = Math.min(99, balanceSizeScore + overdueScore + riskScore + frictionScore);
+      const oldestBucket = overdueInvoices[0] ? parseDueBucket(overdueInvoices[0]) : currentInvoices[0] ? parseDueBucket(currentInvoices[0]) : 'Current';
+      const recommendation = overdueAmount > 0
+        ? `Call ${customer.name} today, send statement, and review allocation blockers.`
+        : currentAmount > 0
+          ? `Queue reminder cadence and keep account warm before due date.`
+          : 'Healthy account - monitor for new order cycle.';
+      return {
+        id: `DEBT-${customer.id}`,
+        customerId: customer.id,
+        customer: customer.name,
+        branch: customer.branch,
+        overdueAmount: money(overdueAmount),
+        currentAmount: money(currentAmount),
+        totalOpen: money(overdueAmount + currentAmount),
+        oldestBucket,
+        risk: customer.risk,
+        recommendation,
+        score
+      };
+    })
+    .sort((a, b) => b.score - a.score);
+}
+function buildStatementRows() {
+  const debtorRows = buildDebtorRows();
+  return debtorRows.map((item, index) => ({
+    id: `STM-${item.customerId}`,
+    customerId: item.customerId,
+    customer: item.customer,
+    branch: item.branch,
+    balance: item.totalOpen,
+    overdueInvoices: customerInvoices(item.customerId).filter((invoice) => /overdue|collections/i.test(invoice.status)).length,
+    lastIssued: index === 0 ? '3 days ago' : index === 1 ? 'Yesterday' : 'Today 08:00',
+    nextAction: item.score >= 70 ? 'Send statement and call today' : item.score >= 45 ? 'Send statement by noon' : 'Monitor and include in next batch',
+    status: item.score >= 70 ? 'Urgent send' : item.score >= 45 ? 'Due for send' : 'Routine'
+  }));
+}
+function buildCreditorRows() {
+  return suppliers.map((supplier, index) => {
+    const po = purchaseOrders.find((item) => item.supplier === supplier.name) || null;
+    const outstanding = index === 0 ? 42600 : index === 1 ? 18240 : 9880;
+    const dueWindow = index === 0 ? 'Due in 5 days' : index === 1 ? 'Due now' : 'Matched / clearing';
+    const status = index === 1 ? 'High priority' : po?.status === 'Goods received' ? 'Ready to clear' : 'Scheduled';
+    const recommendation = index === 1
+      ? 'Pay or match immediately to avoid replenishment delay.'
+      : po?.status === 'Goods received'
+        ? 'Match supplier bill and clear for payment run.'
+        : 'Hold for standard payment run unless ETA slips.';
+    return { id: `CR-${supplier.id}`, supplier: supplier.name, branch: po?.branch || 'Shared', outstanding: money(outstanding), dueWindow, status, recommendation };
+  });
+}
+function buildFinanceExceptions() {
+  const debtorRows = buildDebtorRows();
+  const items = [];
+  const leadDebtor = debtorRows[0];
+  if (leadDebtor) {
+    items.push({ id: 'FEX-DEBTOR-1', kind: 'Collections', title: `Highest-pressure debtor: ${leadDebtor.customer}`, branch: leadDebtor.branch, severity: severityFromScore(leadDebtor.score), detail: `${leadDebtor.overdueAmount} overdue with ${leadDebtor.oldestBucket.toLowerCase()} pressure.`, action: 'Call, send statement, and review allocation blockers.', recordPath: `/customers/${leadDebtor.customerId}` });
+  }
+  const pendingProof = payments.find((item) => item.status === 'Pending proof');
+  if (pendingProof) {
+    items.push({ id: 'FEX-PROOF-1', kind: 'Payment proof', title: `Missing proof on ${pendingProof.ref}`, branch: findCustomer(pendingProof.customerId)?.branch || 'Finance', severity: 'High', detail: `${pendingProof.party} paid ${pendingProof.amount} but proof is still missing.`, action: 'Request proof before close and confirm invoice allocation.', recordPath: `/payments/${pendingProof.id}` });
+  }
+  const unallocated = payments.find((item) => item.status === 'Unallocated');
+  if (unallocated) {
+    items.push({ id: 'FEX-ALLOC-1', kind: 'Allocation', title: `Unallocated receipt ${unallocated.ref}`, branch: findCustomer(unallocated.customerId)?.branch || 'Finance', severity: 'High', detail: `${unallocated.amount} is ready to post against an open invoice.`, action: 'Allocate to the oldest matching invoice now.', recordPath: `/payments/${unallocated.id}` });
+  }
+  const cashVariance = cashUps.find((item) => item.status !== 'Approved');
+  if (cashVariance) {
+    items.push({ id: 'FEX-CASH-1', kind: 'Cash-up', title: `${cashVariance.branch} cash-up variance`, branch: cashVariance.branch, severity: numericAmount(cashVariance.variance) <= -200 ? 'Critical' : 'Medium', detail: `Variance ${cashVariance.variance} for ${cashVariance.date}.`, action: cashVariance.recommendation, recordPath: '/accounting/cash-up' });
+  }
+  const expenseReview = expenses.find((item) => item.status !== 'Approved');
+  if (expenseReview) {
+    items.push({ id: 'FEX-EXP-1', kind: 'Expense', title: `${expenseReview.category} awaiting decision`, branch: expenseReview.branch, severity: expenseReview.status === 'Review' ? 'Medium' : 'Low', detail: `${expenseReview.supplier} submitted ${expenseReview.amount}.`, action: expenseReview.recommendation, recordPath: '/accounting/expenses' });
+  }
+  const supplierExposure = buildCreditorRows().find((item) => item.status === 'High priority');
+  if (supplierExposure) {
+    items.push({ id: 'FEX-CRED-1', kind: 'Supplier exposure', title: `${supplierExposure.supplier} needs payment attention`, branch: supplierExposure.branch, severity: 'Medium', detail: `${supplierExposure.outstanding} outstanding and ${supplierExposure.dueWindow.toLowerCase()}.`, action: supplierExposure.recommendation, recordPath: '/accounting/creditors' });
+  }
+  return items;
+}
+function buildAccountingOverview() {
+  const debtors = buildDebtorRows();
+  const statements = buildStatementRows();
+  const creditors = buildCreditorRows();
+  const exceptions = buildFinanceExceptions();
+  const overdueTotal = debtors.reduce((sum, item) => sum + numericAmount(item.overdueAmount), 0);
+  const openTotal = debtors.reduce((sum, item) => sum + numericAmount(item.totalOpen), 0);
+  return {
+    kpis: [
+      { label: 'Open receivables', value: money(openTotal), detail: `${debtors.length} live debtor accounts in queue` },
+      { label: 'Overdue pressure', value: money(overdueTotal), detail: `${debtors.filter((item) => numericAmount(item.overdueAmount) > 0).length} accounts need collections action` },
+      { label: 'Cash-up exceptions', value: String(cashUps.filter((item) => item.status !== 'Approved').length), detail: 'Branches blocking finance close approval' },
+      { label: 'Supplier exposure', value: creditors[0]?.outstanding || 'R0', detail: 'Highest outstanding creditor in payment stack' }
+    ],
+    priorityActions: exceptions,
+    debtors,
+    statements,
+    cashUps,
+    expenses,
+    creditors
+  };
+}
+function buildAccountingBrain() {
+  const debtors = buildDebtorRows();
+  const exceptions = buildFinanceExceptions();
+  const leadDebtor = debtors[0];
+  const cashIssue = cashUps.find((item) => item.status !== 'Approved');
+  const statementPressure = buildStatementRows().find((item) => item.status !== 'Routine');
+  return {
+    headline: 'Accounting Brain // Live finance guidance',
+    summary: 'Kryvexis is ranking debtors, close blockers, and supplier exposure so finance can move first on what protects cash the fastest.',
+    focus: [
+      leadDebtor ? { id: 'AB-1', title: 'Collections priority', detail: `${leadDebtor.customer} has the strongest recovery signal in the queue.`, impact: leadDebtor.overdueAmount, confidence: leadDebtor.score >= 80 ? 'High' : 'Medium', action: 'Call today and pair the follow-up with a fresh statement.' } : null,
+      cashIssue ? { id: 'AB-2', title: 'Close risk detected', detail: `${cashIssue.branch} variance is the biggest finance close blocker right now.`, impact: cashIssue.variance, confidence: numericAmount(cashIssue.variance) <= -200 ? 'High' : 'Medium', action: cashIssue.recommendation } : null,
+      statementPressure ? { id: 'AB-3', title: 'Statement cadence', detail: `${statementPressure.customer} should receive the next statement batch immediately.`, impact: statementPressure.balance, confidence: statementPressure.overdueInvoices > 0 ? 'High' : 'Medium', action: statementPressure.nextAction } : null
+    ].filter(Boolean),
+    recommendedActions: exceptions.slice(0, 5)
+  };
+}
+
 function listRoute(routePath, collection) {
   app.get(`/api/${routePath}`, (_req, res) => res.json(envelope(collection)));
   app.get(`/api/${routePath}/:id`, (req, res) => {
@@ -975,6 +1133,7 @@ app.get('/api/emails/:kind/:id', (req, res) => {
   return res.json(envelope(draft));
 });
 app.get('/api/accounting/overview', (_req, res) => res.json(envelope(buildAccountingOverview())));
+app.get('/api/accounting/brain', (_req, res) => res.json(envelope(buildAccountingBrain())));
 app.get('/api/accounting/debtors', (_req, res) => res.json(envelope(buildDebtorRows())));
 app.get('/api/accounting/statements', (_req, res) => res.json(envelope(buildStatementRows())));
 app.post('/api/accounting/statements/:customerId/send', (req, res) => {

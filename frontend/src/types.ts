@@ -71,3 +71,6 @@ export type AccountingOverview = {
   expenses: ExpenseRow[];
   creditors: CreditorRow[];
 };
+
+export type AccountingInsight = { id: string; title: string; detail: string; impact: string; confidence: string; action: string; };
+export type AccountingBrain = { headline: string; summary: string; focus: AccountingInsight[]; recommendedActions: FinanceExceptionRow[]; };

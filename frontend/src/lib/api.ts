@@ -1,4 +1,5 @@
 import type {
+  AccountingBrain,
   AccountingOverview,
   AutomationSettings,
   Customer,
@@ -123,6 +124,7 @@ export const api = {
     return next;
   },
   accountingOverview: () => request<AccountingOverview>('/api/accounting/overview'),
+  accountingBrain: () => request<AccountingBrain>('/api/accounting/brain'),
   debtors: () => request<DebtorRow[]>('/api/accounting/debtors'),
   statements: () => request<StatementRow[]>('/api/accounting/statements'),
   sendStatement: (customerId: string) => request<StatementRow>(`/api/accounting/statements/${customerId}/send`, { method: 'POST' }),
