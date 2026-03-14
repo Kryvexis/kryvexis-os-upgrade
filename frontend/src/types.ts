@@ -1,4 +1,5 @@
 export type RoleKey = 'admin' | 'manager' | 'sales' | 'finance' | 'warehouse' | 'procurement' | 'operations' | 'executive';
+export type AuthSession = { email: string; name: string; role: RoleKey; branch: string; token: string; lastLoginAt: string; };
 export type KPI = { label: string; value: string; detail: string };
 export type PanelGroup = { title: string; items: string[] };
 export type Customer = {

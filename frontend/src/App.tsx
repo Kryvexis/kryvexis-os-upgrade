@@ -30,16 +30,100 @@ import { CreditorsPage } from './pages/CreditorsPage';
 import { FinanceExceptionsPage } from './pages/FinanceExceptionsPage';
 import { OperationsWorkspacePage } from './pages/OperationsWorkspacePage';
 import { ReportsPage } from './pages/ReportsPage';
+import { AuthPage } from './pages/AuthPage';
 import { applyTheme, getStoredTheme, type ThemeMode } from './lib/theme';
-import type { RoleKey } from './types';
+import { api } from './lib/api';
+import type { AuthSession, RoleKey } from './types';
+import logo from './assets/kryvexis-logo.png';
+
+const INTRO_STORAGE_KEY = 'kryvexis.entry.intro-seen';
+
+function IntroPage({ onContinue }: { onContinue: () => void }) {
+  return (
+    <main className="entry-screen intro-screen">
+      <div className="entry-ambient entry-ambient-a" />
+      <div className="entry-ambient entry-ambient-b" />
+      <section className="entry-stage intro-stage">
+        <div className="intro-panel card">
+          <img src={logo} alt="Kryvexis" className="entry-logo entry-logo-large" />
+          <p className="eyebrow">Welcome to Kryvexis OS</p>
+          <h1>One intelligent command center for finance, procurement, and stock control.</h1>
+          <p className="entry-copy">Built to feel cinematic on mobile, sharp on desktop, and powerful enough to run the business from one place.</p>
+          <div className="intro-feature-grid">
+            <div className="intro-feature-card"><strong>Accounting intelligence</strong><p>Collection scoring, cash-up alerts, and statement actions in one finance cockpit.</p></div>
+            <div className="intro-feature-card"><strong>Procurement autopilot</strong><p>Reorder pressure, supplier insight, and purchase decisions guided by live demand.</p></div>
+            <div className="intro-feature-card"><strong>Inventory brain</strong><p>Low-stock prediction, movement intelligence, and branch-aware stock control.</p></div>
+          </div>
+          <button type="button" className="entry-primary-button intro-cta" onClick={onContinue}>Enter Kryvexis</button>
+        </div>
+      </section>
+    </main>
+  );
+}
+
+function SplashScreen() {
+  return (
+    <main className="entry-screen splash-screen">
+      <div className="entry-ambient entry-ambient-a" />
+      <div className="entry-ambient entry-ambient-b" />
+      <div className="splash-logo-wrap">
+        <img src={logo} alt="Kryvexis" className="entry-logo splash-logo" />
+        <p className="eyebrow">Initializing command center</p>
+      </div>
+    </main>
+  );
+}
 
 export default function App() {
+  const [session, setSession] = useState<AuthSession | null>(null);
+  const [booting, setBooting] = useState(true);
+  const [introSeen, setIntroSeen] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return window.localStorage.getItem(INTRO_STORAGE_KEY) === 'true';
+  });
   const [role, setRole] = useState<RoleKey>('manager');
   const [theme, setTheme] = useState<ThemeMode>(getStoredTheme());
 
   useEffect(() => {
     applyTheme(theme);
   }, [theme]);
+
+  useEffect(() => {
+    let active = true;
+    const timeout = window.setTimeout(async () => {
+      const current = await api.me();
+      if (!active) return;
+      if (current) {
+        setSession(current);
+        setRole(current.role);
+      }
+      setBooting(false);
+    }, 1200);
+    return () => {
+      active = false;
+      window.clearTimeout(timeout);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (session?.role) setRole(session.role);
+  }, [session]);
+
+  if (booting) return <SplashScreen />;
+
+  if (!introSeen) {
+    return <IntroPage onContinue={() => {
+      window.localStorage.setItem(INTRO_STORAGE_KEY, 'true');
+      setIntroSeen(true);
+    }} />;
+  }
+
+  if (!session) {
+    return <AuthPage onAuthenticated={(next) => {
+      setSession(next);
+      setRole(next.role);
+    }} />;
+  }
 
   return (
     <Routes>
