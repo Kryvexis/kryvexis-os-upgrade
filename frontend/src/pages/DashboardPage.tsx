@@ -1,23 +1,17 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { Card } from '../components/Card';
+import { KpiCard } from '../components/KpiCard';
 import { api } from '../lib/api';
 import { summarizeNotifications } from '../lib/notifications';
 import type { DashboardResponse, Notification, RoleKey } from '../types';
 
 const workspaceTiles = [
-  { label: 'Customers', path: '/customers', icon: 'customers' },
-  { label: 'Quotes', path: '/quotes', icon: 'quotes' },
-  { label: 'Invoices', path: '/invoices', icon: 'invoices' },
-  { label: 'Payments', path: '/payments', icon: 'payments' }
+  { label: 'Customers', path: '/customers' },
+  { label: 'Quotes', path: '/quotes' },
+  { label: 'Invoices', path: '/invoices' },
+  { label: 'Inventory', path: '/products' }
 ] as const;
-
-function DashboardIcon({ kind }: { kind: string }) {
-  return <span className={`tile-symbol tile-symbol-${kind}`} aria-hidden="true" />;
-}
-
-function currencyValue(value: string) {
-  return Number(value.replace(/[^\d.-]/g, '')) || 0;
-}
 
 export function DashboardPage({ role }: { role: RoleKey }) {
   const [data, setData] = useState<DashboardResponse | null>(null);
@@ -28,153 +22,157 @@ export function DashboardPage({ role }: { role: RoleKey }) {
     api.notifications().then(setNotifications).catch(() => setNotifications([]));
   }, [role]);
 
-  const chart = useMemo(() => {
+  async function markRead(id: string, read: boolean) {
+    const updated = await api.markNotificationRead(id, read);
+    setNotifications((current) => current.map((item) => item.id === id ? updated : item));
+  }
+
+  const salesOverview = useMemo(() => {
     if (!data) return [];
-    const max = Math.max(...data.performance.trend.flatMap((item) => [item.actual, item.target]), 1);
-    return data.performance.trend.map((item) => ({
+    const clientValues = data.topClients.map((item) => Number(item.revenue.replace(/[^\d.]/g, '')) || 0);
+    const maxValue = Math.max(...clientValues, 1);
+
+    return data.topClients.map((item, index) => ({
       ...item,
-      actualHeight: Math.round((item.actual / max) * 100),
-      targetHeight: Math.round((item.target / max) * 100)
+      percent: Math.max(24, Math.round(((Number(item.revenue.replace(/[^\d.]/g, '')) || 0) / maxValue) * 100)),
+      targetPercent: Math.max(18, 80 - index * 12)
     }));
   }, [data]);
 
   if (!data) return <div className="loading-state">Loading dashboard...</div>;
 
   const summary = summarizeNotifications(notifications.length ? notifications : data.highlights);
-  const performance = data.performance;
-  const targetGap = currencyValue(performance.monthlyTarget) - currencyValue(performance.monthToDateSales);
-  const targetGapLabel = targetGap > 0 ? `R${targetGap.toLocaleString('en-ZA')} short` : 'Target achieved';
-  const reportAllowed = ['admin', 'manager', 'executive'].includes(role);
+  const priorityItems = summary.alerts.slice(0, 3);
+  const actionItems = data.actionCenter.actionQueue.slice(0, 2);
+  const clientLead = data.topClients[0];
+  const openInvoices = data.kpis.find((item) => /invoice/i.test(item.label));
+  const approvals = data.kpis.find((item) => /approval/i.test(item.label));
 
   return (
-    <div className="dashboard-mockup-page phase2-dashboard-page">
-      <section className="dashboard-mockup-grid phase2-dashboard-grid">
-        <div className="dashboard-mockup-main phase2-dashboard-main">
-          <div className="dashboard-top-stat-grid phase2-top-stat-grid">
-            <article className="dashboard-top-stat-card warning-tone">
-              <div className="dashboard-top-stat-icon"><DashboardIcon kind="payments" /></div>
-              <div>
-                <span>Yesterday sales</span>
-                <strong>{performance.yesterdaySales}</strong>
-                <p>{performance.branch}</p>
-              </div>
-            </article>
-            <article className="dashboard-top-stat-card amber-tone">
-              <div className="dashboard-top-stat-icon"><DashboardIcon kind="quotes" /></div>
-              <div>
-                <span>Daily target</span>
-                <strong>{performance.dailyTarget}</strong>
-                <p>{performance.scopeLabel}</p>
-              </div>
-            </article>
+    <div className="page-grid dashboard-v3">
+      <section className="kpi-grid dashboard-kpi-grid compact-dashboard-kpis">
+        {data.kpis.map((item) => <KpiCard key={item.label} item={item} />)}
+      </section>
+
+      <section className="dashboard-primary-grid dashboard-primary-grid-tight">
+        <Card title="Sales overview" subtitle="A tighter command view for approvals, collections, and revenue movement." className="hero-card hero-card-compact">
+          <div className="dashboard-hero-value-row compact-hero-row">
+            <div>
+              <strong className="hero-value compact-hero-value">{clientLead?.revenue ?? openInvoices?.value ?? 'R0'}</strong>
+              <p className="hero-support">Top client this cycle • {clientLead?.name ?? 'No client selected yet'}</p>
+            </div>
+            <div className="hero-chip-stack horizontal-chips">
+              <span className="hero-chip small-chip">{approvals?.value ?? '0'} approvals</span>
+              <span className="hero-chip muted small-chip">{summary.unread} unread</span>
+            </div>
           </div>
 
-          <section className="dashboard-overview-panel phase2-overview-panel">
-            <div className="dashboard-overview-head phase2-overview-head">
-              <div>
-                <span className="eyebrow">{performance.scopeLabel}</span>
-                <h2>{performance.actorName}</h2>
-                <strong>{performance.monthToDateSales}</strong>
-                <p className="phase2-overview-copy">Monthly target {performance.monthlyTarget} • {performance.attainmentPercent}% achieved</p>
-              </div>
-              <div className="phase2-progress-panel">
-                <span className="phase2-progress-pill">{performance.attainmentPercent}%</span>
-                <div className="phase2-progress-track">
-                  <span className="phase2-progress-fill" style={{ width: `${Math.min(performance.attainmentPercent, 100)}%` }} />
+          <div className="sales-bars-card compact-sales-bars-card">
+            {salesOverview.map((item) => (
+              <div className="sales-bar-row compact-sales-bar-row" key={item.customerId}>
+                <div className="sales-bar-copy compact-sales-copy">
+                  <strong>{item.name}</strong>
+                  <p>{item.trend}</p>
                 </div>
-                <p>{targetGapLabel}</p>
-              </div>
-            </div>
-
-            <div className="dashboard-chart-shell phase2-chart-shell">
-              <div className="dashboard-chart-grid-lines" aria-hidden="true">
-                <span />
-                <span />
-                <span />
-                <span />
-              </div>
-              <div className="dashboard-chart-bars phase2-chart-bars">
-                {chart.map((item) => (
-                  <div key={item.label} className="dashboard-chart-col phase2-chart-col">
-                    <div className="dashboard-chart-stack phase2-chart-stack">
-                      <span className="chart-bar chart-bar-revenue" style={{ height: `${item.actualHeight}%` }} />
-                      <span className="chart-bar chart-bar-target" style={{ height: `${item.targetHeight}%` }} />
-                    </div>
-                    <div className="dashboard-chart-label">{item.label}</div>
+                <div className="sales-bar-visuals">
+                  <div className="sales-bar-track compact-sales-track">
+                    <span className="sales-bar sales-bar-target" style={{ width: `${item.targetPercent}%` }} />
+                    <span className="sales-bar sales-bar-actual" style={{ width: `${item.percent}%` }} />
                   </div>
-                ))}
+                  <div className="sales-bar-values">
+                    <strong>{item.revenue}</strong>
+                    <span>{item.averageOrderValue} avg</span>
+                  </div>
+                </div>
               </div>
-            </div>
+            ))}
+          </div>
 
-            <div className="dashboard-bottom-row phase2-bottom-row">
-              <article className="dashboard-bottom-card">
-                <span>Pipeline</span>
-                <strong>{performance.pipelineValue}</strong>
-              </article>
-              <article className="dashboard-bottom-card">
-                <span>Approvals waiting</span>
-                <strong>{performance.approvalsWaiting}</strong>
-              </article>
+          <div className="hero-footer-grid compact-hero-footer-grid">
+            <div className="hero-footer-card compact-footer-card">
+              <span className="eyebrow">Open invoices</span>
+              <strong>{openInvoices?.value ?? 'R0'}</strong>
             </div>
-          </section>
+            <div className="hero-footer-card compact-footer-card">
+              <span className="eyebrow">Top client</span>
+              <strong>{clientLead?.name ?? '—'}</strong>
+            </div>
+          </div>
+        </Card>
+
+        <div className="dashboard-side-stack dashboard-side-stack-tight">
+          <Card title="Priority inbox" subtitle="Only the sharpest urgency stays above the fold." className="priority-compact-card tighter-panel-card">
+            <div className="priority-summary-strip compact-summary-strip">
+              <div><span>Unread</span><strong>{summary.unread}</strong></div>
+              <div><span>Approvals</span><strong>{summary.approvals}</strong></div>
+              <div><span>Collections</span><strong>{summary.collections}</strong></div>
+            </div>
+            <div className="notification-stack priority-stack compact-priority-stack">
+              {priorityItems.map((item) => (
+                <article className="notification-row priority-card compact-priority-card" key={item.id}>
+                  <div>
+                    <strong>{item.title}</strong>
+                    <p>{item.meta}</p>
+                    <div className="notification-actions-row compact-link-row">
+                      <Link className="action-link" to={item.recordPath}>{item.actionLabel}</Link>
+                      <button className="text-button" onClick={() => markRead(item.id, !item.read)}>
+                        {item.read ? 'Unread' : 'Mark read'}
+                      </button>
+                    </div>
+                  </div>
+                  <span className={`badge ${item.read ? 'neutral' : item.type === 'collection' ? 'danger' : 'warning'}`}>{item.state}</span>
+                </article>
+              ))}
+            </div>
+          </Card>
+
+          <Card title="Today's actions" subtitle="Two fast moves to keep the cycle moving." className="tighter-panel-card">
+            <div className="action-focus-stack compact-action-stack">
+              {actionItems.map((item) => (
+                <article key={item.id} className="action-focus-row compact-action-row">
+                  <div>
+                    <strong>{item.title}</strong>
+                    <p>{item.owner} • {item.branch}</p>
+                  </div>
+                  <Link className="ghost-button compact-button" to={item.recordPath}>{item.actionLabel}</Link>
+                </article>
+              ))}
+            </div>
+          </Card>
         </div>
+      </section>
 
-        <div className="dashboard-mockup-side phase2-dashboard-side">
-          <section className="dashboard-launchpad-panel phase2-launchpad-panel">
-            <div className="phase2-side-section">
-              <div className="phase2-side-header">
-                <h3>Workspace tiles</h3>
-                {reportAllowed ? <Link to="/reports" className="action-link">Open reports</Link> : null}
-              </div>
-              <div className="phase2-workspace-grid">
-                {workspaceTiles.map((tile) => (
-                  <Link key={tile.path} to={tile.path} className="dashboard-launchpad-tile phase2-launchpad-tile">
-                    <div className="dashboard-launchpad-icon">
-                      <DashboardIcon kind={tile.icon} />
-                    </div>
-                    <strong>{tile.label}</strong>
-                  </Link>
-                ))}
-              </div>
-            </div>
+      <section className="dashboard-secondary-grid compact-secondary-grid">
+        <Card title="Workspace tiles" subtitle="Jump straight into the operating modules." className="compact-secondary-card">
+          <div className="workspace-tile-grid compact-workspace-grid">
+            {workspaceTiles.map((tile) => (
+              <Link key={tile.path} to={tile.path} className="workspace-tile compact-workspace-tile">
+                <span className="workspace-tile-icon" />
+                <strong>{tile.label}</strong>
+              </Link>
+            ))}
+          </div>
+        </Card>
 
-            <div className="phase2-side-section">
-              <div className="phase2-side-header">
-                <h3>Branch yesterday</h3>
-                <span className="eyebrow">Daily summary</span>
-              </div>
-              <div className="phase2-branch-list">
-                {data.actionCenter.branchSnapshots.map((item) => (
-                  <article key={item.branch} className="phase2-branch-row">
-                    <div>
-                      <strong>{item.branch}</strong>
-                      <p>{item.approvals} approvals • {item.collections} collections</p>
-                    </div>
-                    <span>{item.exceptions} exceptions</span>
-                  </article>
-                ))}
-              </div>
+        <Card title="Watchlist" subtitle="The three compact signals worth keeping visible." className="compact-secondary-card">
+          <div className="watchlist-grid compact-watchlist-grid">
+            <div className="watchlist-card compact-watch-card">
+              <span className="eyebrow">Low stock</span>
+              <strong>{data.lowStockProducts.length}</strong>
+              <p>{data.lowStockProducts[0] ? data.lowStockProducts[0].name : 'No immediate stock alerts'}</p>
             </div>
-
-            <div className="phase2-side-section">
-              <div className="phase2-side-header">
-                <h3>Priority inbox</h3>
-                <span className="eyebrow">{summary.unread} unread</span>
-              </div>
-              <div className="phase2-branch-list">
-                {summary.alerts.slice(0, 3).map((item) => (
-                  <article key={item.id} className="phase2-branch-row">
-                    <div>
-                      <strong>{item.title}</strong>
-                      <p>{item.meta}</p>
-                    </div>
-                    <span>{item.state}</span>
-                  </article>
-                ))}
-              </div>
+            <div className="watchlist-card compact-watch-card">
+              <span className="eyebrow">Branch focus</span>
+              <strong>{data.actionCenter.branchSnapshots[0]?.branch ?? '—'}</strong>
+              <p>{data.actionCenter.branchSnapshots[0] ? `${data.actionCenter.branchSnapshots[0].exceptions} exceptions` : 'Waiting for branch data'}</p>
             </div>
-          </section>
-        </div>
+            <div className="watchlist-card compact-watch-card">
+              <span className="eyebrow">Top client</span>
+              <strong>{clientLead?.name ?? '—'}</strong>
+              <p>{clientLead ? clientLead.revenue : 'No sales signal yet'}</p>
+            </div>
+          </div>
+        </Card>
       </section>
     </div>
   );
