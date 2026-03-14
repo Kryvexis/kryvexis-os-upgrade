@@ -1,7 +1,10 @@
 import type {
+  AutomationSettings,
   Customer,
   CustomerSummary,
   DashboardResponse,
+  DayCloseRecord,
+  EmailDispatch,
   EmailDraft,
   EmailTemplateKind,
   Invoice,
@@ -10,6 +13,7 @@ import type {
   Payment,
   Product,
   PurchaseOrder,
+  ReportsResponse,
   Supplier,
   Quote,
   QuoteConversionResult,
@@ -17,11 +21,7 @@ import type {
   QuoteStatus,
   Role,
   RoleKey,
-  ReportsResponse,
-  Settings,
-  AutomationConfig,
-  AutomationPanel,
-  DayCloseDispatchResponse
+  Settings
 } from '../types';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
@@ -46,19 +46,6 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const api = {
   dashboard: (role: RoleKey) => request<DashboardResponse>(`/api/dashboard?role=${role}`),
-  reports: (role: RoleKey, branch?: string) => request<ReportsResponse>(`/api/reports?role=${role}${branch ? `&branch=${encodeURIComponent(branch)}` : ''}`),
-  runDayClose: (role: RoleKey, branch?: string) => request<AutomationPanel>('/api/day-close/run', {
-    method: 'POST',
-    body: JSON.stringify({ role, branch })
-  }),
-  sendDailySummary: (role: RoleKey, branch?: string) => request<DayCloseDispatchResponse>('/api/day-close/send-summary', {
-    method: 'POST',
-    body: JSON.stringify({ role, branch })
-  }),
-  updateAutomationSettings: (payload: Partial<AutomationConfig>) => request<AutomationConfig>('/api/settings/automation', {
-    method: 'PATCH',
-    body: JSON.stringify(payload)
-  }),
   customers: () => request<Customer[]>('/api/customers'),
   customer: (id: string) => request<Customer>(`/api/customers/${id}`),
   customerSummary: (id: string) => request<CustomerSummary>(`/api/customers/${id}/summary`),
@@ -113,8 +100,20 @@ export const api = {
     request<Notification>(`/api/notifications/${id}/dismiss`, {
       method: 'PATCH'
     }),
-  emailDraft: (kind: EmailTemplateKind, id: string) =>
-    request<EmailDraft>(`/api/emails/${kind}/${id}`),
+  emailDraft: (kind: EmailTemplateKind, id: string) => request<EmailDraft>(`/api/emails/${kind}/${id}`),
   settings: () => request<Settings>('/api/settings'),
-  roles: () => request<Role[]>('/api/roles')
+  roles: () => request<Role[]>('/api/roles'),
+  reports: (role: RoleKey, branch = 'all') => request<ReportsResponse>(`/api/reports?role=${role}&branch=${encodeURIComponent(branch)}`),
+  automationSettings: () => request<AutomationSettings>('/api/automation-settings'),
+  updateAutomationSettings: (settings: AutomationSettings) => request<AutomationSettings>('/api/automation-settings', {
+    method: 'POST',
+    body: JSON.stringify(settings)
+  }),
+  runDayClose: (sendEmail = false, date?: string) => request<{ summary: ReportsResponse; dispatch: EmailDispatch | null }>(`/api/day-close/run`, {
+    method: 'POST',
+    body: JSON.stringify({ trigger: 'manual', sendEmail, date })
+  }),
+  sendSummaryEmail: () => request<EmailDispatch>('/api/day-close/send-summary', {
+    method: 'POST'
+  })
 };

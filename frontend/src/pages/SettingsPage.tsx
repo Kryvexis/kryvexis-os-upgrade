@@ -1,45 +1,31 @@
 import { useEffect, useState } from 'react';
 import { Card } from '../components/Card';
 import { api } from '../lib/api';
-import type { AutomationConfig, Settings } from '../types';
-
-function csv(value: string[]) {
-  return value.join(', ');
-}
-
-function splitCsv(value: string) {
-  return value.split(',').map((item) => item.trim()).filter(Boolean);
-}
+import type { AutomationSettings, Settings } from '../types';
 
 export function SettingsPage() {
   const [settings, setSettings] = useState<Settings | null>(null);
-  const [automationDraft, setAutomationDraft] = useState<AutomationConfig | null>(null);
-  const [status, setStatus] = useState('');
+  const [automation, setAutomation] = useState<AutomationSettings | null>(null);
+  const [saved, setSaved] = useState('');
 
   useEffect(() => {
-    api.settings().then((payload) => {
-      setSettings(payload);
-      setAutomationDraft(payload.automation);
+    api.settings().then((data) => {
+      setSettings(data);
+      setAutomation(data.automation || null);
     });
   }, []);
 
+  if (!settings || !automation) return <div className="loading-state">Loading settings...</div>;
+
   async function saveAutomation() {
-    if (!automationDraft) return;
-    setStatus('Saving automation settings...');
-    try {
-      const saved = await api.updateAutomationSettings(automationDraft);
-      setAutomationDraft(saved);
-      setSettings((current) => current ? { ...current, automation: saved } : current);
-      setStatus('Automation settings saved.');
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : 'Failed to save automation settings');
-    }
+    const updated = await api.updateAutomationSettings(automation);
+    setAutomation(updated);
+    setSaved('Automation settings saved.');
+    window.setTimeout(() => setSaved(''), 2400);
   }
 
-  if (!settings || !automationDraft) return <div className="loading-state">Loading settings...</div>;
-
   return (
-    <div className="page-grid phase4-settings-page">
+    <div className="page-grid">
       <div className="split-grid">
         <Card title="Appearance" subtitle="Theme, density, sidebar behavior, and mobile shell defaults.">
           <div className="setting-list">
@@ -61,61 +47,75 @@ export function SettingsPage() {
         </Card>
       </div>
 
-      <Card title="Daily sales automation" subtitle="Control the cut-off time and who receives the automatic sales summary after cash-up close.">
-        <div className="phase4-settings-grid">
-          <label className="phase4-field">
+      <Card title="Automation + recipients" subtitle="Controls for day close cadence and who receives the daily branch summary.">
+        <div className="automation-form-grid">
+          <label className="stack-field">
             <span>Trigger mode</span>
-            <select value={automationDraft.triggerMode} onChange={(event) => setAutomationDraft({ ...automationDraft, triggerMode: event.target.value })}>
-              <option value="cash-up close">Cash-up close</option>
-              <option value="time-based">Time-based close</option>
-              <option value="manual close">Manual close</option>
+            <select value={automation.triggerMode} onChange={(event) => setAutomation({ ...automation, triggerMode: event.target.value })}>
+              <option value="manual-close">Manual close</option>
+              <option value="scheduled-close">Scheduled close</option>
             </select>
           </label>
 
-          <label className="phase4-field">
+          <label className="stack-field">
             <span>Close time</span>
-            <input type="time" value={automationDraft.closeTime} onChange={(event) => setAutomationDraft({ ...automationDraft, closeTime: event.target.value })} />
+            <input type="time" value={automation.closeTime} onChange={(event) => setAutomation({ ...automation, closeTime: event.target.value })} />
           </label>
 
-          <label className="phase4-toggle">
-            <input type="checkbox" checked={automationDraft.sendToManager} onChange={(event) => setAutomationDraft({ ...automationDraft, sendToManager: event.target.checked })} />
-            <div>
-              <strong>Send to managers</strong>
-              <p>Send each branch summary to its manager.</p>
-            </div>
+          <label className="stack-field">
+            <span>Manager branch scope</span>
+            <select value={automation.defaultManagerBranch} onChange={(event) => setAutomation({ ...automation, defaultManagerBranch: event.target.value })}>
+              {automation.branchManagers.map((item) => <option key={item.branch} value={item.branch}>{item.branch}</option>)}
+            </select>
           </label>
 
-          <label className="phase4-toggle">
-            <input type="checkbox" checked={automationDraft.sendToExecutive} onChange={(event) => setAutomationDraft({ ...automationDraft, sendToExecutive: event.target.checked })} />
-            <div>
-              <strong>Send to executives</strong>
-              <p>Also send the consolidated summary to the boss/executive list.</p>
-            </div>
+          <label className="toggle-row">
+            <input type="checkbox" checked={automation.sendToManagers} onChange={(event) => setAutomation({ ...automation, sendToManagers: event.target.checked })} />
+            <span>Send to managers</span>
           </label>
 
-          <label className="phase4-field phase4-field-wide">
+          <label className="toggle-row">
+            <input type="checkbox" checked={automation.sendToExecutives} onChange={(event) => setAutomation({ ...automation, sendToExecutives: event.target.checked })} />
+            <span>Send to executives</span>
+          </label>
+
+          <label className="stack-field form-span-2">
             <span>Manager recipients</span>
-            <input value={csv(automationDraft.managerEmails)} onChange={(event) => setAutomationDraft({ ...automationDraft, managerEmails: splitCsv(event.target.value) })} />
+            <textarea value={automation.managerRecipients.join(', ')} onChange={(event) => setAutomation({ ...automation, managerRecipients: event.target.value.split(',').map((item) => item.trim()).filter(Boolean) })} />
           </label>
 
-          <label className="phase4-field phase4-field-wide">
+          <label className="stack-field form-span-2">
             <span>Executive recipients</span>
-            <input value={csv(automationDraft.executiveEmails)} onChange={(event) => setAutomationDraft({ ...automationDraft, executiveEmails: splitCsv(event.target.value) })} />
+            <textarea value={automation.executiveRecipients.join(', ')} onChange={(event) => setAutomation({ ...automation, executiveRecipients: event.target.value.split(',').map((item) => item.trim()).filter(Boolean) })} />
           </label>
         </div>
 
-        <div className="phase4-branch-map">
-          {Object.entries(automationDraft.branchManagerMap).map(([branch, email]) => (
-            <div key={branch} className="phase4-branch-map-row">
-              <span>{branch}</span>
-              <strong>{email}</strong>
-            </div>
-          ))}
+        <div className="toolbar-actions">
+          <button className="solid-button" type="button" onClick={saveAutomation}>Save automation settings</button>
+          {saved ? <span className="status-pill ok">{saved}</span> : null}
         </div>
+      </Card>
 
-        <div className="phase4-settings-actions">
-          <button type="button" className="ghost-button" onClick={saveAutomation}>Save automation</button>
-          <small>{status || `Last run ${automationDraft.lastRunAt} • locked date ${automationDraft.lastLockedDate}`}</small>
+      <Card title="Branch manager map" subtitle="Used by the daily summary recipient rules.">
+        <div className="table-wrap">
+          <table className="data-grid">
+            <thead>
+              <tr>
+                <th>Branch</th>
+                <th>Manager</th>
+                <th>Email</th>
+              </tr>
+            </thead>
+            <tbody>
+              {automation.branchManagers.map((item) => (
+                <tr key={item.branch}>
+                  <td>{item.branch}</td>
+                  <td>{item.manager}</td>
+                  <td>{item.email}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </Card>
     </div>

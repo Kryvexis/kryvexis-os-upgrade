@@ -1,282 +1,218 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Card } from '../components/Card';
 import { api } from '../lib/api';
 import type { ReportsResponse, RoleKey } from '../types';
 
-function roleDefaultBranch(role: RoleKey) {
-  if (role === 'manager') return 'Johannesburg';
-  return 'All branches';
+function money(value: number) {
+  return new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR', maximumFractionDigits: 0 }).format(value).replace('ZAR', 'R').replace(/\u00a0/g, ' ');
 }
 
 export function ReportsPage({ role }: { role: RoleKey }) {
-  const [selectedBranch, setSelectedBranch] = useState(roleDefaultBranch(role));
-  const [data, setData] = useState<ReportsResponse | null>(null);
-  const [error, setError] = useState('');
-  const [actionState, setActionState] = useState('');
+  const [branch, setBranch] = useState('all');
+  const [report, setReport] = useState<ReportsResponse | null>(null);
+  const [busy, setBusy] = useState<'close' | 'send' | null>(null);
+  const [message, setMessage] = useState('');
 
-  async function loadReports(branch = selectedBranch) {
-    setError('');
-    try {
-      const payload = await api.reports(role, branch);
-      setData(payload);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load reports');
-      setData(null);
+  const canAccess = role === 'manager' || role === 'executive' || role === 'admin';
+
+  async function loadReport(selectedBranch = branch) {
+    const data = await api.reports(role, selectedBranch);
+    setReport(data);
+    if (!data.canViewAllBranches && selectedBranch !== data.scope) {
+      setBranch(data.scope);
     }
   }
 
   useEffect(() => {
-    setSelectedBranch(roleDefaultBranch(role));
+    if (!canAccess) return;
+    loadReport();
   }, [role]);
 
   useEffect(() => {
-    loadReports(selectedBranch);
-  }, [role, selectedBranch]);
+    if (!canAccess) return;
+    loadReport(branch);
+  }, [branch]);
 
-  const topDispatch = useMemo(() => data?.emailDispatches[0] ?? null, [data]);
+  const branchOptions = useMemo(() => {
+    if (!report) return [];
+    const names = report.automation.branchManagers.map((item) => item.branch);
+    return report.canViewAllBranches ? ['all', ...names] : [report.scope];
+  }, [report]);
 
-  async function handleRunClose() {
-    setActionState('Running day close...');
+  if (!canAccess) {
+    return <div className="loading-state">Reports are available only to managers, executives, and admins.</div>;
+  }
+
+  if (!report) return <div className="loading-state">Loading reports...</div>;
+
+  async function handleDayClose(sendEmail: boolean) {
+    setBusy(sendEmail ? 'send' : 'close');
+    setMessage('');
     try {
-      await api.runDayClose(role, selectedBranch);
-      await loadReports(selectedBranch);
-      setActionState('Day close locked successfully.');
-    } catch (err) {
-      setActionState(err instanceof Error ? err.message : 'Failed to run day close');
+      await api.runDayClose(sendEmail);
+      await loadReport(branch);
+      setMessage(sendEmail ? 'Day close completed and summary email dispatched.' : 'Day close completed and saved.');
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Action failed');
+    } finally {
+      setBusy(null);
     }
   }
 
-  async function handleSendSummary() {
-    setActionState('Sending summary email...');
+  async function handleSendEmailOnly() {
+    setBusy('send');
+    setMessage('');
     try {
-      await api.sendDailySummary(role, selectedBranch);
-      await loadReports(selectedBranch);
-      setActionState('Daily summary email dispatched.');
-    } catch (err) {
-      setActionState(err instanceof Error ? err.message : 'Failed to send summary email');
+      await api.sendSummaryEmail();
+      await loadReport(branch);
+      setMessage('Summary email sent successfully.');
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Send failed');
+    } finally {
+      setBusy(null);
     }
   }
-
-  if (error) return <div className="loading-state">{error}</div>;
-  if (!data) return <div className="loading-state">Loading reports...</div>;
 
   return (
-    <div className="page-grid reports-page phase3-reports-page phase4-reports-page">
-      <section className="card reports-hero-card">
-        <div className="card-header reports-hero-header">
-          <div>
-            <span className="eyebrow">Management only</span>
-            <h3>Sales reports and daily branch summaries</h3>
-            <p>Track company or branch totals, compare reps against target, then lock the day and send the automated summary email from this screen.</p>
-          </div>
-          <div className="reports-filter-box">
-            <label htmlFor="reports-branch">View</label>
-            <select
-              id="reports-branch"
-              value={selectedBranch}
-              onChange={(event) => setSelectedBranch(event.target.value)}
-              disabled={role === 'manager'}
-            >
-              {data.availableBranches.map((branch) => (
-                <option key={branch} value={branch}>{branch}</option>
-              ))}
-            </select>
-            <small>Generated {data.generatedAt}</small>
-          </div>
-        </div>
-
-        <div className="reports-summary-grid">
-          <article className="soft-panel reports-summary-card">
-            <span className="eyebrow">Yesterday</span>
-            <strong>{data.totals.yesterdaySales}</strong>
-            <p>{data.selectedBranch}</p>
-          </article>
-          <article className="soft-panel reports-summary-card">
-            <span className="eyebrow">Month to date</span>
-            <strong>{data.totals.monthToDateSales}</strong>
-            <p>Against target {data.totals.monthlyTarget}</p>
-          </article>
-          <article className="soft-panel reports-summary-card">
-            <span className="eyebrow">Attainment</span>
-            <strong>{data.totals.attainmentPercent}%</strong>
-            <p>Target progress</p>
-          </article>
-        </div>
-      </section>
-
-      <section className="reports-grid phase3-reports-grid phase4-reports-grid">
-        <article className="card reports-panel-card phase4-automation-card">
-          <div className="card-header">
-            <div>
-              <h3>Day close automation</h3>
-              <p>Lock the daily branch figures after cash-up and send the summary email to the configured manager/executive recipients.</p>
-            </div>
-            <span className="badge success">{data.automation.config.triggerMode}</span>
-          </div>
-
-          <div className="phase4-automation-summary">
-            <div className="phase4-automation-metric">
-              <span>Close time</span>
-              <strong>{data.automation.config.closeTime}</strong>
-            </div>
-            <div className="phase4-automation-metric">
-              <span>Last locked date</span>
-              <strong>{data.automation.config.lastLockedDate}</strong>
-            </div>
-            <div className="phase4-automation-metric">
-              <span>Recipients</span>
-              <strong>{data.automation.latestClose?.recipients.join(', ') || 'None configured'}</strong>
-            </div>
-          </div>
-
-          <div className="phase4-action-row">
-            <button type="button" className="ghost-button" onClick={handleRunClose}>Run day close</button>
-            <button type="button" className="ghost-button" onClick={handleSendSummary}>Send summary email</button>
-          </div>
-          <small className="phase4-action-state">{actionState || 'Lock figures first, then dispatch the summary email.'}</small>
-
-          <div className="phase4-close-log">
-            {data.automation.closures.map((row) => (
-              <article key={`${row.branch}-${row.date}-${row.lockedAt}`} className="phase4-close-row">
-                <div>
-                  <strong>{row.branch}</strong>
-                  <p>{row.date} • {row.lockedAt}</p>
-                </div>
-                <div className="reports-list-metrics">
-                  <span>{row.salesTotal}</span>
-                  <small>{row.recipients.join(', ')}</small>
-                </div>
-                <span className={`badge ${row.emailStatus === 'Delivered' ? 'success' : 'warning'}`}>{row.emailStatus}</span>
-              </article>
+    <div className="page-grid reports-layout">
+      <div className="toolbar-actions reports-toolbar">
+        <label className="stack-field inline-field">
+          <span>Branch scope</span>
+          <select value={branch} onChange={(event) => setBranch(event.target.value)} disabled={!report.canViewAllBranches}>
+            {branchOptions.map((item) => (
+              <option key={item} value={item}>{item === 'all' ? 'All branches' : item}</option>
             ))}
-          </div>
-        </article>
+          </select>
+        </label>
+        <button className="ghost-button" type="button" onClick={() => handleDayClose(false)} disabled={busy !== null}>
+          {busy === 'close' ? 'Running close…' : 'Run day close'}
+        </button>
+        <button className="solid-button" type="button" onClick={() => handleDayClose(true)} disabled={busy !== null}>
+          {busy === 'send' ? 'Sending…' : 'Close + send email'}
+        </button>
+        <button className="ghost-button" type="button" onClick={handleSendEmailOnly} disabled={busy !== null}>
+          Send latest summary only
+        </button>
+      </div>
 
-        <article className="card reports-panel-card">
-          <div className="card-header">
-            <div>
-              <h3>Branch totals</h3>
-              <p>Yesterday's performance by branch against the daily target.</p>
-            </div>
-          </div>
-          <div className="reports-list">
-            {data.branches.map((branch) => (
-              <article key={branch.branch} className="reports-list-row">
-                <div>
-                  <strong>{branch.branch}</strong>
-                  <p>{branch.owner}</p>
-                </div>
-                <div className="reports-list-metrics">
-                  <span>{branch.yesterdaySales}</span>
-                  <small>{branch.dailyTarget} target</small>
-                </div>
-                <span className={`badge ${branch.attainmentPercent >= 100 ? 'success' : 'warning'}`}>{branch.attainmentPercent}%</span>
-              </article>
-            ))}
-          </div>
-        </article>
-      </section>
+      {message ? <div className="banner-note">{message}</div> : null}
 
-      <section className="reports-grid phase3-reports-grid phase4-reports-grid">
-        <article className="card reports-panel-card">
-          <div className="card-header">
-            <div>
-              <h3>Seller leaderboard</h3>
-              <p>Month-to-date sales per user against their assigned target.</p>
-            </div>
-          </div>
-          <div className="reports-list">
-            {data.sellers.map((seller) => (
-              <article key={`${seller.name}-${seller.branch}`} className="reports-list-row">
-                <div>
-                  <strong>{seller.name}</strong>
-                  <p>{seller.branch}</p>
-                </div>
-                <div className="reports-list-metrics">
-                  <span>{seller.sales}</span>
-                  <small>{seller.target} target</small>
-                </div>
-                <span className={`badge ${seller.attainmentPercent >= 100 ? 'success' : 'warning'}`}>{seller.attainmentPercent}%</span>
-              </article>
-            ))}
-          </div>
-        </article>
+      <div className="kpi-grid compact-kpi-grid">
+        <Card className="metric-card" title="Yesterday sales"><strong>{money(report.totals.totalSales)}</strong><p>{report.date}</p></Card>
+        <Card className="metric-card" title="Target"><strong>{money(report.totals.target)}</strong><p>{report.totals.targetAchievedPct}% achieved</p></Card>
+        <Card className="metric-card" title="Variance"><strong>{money(report.totals.varianceToTarget)}</strong><p>{report.totals.varianceToTarget >= 0 ? 'Above target' : 'Behind target'}</p></Card>
+        <Card className="metric-card" title="Transactions"><strong>{report.totals.transactions}</strong><p>Across visible branches</p></Card>
+      </div>
 
-        <article className="card reports-panel-card">
-          <div className="card-header">
-            <div>
-              <h3>Daily aggregation</h3>
-              <p>What the nightly job stores per branch before the email summary is sent.</p>
-            </div>
+      <div className="split-grid reports-split">
+        <Card title="Branch performance" subtitle="Yesterday totals, target attainment, and basket quality by branch.">
+          <div className="table-wrap">
+            <table className="data-grid">
+              <thead>
+                <tr>
+                  <th>Branch</th>
+                  <th>Sales</th>
+                  <th>Target</th>
+                  <th>Variance</th>
+                  <th>Mix</th>
+                  <th>Basket</th>
+                </tr>
+              </thead>
+              <tbody>
+                {report.visibleBranches.map((item) => (
+                  <tr key={item.branch}>
+                    <td>
+                      <strong>{item.branch}</strong>
+                      <div className="muted-inline">{item.transactions} txns</div>
+                    </td>
+                    <td>{money(item.totalSales)}</td>
+                    <td>{money(item.target)} <span className="muted-inline">({item.targetAchievedPct}%)</span></td>
+                    <td>{money(item.varianceToTarget)}</td>
+                    <td>POS {money(item.posSales)} / Inv {money(item.invoiceSales)}</td>
+                    <td>{money(item.averageBasket)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-          <div className="phase3-summary-table">
-            <div className="phase3-summary-header">
-              <span>Branch</span>
-              <span>Total</span>
-              <span>POS</span>
-              <span>Invoices</span>
-              <span>Variance</span>
-            </div>
-            {data.dailySummaries.map((row) => (
-              <div key={`${row.date}-${row.branch}`} className="phase3-summary-row">
-                <div>
-                  <strong>{row.branch}</strong>
-                  <p>{row.transactions} tx • {row.owner}</p>
+        </Card>
+
+        <Card title="Seller leaderboard" subtitle="Keep this operational: who is moving the number against their own target?">
+          <div className="notification-stack">
+            {report.sellerBoard.map((seller) => {
+              const pct = seller.target ? Math.round((seller.sales / seller.target) * 100) : 0;
+              return (
+                <div key={`${seller.name}-${seller.branch}`} className="mini-list-row report-mini-row">
+                  <div>
+                    <strong>{seller.name}</strong>
+                    <p>{seller.branch}</p>
+                  </div>
+                  <div className="align-right">
+                    <strong>{money(seller.sales)}</strong>
+                    <p>{pct}% of target</p>
+                  </div>
                 </div>
-                <span>{row.salesTotal}</span>
-                <span>{row.posSales}</span>
-                <span>{row.invoiceSales}</span>
-                <span className={row.variance.startsWith('-') ? 'negative' : 'positive'}>{row.variance}</span>
+              );
+            })}
+          </div>
+        </Card>
+      </div>
+
+      <div className="split-grid reports-split">
+        <Card title="Daily summary email preview" subtitle="This is the message the boss or managers receive after close.">
+          <div className="email-preview-box">
+            <strong>{report.emailPreview.subject}</strong>
+            <pre>{report.emailPreview.body}</pre>
+          </div>
+        </Card>
+
+        <Card title="Automation status" subtitle="Stored recipient rules and close cadence.">
+          <div className="setting-list">
+            <div><span>Trigger mode</span><strong>{report.automation.triggerMode}</strong></div>
+            <div><span>Close time</span><strong>{report.automation.closeTime}</strong></div>
+            <div><span>Managers receive</span><strong>{report.automation.sendToManagers ? 'Yes' : 'No'}</strong></div>
+            <div><span>Executives receive</span><strong>{report.automation.sendToExecutives ? 'Yes' : 'No'}</strong></div>
+            <div><span>Manager recipients</span><strong>{report.automation.managerRecipients.join(', ')}</strong></div>
+            <div><span>Executive recipients</span><strong>{report.automation.executiveRecipients.join(', ')}</strong></div>
+          </div>
+        </Card>
+      </div>
+
+      <div className="split-grid reports-split">
+        <Card title="Email dispatch log" subtitle="Last sent summaries and provider status.">
+          <div className="notification-stack">
+            {report.emailDispatches.length ? report.emailDispatches.map((dispatch) => (
+              <div key={dispatch.id} className="mini-list-row report-mini-row">
+                <div>
+                  <strong>{dispatch.subject}</strong>
+                  <p>{new Date(dispatch.sentAt).toLocaleString()}</p>
+                </div>
+                <div className="align-right">
+                  <strong>{dispatch.provider}</strong>
+                  <p>{dispatch.status}</p>
+                </div>
               </div>
-            ))}
+            )) : <div className="loading-state">No summary emails sent yet.</div>}
           </div>
-        </article>
-      </section>
+        </Card>
 
-      <section className="reports-grid phase3-reports-grid phase4-reports-grid">
-        <article className="card reports-panel-card">
-          <div className="card-header">
-            <div>
-              <h3>Email dispatch log</h3>
-              <p>Audit trail for the automatic branch-summary emails.</p>
-            </div>
-          </div>
-          <div className="reports-list">
-            {data.emailDispatches.map((item) => (
-              <article key={item.id} className="reports-list-row">
+        <Card title="Day close history" subtitle="Saved close snapshots persisted on the backend.">
+          <div className="notification-stack">
+            {report.dayCloseHistory.length ? report.dayCloseHistory.map((item) => (
+              <div key={item.id} className="mini-list-row report-mini-row">
                 <div>
-                  <strong>{item.audience}</strong>
-                  <p>{item.summary}</p>
+                  <strong>{item.date}</strong>
+                  <p>{new Date(item.closedAt).toLocaleString()}</p>
                 </div>
-                <div className="reports-list-metrics">
-                  <span>{item.sentAt}</span>
-                  <small>{item.recipients.join(', ')}</small>
+                <div className="align-right">
+                  <strong>{money(item.totalSales)}</strong>
+                  <p>{item.trigger}</p>
                 </div>
-                <span className={`badge ${item.status === 'Delivered' ? 'success' : 'warning'}`}>{item.status}</span>
-              </article>
-            ))}
+              </div>
+            )) : <div className="loading-state">No day close history yet.</div>}
           </div>
-        </article>
-
-        <section className="card reports-email-card phase3-email-card">
-          <div className="card-header">
-            <div>
-              <h3>Daily summary email preview</h3>
-              <p>This is the message template the system sends once the daily sales figures are calculated and locked for the day.</p>
-            </div>
-            {topDispatch ? <span className="badge success">Last send {topDispatch.sentAt}</span> : null}
-          </div>
-
-          <div className="reports-email-preview">
-            <div className="reports-email-meta phase3-email-meta">
-              <div><span>To</span><strong>{data.emailPreview.recipients.join(', ')}</strong></div>
-              <div><span>Subject</span><strong>{data.emailPreview.subject}</strong></div>
-            </div>
-            <div className="reports-email-body">
-              {data.emailPreview.lines.map((line) => <p key={line}>{line}</p>)}
-            </div>
-          </div>
-        </section>
-      </section>
+        </Card>
+      </div>
     </div>
   );
 }

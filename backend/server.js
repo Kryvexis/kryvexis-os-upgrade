@@ -1,5 +1,8 @@
 import express from 'express';
 import cors from 'cors';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
 const app = express();
 const port = process.env.PORT || 4000;
@@ -9,12 +12,12 @@ app.use(express.json());
 
 const roles = [
   { key: 'admin', label: 'Admin', description: 'Full platform visibility, settings, templates, automation rules, user management, audit access.', dashboards: ['system activity', 'approvals', 'branch health', 'audit highlights'] },
-  { key: 'manager', label: 'Manager', description: 'Branch sales control, approvals, reporting, and daily summary visibility.', dashboards: ['branch sales', 'team target', 'daily summary', 'exceptions'] },
   { key: 'sales', label: 'Sales', description: 'Customers, quotes, invoices, statements, selected reports.', dashboards: ['quotes awaiting action', 'invoices due', 'customer balances', 'personal targets'] },
   { key: 'finance', label: 'Finance', description: 'Payments, debtors, creditors, statements, expenses, cash up.', dashboards: ['debtor aging', 'receipts today', 'overdue accounts', 'cash-up alerts'] },
   { key: 'warehouse', label: 'Warehouse', description: 'Stock, movements, transfers, low stock, goods received.', dashboards: ['low stock', 'pending transfers', 'awaiting receipt', 'delivery queue'] },
   { key: 'procurement', label: 'Procurement', description: 'Suppliers, purchase orders, reorders, supplier bills.', dashboards: ['reorder candidates', 'pending POs', 'late suppliers', 'unmatched supplier bills'] },
   { key: 'operations', label: 'Operations', description: 'Deliveries, returns, tasks, approvals, operational dashboards.', dashboards: ['open deliveries', 'returns pending', 'tasks due', 'dispatch exceptions'] },
+  { key: 'manager', label: 'Manager', description: 'Branch leadership with reports, day close, staffing oversight, and branch performance.', dashboards: ['branch sales', 'cash-up status', 'daily target', 'exceptions'] },
   { key: 'executive', label: 'Executive', description: 'Cross-module dashboards, approvals, reports, branch-specific controls.', dashboards: ['branch performance', 'exceptions', 'approvals', 'growth indicators'] }
 ];
 
@@ -112,266 +115,285 @@ const settings = {
   density: ['comfortable', 'compact'],
   supportEmail: 'kryvexissolutions@gmail.com',
   whatsapp: '+27686282874',
-  business: { currency: 'ZAR', taxDefault: 'VAT Standard', paymentTerms: '30 days', defaultBranch: 'Johannesburg' },
-  automation: {
-    closeTime: '18:00',
-    triggerMode: 'cash-up close',
-    sendToManager: true,
-    sendToExecutive: true,
-    managerEmails: ['manager@kryvexis.local'],
-    executiveEmails: ['boss@kryvexis.local'],
-    branchManagerMap: {
-      Johannesburg: 'jhb.manager@kryvexis.local',
-      'Cape Town': 'cpt.manager@kryvexis.local',
-      Durban: 'dbn.manager@kryvexis.local'
-    },
-    lastRunAt: '2026-03-13 06:05',
-    lastLockedDate: '2026-03-12'
-  }
+  business: { currency: 'ZAR', taxDefault: 'VAT Standard', paymentTerms: '30 days', defaultBranch: 'Johannesburg' }
 };
 
-let automationConfig = JSON.parse(JSON.stringify(settings.automation));
-let persistedDailyClosures = dailySummaryRows.map((row) => ({
-  ...row,
-  lockedAt: `${row.date} 18:05`,
-  status: 'Locked',
-  emailStatus: 'Delivered',
-  recipients: [automationConfig.branchManagerMap[row.branch], ...automationConfig.executiveEmails]
-}));
+
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const dataDir = path.join(__dirname, 'data');
+const stateFile = path.join(dataDir, 'automation-state.json');
+
+const branchDirectory = [
+  { id: 'JHB', name: 'Johannesburg', managerName: 'Nadine Smit', managerEmail: 'jhb.manager@kryvexis.local' },
+  { id: 'CPT', name: 'Cape Town', managerName: 'Rina Patel', managerEmail: 'cpt.manager@kryvexis.local' },
+  { id: 'DBN', name: 'Durban', managerName: 'Tariq Naidoo', managerEmail: 'dbn.manager@kryvexis.local' }
+];
+
+const baseAutomationSettings = {
+  triggerMode: 'manual-close',
+  closeTime: '18:00',
+  sendToManagers: true,
+  sendToExecutives: true,
+  managerRecipients: ['manager@kryvexis.local'],
+  executiveRecipients: ['boss@kryvexis.local'],
+  defaultManagerBranch: 'Johannesburg',
+  branchManagers: branchDirectory.map((branch) => ({ branch: branch.name, manager: branch.managerName, email: branch.managerEmail }))
+};
+
+const branchSalesSeed = [
+  { branch: 'Johannesburg', target: 180000, totalSales: 200000, posSales: 84000, invoiceSales: 116000, cashSales: 38000, cardSales: 102000, eftSales: 60000, transactions: 48 },
+  { branch: 'Cape Town', target: 160000, totalSales: 150000, posSales: 61000, invoiceSales: 89000, cashSales: 26000, cardSales: 79000, eftSales: 45000, transactions: 39 },
+  { branch: 'Durban', target: 120000, totalSales: 98000, posSales: 42000, invoiceSales: 56000, cashSales: 19000, cardSales: 51000, eftSales: 28000, transactions: 31 }
+];
+
+function ensureDataDir() {
+  if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
+}
+
+function defaultAutomationState() {
+  return {
+    automationSettings: baseAutomationSettings,
+    lastClosedAt: null,
+    lastClosedDate: null,
+    lastSummary: null,
+    dayCloseHistory: [],
+    emailDispatches: [],
+    scheduler: { enabled: false, lastAutoRunDate: null }
+  };
+}
+
+function loadAutomationState() {
+  try {
+    ensureDataDir();
+    if (!fs.existsSync(stateFile)) {
+      const initial = defaultAutomationState();
+      fs.writeFileSync(stateFile, JSON.stringify(initial, null, 2));
+      return initial;
+    }
+    const raw = JSON.parse(fs.readFileSync(stateFile, 'utf8'));
+    return {
+      ...defaultAutomationState(),
+      ...raw,
+      automationSettings: { ...baseAutomationSettings, ...(raw.automationSettings || {}) }
+    };
+  } catch (error) {
+    console.error('Failed to load automation state', error);
+    return defaultAutomationState();
+  }
+}
+
+let automationState = loadAutomationState();
+
+function saveAutomationState() {
+  ensureDataDir();
+  fs.writeFileSync(stateFile, JSON.stringify(automationState, null, 2));
+}
+
+function formatCurrency(amount) {
+  return new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR', maximumFractionDigits: 0 }).format(amount).replace('ZAR', 'R').replace(/ /g, ' ');
+}
+
+function formatPct(value) {
+  return `${Math.round(value)}%`;
+}
+
+function isoDateOffset(days = 0) {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+function buildDailySummary(date = isoDateOffset(-1)) {
+  const branches = branchSalesSeed.map((item, index) => ({
+    ...item,
+    date,
+    varianceToTarget: item.totalSales - item.target,
+    targetAchievedPct: item.target ? Math.round((item.totalSales / item.target) * 100) : 0,
+    averageBasket: item.transactions ? Math.round(item.totalSales / item.transactions) : 0,
+    branchId: branchDirectory[index]?.id || `BR-${index + 1}`
+  }));
+  const totals = branches.reduce((acc, item) => ({
+    totalSales: acc.totalSales + item.totalSales,
+    posSales: acc.posSales + item.posSales,
+    invoiceSales: acc.invoiceSales + item.invoiceSales,
+    cashSales: acc.cashSales + item.cashSales,
+    cardSales: acc.cardSales + item.cardSales,
+    eftSales: acc.eftSales + item.eftSales,
+    transactions: acc.transactions + item.transactions,
+    target: acc.target + item.target
+  }), { totalSales: 0, posSales: 0, invoiceSales: 0, cashSales: 0, cardSales: 0, eftSales: 0, transactions: 0, target: 0 });
+
+  return {
+    date,
+    branches,
+    totals: {
+      ...totals,
+      varianceToTarget: totals.totalSales - totals.target,
+      targetAchievedPct: totals.target ? Math.round((totals.totalSales / totals.target) * 100) : 0
+    }
+  };
+}
+
+function buildEmailBody(summary) {
+  const lines = summary.branches.map((branch) => `${branch.branch} made ${formatCurrency(branch.totalSales)} yesterday against a target of ${formatCurrency(branch.target)} (${formatPct(branch.targetAchievedPct)}).`);
+  lines.push(`Total company sales yesterday: ${formatCurrency(summary.totals.totalSales)}.`);
+  return lines.join('\n');
+}
+
+async function deliverSummaryEmail(summary, recipients) {
+  const subject = `Daily Sales Summary - ${summary.date}`;
+  const body = buildEmailBody(summary);
+  const provider = process.env.EMAIL_PROVIDER || (process.env.RESEND_API_KEY ? 'resend' : 'log');
+
+  if (provider === 'resend' && process.env.RESEND_API_KEY) {
+    const response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${process.env.RESEND_API_KEY}`
+      },
+      body: JSON.stringify({
+        from: process.env.EMAIL_FROM || 'Kryvexis OS <reports@kryvexis.local>',
+        to: recipients,
+        subject,
+        text: body
+      })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Resend send failed: ${errorText}`);
+    }
+
+    const payload = await response.json();
+    return { provider: 'resend', messageId: payload.id || null, subject, body };
+  }
+
+  return { provider: 'log', messageId: `LOG-${Date.now()}`, subject, body };
+}
+
+function summarizeDispatchTargets() {
+  const recipients = [];
+  if (automationState.automationSettings.sendToManagers) recipients.push(...automationState.automationSettings.managerRecipients);
+  if (automationState.automationSettings.sendToExecutives) recipients.push(...automationState.automationSettings.executiveRecipients);
+  return [...new Set(recipients.filter(Boolean))];
+}
+
+function createDispatchRecord(result, recipients, summary, status = 'Delivered') {
+  return {
+    id: `MAIL-${Date.now()}`,
+    sentAt: new Date().toISOString(),
+    recipients,
+    provider: result.provider,
+    subject: result.subject,
+    status,
+    date: summary.date,
+    companyTotal: summary.totals.totalSales,
+    branchCount: summary.branches.length
+  };
+}
+
+async function runDayClose({ trigger = 'manual', sendEmail = false, date = isoDateOffset(-1) } = {}) {
+  const summary = buildDailySummary(date);
+  automationState.lastClosedAt = new Date().toISOString();
+  automationState.lastClosedDate = date;
+  automationState.lastSummary = summary;
+  automationState.dayCloseHistory = [
+    {
+      id: `CLOSE-${Date.now()}`,
+      closedAt: automationState.lastClosedAt,
+      trigger,
+      date,
+      totalSales: summary.totals.totalSales,
+      varianceToTarget: summary.totals.varianceToTarget
+    },
+    ...automationState.dayCloseHistory
+  ].slice(0, 30);
+
+  let dispatch = null;
+  if (sendEmail) {
+    const recipients = summarizeDispatchTargets();
+    const result = await deliverSummaryEmail(summary, recipients);
+    dispatch = createDispatchRecord(result, recipients, summary);
+    automationState.emailDispatches = [dispatch, ...automationState.emailDispatches].slice(0, 40);
+  }
+
+  saveAutomationState();
+  return { summary, dispatch };
+}
+
+function buildReportPayload(role = 'admin', branch = 'all') {
+  const summary = automationState.lastSummary || buildDailySummary();
+  const allowedBranch = role === 'manager' ? automationState.automationSettings.defaultManagerBranch || 'Johannesburg' : branch;
+  const visibleBranches = allowedBranch && allowedBranch !== 'all'
+    ? summary.branches.filter((item) => item.branch === allowedBranch)
+    : summary.branches;
+  const totals = visibleBranches.reduce((acc, item) => ({
+    totalSales: acc.totalSales + item.totalSales,
+    posSales: acc.posSales + item.posSales,
+    invoiceSales: acc.invoiceSales + item.invoiceSales,
+    cashSales: acc.cashSales + item.cashSales,
+    cardSales: acc.cardSales + item.cardSales,
+    eftSales: acc.eftSales + item.eftSales,
+    transactions: acc.transactions + item.transactions,
+    target: acc.target + item.target
+  }), { totalSales: 0, posSales: 0, invoiceSales: 0, cashSales: 0, cardSales: 0, eftSales: 0, transactions: 0, target: 0 });
+
+  const sellerBoard = [
+    { name: 'Alex Morgan', branch: 'Johannesburg', sales: 84000, target: 90000 },
+    { name: 'Rina Patel', branch: 'Cape Town', sales: 72500, target: 80000 },
+    { name: 'Tariq Naidoo', branch: 'Durban', sales: 48800, target: 65000 }
+  ].filter((item) => allowedBranch === 'all' || !allowedBranch || item.branch === allowedBranch);
+
+  return {
+    scope: role === 'manager' ? allowedBranch : branch,
+    date: summary.date,
+    canViewAllBranches: role === 'admin' || role === 'executive',
+    visibleBranches,
+    totals: {
+      ...totals,
+      varianceToTarget: totals.totalSales - totals.target,
+      targetAchievedPct: totals.target ? Math.round((totals.totalSales / totals.target) * 100) : 0
+    },
+    sellerBoard,
+    emailPreview: {
+      subject: `Daily Sales Summary - ${summary.date}`,
+      body: buildEmailBody({ ...summary, branches: visibleBranches.length ? visibleBranches : summary.branches, totals: { ...totals, varianceToTarget: totals.totalSales - totals.target, targetAchievedPct: totals.target ? Math.round((totals.totalSales / totals.target) * 100) : 0 } })
+    },
+    emailDispatches: automationState.emailDispatches,
+    dayCloseHistory: automationState.dayCloseHistory,
+    automation: automationState.automationSettings
+  };
+}
+
+function startScheduler() {
+  if (process.env.ENABLE_DAY_CLOSE_SCHEDULER !== 'true') return;
+  automationState.scheduler.enabled = true;
+  saveAutomationState();
+  setInterval(async () => {
+    const now = new Date();
+    const hhmm = now.toTimeString().slice(0,5);
+    if (automationState.automationSettings.triggerMode !== 'scheduled-close') return;
+    if (hhmm !== automationState.automationSettings.closeTime) return;
+    const today = now.toISOString().slice(0,10);
+    if (automationState.scheduler.lastAutoRunDate === today) return;
+    try {
+      await runDayClose({ trigger: 'scheduled', sendEmail: true, date: today });
+      automationState.scheduler.lastAutoRunDate = today;
+      saveAutomationState();
+    } catch (error) {
+      console.error('Scheduled day close failed', error);
+    }
+  }, 60000);
+}
 
 const topClients = [
   { customerId: 'CUS-001', name: 'Acme Retail Group', revenue: 'R78,240', invoices: 6, averageOrderValue: 'R13,040', overdueBalance: 'R5,040', trend: 'Growing this month' },
   { customerId: 'CUS-003', name: 'Urban Build Supply', revenue: 'R63,580', invoices: 3, averageOrderValue: 'R21,193', overdueBalance: 'R12,000', trend: 'Large deal pending' },
   { customerId: 'CUS-002', name: 'Northline Foods', revenue: 'R41,920', invoices: 5, averageOrderValue: 'R8,384', overdueBalance: 'R0', trend: 'Healthy collections' }
 ];
-
-const salesPerformanceByRole = {
-  sales: {
-    actorName: 'Alex Morgan',
-    scopeLabel: 'Your sales vs target',
-    branch: 'Johannesburg',
-    yesterdaySales: 'R58,400',
-    dailyTarget: 'R50,000',
-    monthToDateSales: 'R782,400',
-    monthlyTarget: 'R1,050,000',
-    attainmentPercent: 74,
-    pipelineValue: 'R126,900',
-    approvalsWaiting: 3,
-    trend: [
-      { label: 'Week 1', actual: 172000, target: 190000 },
-      { label: 'Week 2', actual: 205000, target: 210000 },
-      { label: 'Week 3', actual: 188000, target: 215000 },
-      { label: 'Week 4', actual: 217400, target: 225000 }
-    ]
-  },
-  manager: {
-    actorName: 'Alex Morgan',
-    scopeLabel: 'Branch sales vs target',
-    branch: 'Johannesburg',
-    yesterdaySales: 'R200,000',
-    dailyTarget: 'R180,000',
-    monthToDateSales: 'R2,480,000',
-    monthlyTarget: 'R3,100,000',
-    attainmentPercent: 80,
-    pipelineValue: 'R340,500',
-    approvalsWaiting: 6,
-    trend: [
-      { label: 'Week 1', actual: 590000, target: 650000 },
-      { label: 'Week 2', actual: 635000, target: 700000 },
-      { label: 'Week 3', actual: 612000, target: 720000 },
-      { label: 'Week 4', actual: 643000, target: 730000 }
-    ]
-  },
-  executive: {
-    actorName: 'Executive desk',
-    scopeLabel: 'Company sales vs target',
-    branch: 'All branches',
-    yesterdaySales: 'R448,000',
-    dailyTarget: 'R420,000',
-    monthToDateSales: 'R5,860,000',
-    monthlyTarget: 'R7,200,000',
-    attainmentPercent: 81,
-    pipelineValue: 'R910,000',
-    approvalsWaiting: 9,
-    trend: [
-      { label: 'Week 1', actual: 1410000, target: 1650000 },
-      { label: 'Week 2', actual: 1475000, target: 1750000 },
-      { label: 'Week 3', actual: 1412000, target: 1800000 },
-      { label: 'Week 4', actual: 1763000, target: 2000000 }
-    ]
-  },
-  admin: {
-    actorName: 'Admin desk',
-    scopeLabel: 'Company sales vs target',
-    branch: 'All branches',
-    yesterdaySales: 'R448,000',
-    dailyTarget: 'R420,000',
-    monthToDateSales: 'R5,860,000',
-    monthlyTarget: 'R7,200,000',
-    attainmentPercent: 81,
-    pipelineValue: 'R910,000',
-    approvalsWaiting: 9,
-    trend: [
-      { label: 'Week 1', actual: 1410000, target: 1650000 },
-      { label: 'Week 2', actual: 1475000, target: 1750000 },
-      { label: 'Week 3', actual: 1412000, target: 1800000 },
-      { label: 'Week 4', actual: 1763000, target: 2000000 }
-    ]
-  }
-};
-
-const branchDailySales = [
-  { branch: 'Johannesburg', yesterdaySales: 'R200,000', dailyTarget: 'R180,000', attainmentPercent: 111, owner: 'Alex Morgan' },
-  { branch: 'Cape Town', yesterdaySales: 'R150,000', dailyTarget: 'R145,000', attainmentPercent: 103, owner: 'Rina Patel' },
-  { branch: 'Durban', yesterdaySales: 'R98,000', dailyTarget: 'R120,000', attainmentPercent: 82, owner: 'Tariq Naidoo' }
-];
-
-const sellerPerformance = [
-  { name: 'Alex Morgan', branch: 'Johannesburg', sales: 'R782,400', target: 'R1,050,000', attainmentPercent: 74 },
-  { name: 'Rina Patel', branch: 'Cape Town', sales: 'R694,200', target: 'R980,000', attainmentPercent: 71 },
-  { name: 'Tariq Naidoo', branch: 'Durban', sales: 'R541,800', target: 'R760,000', attainmentPercent: 71 }
-];
-
-const dailySummaryRows = [
-  { date: '2026-03-12', branch: 'Johannesburg', salesTotal: 'R200,000', posSales: 'R124,000', invoiceSales: 'R76,000', cashSales: 'R22,000', cardSales: 'R108,000', eftSales: 'R70,000', transactions: 42, target: 'R180,000', variance: '+R20,000', owner: 'Alex Morgan' },
-  { date: '2026-03-12', branch: 'Cape Town', salesTotal: 'R150,000', posSales: 'R91,000', invoiceSales: 'R59,000', cashSales: 'R18,000', cardSales: 'R77,000', eftSales: 'R55,000', transactions: 31, target: 'R145,000', variance: '+R5,000', owner: 'Rina Patel' },
-  { date: '2026-03-12', branch: 'Durban', salesTotal: 'R98,000', posSales: 'R53,000', invoiceSales: 'R45,000', cashSales: 'R12,000', cardSales: 'R41,000', eftSales: 'R45,000', transactions: 24, target: 'R120,000', variance: '-R22,000', owner: 'Tariq Naidoo' }
-];
-
-const emailDispatchLog = [
-  { id: 'MAIL-1003', sentAt: 'Today 06:05', audience: 'Manager + executive summary', recipients: ['manager@kryvexis.local', 'boss@kryvexis.local'], status: 'Delivered', summary: 'All branch figures for 12 Mar 2026 distributed automatically.' },
-  { id: 'MAIL-1002', sentAt: 'Yesterday 06:04', audience: 'Manager summary', recipients: ['manager@kryvexis.local'], status: 'Delivered', summary: 'Branch-only rollup sent after cash-up lock.' },
-  { id: 'MAIL-1001', sentAt: '2 days ago 06:07', audience: 'Executive summary', recipients: ['boss@kryvexis.local'], status: 'Delivered', summary: 'Company-wide trend summary sent with branch leaderboard.' }
-];
-
-function branchRecipients(branch, includeExecutive = automationConfig.sendToExecutive) {
-  const recipients = [];
-  if (automationConfig.sendToManager) {
-    recipients.push(automationConfig.branchManagerMap[branch] || automationConfig.managerEmails[0]);
-  }
-  if (includeExecutive) {
-    recipients.push(...automationConfig.executiveEmails);
-  }
-  return recipients.filter((value, index, list) => value && list.indexOf(value) === index);
-}
-
-function buildClosureRows(selectedBranch = 'All branches') {
-  const rows = selectedBranch === 'All branches'
-    ? persistedDailyClosures
-    : persistedDailyClosures.filter((row) => row.branch === selectedBranch);
-  return rows.map(({ lockedAt, status, emailStatus, recipients, ...rest }) => rest);
-}
-
-function buildAutomationPanel(selectedBranch = 'All branches') {
-  const closures = selectedBranch === 'All branches'
-    ? persistedDailyClosures
-    : persistedDailyClosures.filter((row) => row.branch === selectedBranch);
-  const lastClosure = closures[0] || persistedDailyClosures[0] || null;
-  return {
-    config: automationConfig,
-    latestClose: lastClosure
-      ? {
-          branch: selectedBranch,
-          lockedAt: lastClosure.lockedAt,
-          businessDate: lastClosure.date,
-          emailStatus: lastClosure.emailStatus,
-          triggerMode: automationConfig.triggerMode,
-          recipients: selectedBranch === 'All branches'
-            ? [...automationConfig.managerEmails, ...automationConfig.executiveEmails]
-            : branchRecipients(lastClosure.branch),
-          branchesClosed: closures.length
-        }
-      : null,
-    closures: closures.map((row) => ({
-      branch: row.branch,
-      date: row.date,
-      lockedAt: row.lockedAt,
-      salesTotal: row.salesTotal,
-      status: row.status,
-      emailStatus: row.emailStatus,
-      recipients: row.recipients
-    }))
-  };
-}
-
-function executeDayClose(role, requestedBranch = 'All branches') {
-  if (!['admin', 'manager', 'executive'].includes(role)) return null;
-  const effectiveBranch = role === 'manager' ? 'Johannesburg' : requestedBranch;
-  const targets = effectiveBranch === 'All branches' ? dailySummaryRows : dailySummaryRows.filter((row) => row.branch === effectiveBranch);
-  const now = '2026-03-13 18:05';
-  const date = '2026-03-13';
-
-  targets.forEach((row) => {
-    const recipients = branchRecipients(row.branch, effectiveBranch === 'All branches');
-    const closure = {
-      ...row,
-      date,
-      lockedAt: now,
-      status: 'Locked',
-      emailStatus: 'Pending send',
-      recipients
-    };
-    const existingIndex = persistedDailyClosures.findIndex((item) => item.branch === row.branch && item.date === date);
-    if (existingIndex >= 0) persistedDailyClosures[existingIndex] = closure;
-    else persistedDailyClosures.unshift(closure);
-  });
-
-  automationConfig.lastRunAt = now;
-  automationConfig.lastLockedDate = date;
-  return buildAutomationPanel(effectiveBranch);
-}
-
-function dispatchDayCloseSummary(role, requestedBranch = 'All branches') {
-  if (!['admin', 'manager', 'executive'].includes(role)) return null;
-  const effectiveBranch = role === 'manager' ? 'Johannesburg' : requestedBranch;
-  const targets = effectiveBranch === 'All branches'
-    ? persistedDailyClosures.filter((row) => row.date === automationConfig.lastLockedDate)
-    : persistedDailyClosures.filter((row) => row.branch === effectiveBranch && row.date === automationConfig.lastLockedDate);
-  if (!targets.length) return null;
-
-  const recipients = effectiveBranch === 'All branches'
-    ? [...automationConfig.managerEmails, ...automationConfig.executiveEmails]
-    : branchRecipients(effectiveBranch);
-  const summary = targets.map((row) => `${row.branch} made ${row.salesTotal} on ${row.date}`).join(' | ');
-  const dispatch = {
-    id: `MAIL-${1000 + emailDispatchLog.length + 1}`,
-    sentAt: 'Today 18:06',
-    audience: effectiveBranch === 'All branches' ? 'Manager + executive summary' : `${effectiveBranch} manager summary`,
-    recipients,
-    status: 'Delivered',
-    summary
-  };
-  emailDispatchLog.unshift(dispatch);
-  persistedDailyClosures = persistedDailyClosures.map((row) => {
-    if (targets.some((target) => target.branch === row.branch && target.date === row.date)) {
-      return { ...row, emailStatus: 'Delivered' };
-    }
-    return row;
-  });
-  return {
-    dispatch,
-    emailPreview: {
-      recipients,
-      subject: `Daily sales summary - ${effectiveBranch}`,
-      lines: targets.map((row) => `${row.branch} branch made ${row.salesTotal} yesterday against a target of ${row.target}. POS ${row.posSales}, invoices ${row.invoiceSales}, variance ${row.variance}.`)
-    },
-    automation: buildAutomationPanel(effectiveBranch)
-  };
-}
-
-function updateAutomationConfig(payload = {}) {
-  automationConfig = {
-    ...automationConfig,
-    sendToManager: payload.sendToManager ?? automationConfig.sendToManager,
-    sendToExecutive: payload.sendToExecutive ?? automationConfig.sendToExecutive,
-    closeTime: payload.closeTime || automationConfig.closeTime,
-    triggerMode: payload.triggerMode || automationConfig.triggerMode,
-    managerEmails: Array.isArray(payload.managerEmails) ? payload.managerEmails : automationConfig.managerEmails,
-    executiveEmails: Array.isArray(payload.executiveEmails) ? payload.executiveEmails : automationConfig.executiveEmails
-  };
-  settings.automation = automationConfig;
-  return automationConfig;
-}
 
 const baseCustomerSummaries = {
   'CUS-001': {
@@ -421,18 +443,6 @@ const dashboardByRole = {
     panels: [
       { title: 'Approvals queue', items: ['Q-1045 high-value quote', 'Payment exception PAY-7693', 'Role change request for Cape Town'] },
       { title: 'Audit highlights', items: ['Theme changed to system', 'Invoice template updated', 'Branch settings edited'] }
-    ]
-  },
-  manager: {
-    kpis: [
-      { label: 'Branch sales yesterday', value: 'R200,000', detail: 'Johannesburg vs R180,000 target' },
-      { label: 'Month-to-date sales', value: 'R2,480,000', detail: '80% of monthly branch target' },
-      { label: 'Approvals waiting', value: '6', detail: 'Quotes and branch exceptions' },
-      { label: 'Branch leaderboard', value: '#1', detail: 'Top branch yesterday' }
-    ],
-    panels: [
-      { title: 'Manager focus', items: ['Review branch target gap', 'Approve large quotes', 'Share yesterday summary with leadership'] },
-      { title: 'Daily branch highlights', items: ['Johannesburg beat target', 'Cape Town slightly ahead', 'Durban needs follow-up'] }
     ]
   },
   sales: {
@@ -532,10 +542,6 @@ function buildBranchSnapshots() {
   }));
 }
 
-function buildPerformance(role) {
-  return salesPerformanceByRole[role] || salesPerformanceByRole.sales;
-}
-
 function buildDashboard(role) {
   const dashboard = dashboardByRole[role] || dashboardByRole.admin;
   const highlights = activeNotifications().slice(0, 5);
@@ -546,71 +552,11 @@ function buildDashboard(role) {
     recentCustomers: customers.slice(0, 3),
     lowStockProducts: products.filter((item) => item.stock <= item.reorderAt),
     topClients,
-    performance: buildPerformance(role),
     actionCenter: {
       branchSnapshots: buildBranchSnapshots(),
       actionQueue: activeNotifications().slice(0, 6).map(operationalActionForNotification),
       auditHighlights: auditLog.slice(0, 6)
     }
-  };
-}
-
-function formatCurrency(amount) {
-  return `R${Number(amount || 0).toLocaleString('en-ZA')}`;
-}
-
-function roleBranchScope(role) {
-  if (role === 'manager') return 'Johannesburg';
-  return 'All branches';
-}
-
-function buildReports(role, requestedBranch = 'All branches') {
-  if (!['admin', 'manager', 'executive'].includes(role)) return null;
-
-  const forcedBranch = role === 'manager' ? roleBranchScope(role) : requestedBranch || 'All branches';
-  const selectedBranch = forcedBranch === 'All branches' ? 'All branches' : forcedBranch;
-  const filteredDaily = buildClosureRows(selectedBranch);
-  const filteredBranches = selectedBranch === 'All branches'
-    ? branchDailySales
-    : branchDailySales.filter((row) => row.branch === selectedBranch);
-  const filteredSellers = selectedBranch === 'All branches'
-    ? sellerPerformance
-    : sellerPerformance.filter((row) => row.branch === selectedBranch);
-
-  const yesterdayTotal = filteredDaily.reduce((sum, row) => sum + numericAmount(row.salesTotal), 0);
-  const targetTotal = filteredDaily.reduce((sum, row) => sum + numericAmount(row.target), 0);
-  const mtdTotal = filteredSellers.reduce((sum, row) => sum + numericAmount(row.sales), 0);
-  const mtdTarget = filteredSellers.reduce((sum, row) => sum + numericAmount(row.target), 0);
-  const attainmentPercent = targetTotal ? Math.round((yesterdayTotal / targetTotal) * 100) : 0;
-
-  const emailRecipients = selectedBranch === 'All branches'
-    ? ['manager@kryvexis.local', 'boss@kryvexis.local']
-    : ['manager@kryvexis.local'];
-
-  return {
-    scope: selectedBranch === 'All branches' ? 'company' : 'branch',
-    selectedBranch,
-    generatedAt: 'Today 06:05 after cash-up close',
-    totals: {
-      yesterdaySales: formatCurrency(yesterdayTotal),
-      monthToDateSales: formatCurrency(mtdTotal),
-      monthlyTarget: formatCurrency(mtdTarget),
-      attainmentPercent
-    },
-    branches: filteredBranches,
-    sellers: filteredSellers,
-    dailySummaries: filteredDaily,
-    emailDispatches: selectedBranch === 'All branches'
-      ? emailDispatchLog
-      : emailDispatchLog.filter((entry) => /manager/i.test(entry.audience) || entry.audience.includes(selectedBranch)),
-    automation: buildAutomationPanel(selectedBranch),
-    emailPreview: {
-      recipients: emailRecipients,
-      subject: `Daily sales summary - ${selectedBranch === 'All branches' ? 'All branches' : selectedBranch}`,
-      lines: filteredDaily.map((row) => `${row.branch} branch made ${row.salesTotal} yesterday against a target of ${row.target}. POS ${row.posSales}, invoices ${row.invoiceSales}, variance ${row.variance}.`)
-    },
-    availableBranches: ['All branches', ...dailySummaryRows.map((row) => row.branch)]
-      .filter((value, index, list) => list.indexOf(value) === index)
   };
 }
 
@@ -706,28 +652,6 @@ app.get('/api/bootstrap', (_req, res) => res.json(envelope({ roles, themeOptions
 app.get('/api/dashboard', (req, res) => {
   const role = req.query.role || 'admin';
   res.json(envelope(buildDashboard(role)));
-});
-app.get('/api/reports', (req, res) => {
-  const role = req.query.role || 'admin';
-  const reports = buildReports(role, req.query.branch || 'All branches');
-  if (!reports) return res.status(403).json({ ok: false, error: 'reports access denied' });
-  return res.json(envelope(reports));
-});
-app.post('/api/day-close/run', (req, res) => {
-  const role = req.body?.role || 'admin';
-  const result = executeDayClose(role, req.body?.branch || 'All branches');
-  if (!result) return res.status(403).json({ ok: false, error: 'day close access denied' });
-  return res.json(envelope(result));
-});
-app.post('/api/day-close/send-summary', (req, res) => {
-  const role = req.body?.role || 'admin';
-  const result = dispatchDayCloseSummary(role, req.body?.branch || 'All branches');
-  if (!result) return res.status(403).json({ ok: false, error: 'summary email access denied or no locked close found' });
-  return res.json(envelope(result));
-});
-app.patch('/api/settings/automation', (req, res) => {
-  const config = updateAutomationConfig(req.body || {});
-  return res.json(envelope(config));
 });
 app.get('/api/customers/:id/summary', (req, res) => {
   const summary = buildCustomerSummary(req.params.id);
@@ -942,7 +866,53 @@ app.get('/api/emails/:kind/:id', (req, res) => {
   return res.json(envelope(draft));
 });
 
-app.get('/api/settings', (_req, res) => res.json(envelope(settings)));
+
+app.get('/api/reports', (req, res) => {
+  const role = String(req.query.role || 'admin');
+  const branch = String(req.query.branch || 'all');
+  return res.json(envelope(buildReportPayload(role, branch)));
+});
+
+app.get('/api/automation-settings', (_req, res) => {
+  return res.json(envelope(automationState.automationSettings));
+});
+
+app.post('/api/automation-settings', (req, res) => {
+  automationState.automationSettings = {
+    ...automationState.automationSettings,
+    ...req.body,
+    managerRecipients: Array.isArray(req.body.managerRecipients) ? req.body.managerRecipients : automationState.automationSettings.managerRecipients,
+    executiveRecipients: Array.isArray(req.body.executiveRecipients) ? req.body.executiveRecipients : automationState.automationSettings.executiveRecipients
+  };
+  saveAutomationState();
+  return res.json(envelope(automationState.automationSettings));
+});
+
+app.post('/api/day-close/run', async (req, res) => {
+  try {
+    const result = await runDayClose({ trigger: req.body?.trigger || 'manual', sendEmail: Boolean(req.body?.sendEmail), date: req.body?.date || isoDateOffset(-1) });
+    return res.json(envelope(result));
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'day close failed' });
+  }
+});
+
+app.post('/api/day-close/send-summary', async (_req, res) => {
+  try {
+    const summary = automationState.lastSummary || buildDailySummary();
+    const recipients = summarizeDispatchTargets();
+    const result = await deliverSummaryEmail(summary, recipients);
+    const dispatch = createDispatchRecord(result, recipients, summary);
+    automationState.emailDispatches = [dispatch, ...automationState.emailDispatches].slice(0, 40);
+    saveAutomationState();
+    return res.json(envelope(dispatch));
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: error.message || 'email send failed' });
+  }
+});
+
+app.get('/api/settings', (_req, res) => res.json(envelope({ ...settings, automation: automationState.automationSettings })));
 app.get('/api/roles', (_req, res) => res.json(envelope(roles)));
 
+startScheduler();
 app.listen(port, () => console.log(`Kryvexis OS Phase HL backend running on ${port}`));

@@ -1,4 +1,4 @@
-export type RoleKey = 'admin' | 'manager' | 'sales' | 'finance' | 'warehouse' | 'procurement' | 'operations' | 'executive';
+export type RoleKey = 'admin' | 'sales' | 'finance' | 'warehouse' | 'procurement' | 'operations' | 'manager' | 'executive';
 export type KPI = { label: string; value: string; detail: string };
 export type PanelGroup = { title: string; items: string[] };
 export type Customer = {
@@ -120,8 +120,25 @@ export type Notification = {
   dismissed?: boolean;
   snoozedUntil?: string | null;
 };
-export type AutomationConfig = { closeTime: string; triggerMode: string; sendToManager: boolean; sendToExecutive: boolean; managerEmails: string[]; executiveEmails: string[]; branchManagerMap: Record<string, string>; lastRunAt: string; lastLockedDate: string; };
-export type Settings = { themes: string[]; paymentModes: string[]; density: string[]; supportEmail: string; whatsapp: string; business: { currency: string; taxDefault: string; paymentTerms: string; defaultBranch: string; }; automation: AutomationConfig; };
+export type AutomationSettings = {
+  triggerMode: string;
+  closeTime: string;
+  sendToManagers: boolean;
+  sendToExecutives: boolean;
+  managerRecipients: string[];
+  executiveRecipients: string[];
+  defaultManagerBranch: string;
+  branchManagers: { branch: string; manager: string; email: string }[];
+};
+export type Settings = {
+  themes: string[];
+  paymentModes: string[];
+  density: string[];
+  supportEmail: string;
+  whatsapp: string;
+  business: { currency: string; taxDefault: string; paymentTerms: string; defaultBranch: string; };
+  automation?: AutomationSettings;
+};
 export type Role = { key: RoleKey; label: string; description: string; dashboards: string[]; };
 export type TopClient = { customerId: string; name: string; revenue: string; invoices: number; averageOrderValue: string; overdueBalance: string; trend: string; };
 export type OperationalActionItem = {
@@ -136,108 +153,6 @@ export type OperationalActionItem = {
   status: string;
 };
 export type BranchSnapshot = { branch: string; approvals: number; collections: number; exceptions: number };
-
-export type SalesTrendPoint = { label: string; actual: number; target: number };
-export type UserPerformance = {
-  actorName: string;
-  scopeLabel: string;
-  branch: string;
-  yesterdaySales: string;
-  dailyTarget: string;
-  monthToDateSales: string;
-  monthlyTarget: string;
-  attainmentPercent: number;
-  pipelineValue: string;
-  approvalsWaiting: number;
-  trend: SalesTrendPoint[];
-};
-export type BranchDailySales = {
-  branch: string;
-  yesterdaySales: string;
-  dailyTarget: string;
-  attainmentPercent: number;
-  owner: string;
-};
-export type SellerPerformance = {
-  name: string;
-  branch: string;
-  sales: string;
-  target: string;
-  attainmentPercent: number;
-};
-export type DailyEmailPreview = {
-  recipients: string[];
-  subject: string;
-  lines: string[];
-};
-export type DailySummaryRow = {
-  date: string;
-  branch: string;
-  salesTotal: string;
-  posSales: string;
-  invoiceSales: string;
-  cashSales: string;
-  cardSales: string;
-  eftSales: string;
-  transactions: number;
-  target: string;
-  variance: string;
-  owner: string;
-};
-export type EmailDispatchLog = {
-  id: string;
-  sentAt: string;
-  audience: string;
-  recipients: string[];
-  status: string;
-  summary: string;
-};
-export type AutomationCloseRow = {
-  branch: string;
-  date: string;
-  lockedAt: string;
-  salesTotal: string;
-  status: string;
-  emailStatus: string;
-  recipients: string[];
-};
-export type AutomationPanel = {
-  config: AutomationConfig;
-  latestClose: {
-    branch: string;
-    lockedAt: string;
-    businessDate: string;
-    emailStatus: string;
-    triggerMode: string;
-    recipients: string[];
-    branchesClosed: number;
-  } | null;
-  closures: AutomationCloseRow[];
-};
-export type DayCloseDispatchResponse = {
-  dispatch: EmailDispatchLog;
-  emailPreview: DailyEmailPreview;
-  automation: AutomationPanel;
-};
-export type ReportsResponse = {
-  scope: string;
-  selectedBranch: string;
-  generatedAt: string;
-  totals: {
-    yesterdaySales: string;
-    monthToDateSales: string;
-    monthlyTarget: string;
-    attainmentPercent: number;
-  };
-  branches: BranchDailySales[];
-  sellers: SellerPerformance[];
-  dailySummaries: DailySummaryRow[];
-  emailPreview: DailyEmailPreview;
-  emailDispatches: EmailDispatchLog[];
-  availableBranches: string[];
-  automation: AutomationPanel;
-};
-
 export type DashboardResponse = {
   role: string;
   kpis: KPI[];
@@ -246,7 +161,6 @@ export type DashboardResponse = {
   recentCustomers: Customer[];
   lowStockProducts: Product[];
   topClients: TopClient[];
-  performance: UserPerformance;
   actionCenter: {
     branchSnapshots: BranchSnapshot[];
     actionQueue: OperationalActionItem[];
@@ -298,4 +212,64 @@ export type EmailDraft = {
   intro: string;
   body: string[];
   closing: string;
+};
+export type ReportBranch = {
+  branchId: string;
+  branch: string;
+  date: string;
+  totalSales: number;
+  target: number;
+  varianceToTarget: number;
+  targetAchievedPct: number;
+  posSales: number;
+  invoiceSales: number;
+  cashSales: number;
+  cardSales: number;
+  eftSales: number;
+  transactions: number;
+  averageBasket: number;
+};
+export type ReportTotals = {
+  totalSales: number;
+  target: number;
+  varianceToTarget: number;
+  targetAchievedPct: number;
+  posSales: number;
+  invoiceSales: number;
+  cashSales: number;
+  cardSales: number;
+  eftSales: number;
+  transactions: number;
+};
+export type SellerRow = { name: string; branch: string; sales: number; target: number };
+export type EmailDispatch = {
+  id: string;
+  sentAt: string;
+  recipients: string[];
+  provider: string;
+  subject: string;
+  status: string;
+  date: string;
+  companyTotal: number;
+  branchCount: number;
+};
+export type DayCloseRecord = {
+  id: string;
+  closedAt: string;
+  trigger: string;
+  date: string;
+  totalSales: number;
+  varianceToTarget: number;
+};
+export type ReportsResponse = {
+  scope: string;
+  date: string;
+  canViewAllBranches: boolean;
+  visibleBranches: ReportBranch[];
+  totals: ReportTotals;
+  sellerBoard: SellerRow[];
+  emailPreview: { subject: string; body: string };
+  emailDispatches: EmailDispatch[];
+  dayCloseHistory: DayCloseRecord[];
+  automation: AutomationSettings;
 };
