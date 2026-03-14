@@ -104,7 +104,7 @@ export async function listRolePermissions() {
   if (!dbConfig.enableSql) {
     return Object.entries(fallbackPermissionCatalog).map(([roleKey, permissions]) => ({ roleKey, permissions }));
   }
-  const result = await query(`select role_key, permission_key from permissions order by role_key, permission_key`);
+  const result = await query(`select rp.role_key, rp.permission_key from role_permissions rp order by rp.role_key, rp.permission_key`);
   const grouped = new Map();
   for (const row of result.rows) {
     const list = grouped.get(row.role_key) || [];
@@ -144,7 +144,7 @@ async function loadUserByEmail(email) {
 
 async function loadPermissionsForRole(roleKey) {
   if (!dbConfig.enableSql) return fallbackPermissionCatalog[roleKey] || [];
-  const result = await query(`select permission_key from permissions where role_key = $1 order by permission_key`, [roleKey]);
+  const result = await query(`select rp.permission_key from role_permissions rp where rp.role_key = $1 order by rp.permission_key`, [roleKey]);
   return result.rows.map((row) => row.permission_key);
 }
 
