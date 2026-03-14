@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "node server.js",
-    "start": "node server.js"
+    "start": "node server.js",
+    "db:migrate": "node scripts/apply-migrations.js",
+    "db:seed": "node scripts/seed-core-data.js"
   },
   "dependencies": {
     "cors": "^2.8.5",

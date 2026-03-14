@@ -3,9 +3,7 @@ import cors from 'cors';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import pg from 'pg';
-
-const { Pool } = pg;
+import { applyMigrations, dbConfig, pool } from './src/lib/db.js';
 const app = express();
 const port = process.env.PORT || 4000;
 
@@ -17,14 +15,7 @@ const __dirname = path.dirname(__filename);
 const dataDir = path.join(__dirname, 'data');
 const stateFile = path.join(dataDir, 'automation-state.json');
 
-const DATABASE_URL = process.env.DATABASE_URL || '';
-const ENABLE_SQL = process.env.USE_SQL_AUTOMATION === 'true' && Boolean(DATABASE_URL);
-const pool = ENABLE_SQL
-  ? new Pool({
-      connectionString: DATABASE_URL,
-      ssl: process.env.PGSSL === 'false' ? false : { rejectUnauthorized: false }
-    })
-  : null;
+const ENABLE_SQL = dbConfig.enableSql;
 
 const roles = [
   { key: 'admin', label: 'Admin', description: 'Full platform visibility, settings, templates, automation rules, user management, audit access.', dashboards: ['system activity', 'approvals', 'branch health', 'audit highlights'] },
@@ -370,12 +361,10 @@ function buildDashboard(role) {
   };
 }
 
-// SQL adapter for automation/report state only.
+// SQL adapter and migration runner for the OS foundation.
 async function ensureSqlSchema() {
   if (!pool) return;
-  const schemaPath = path.join(__dirname, 'db', 'schema.sql');
-  const sql = fs.readFileSync(schemaPath, 'utf8');
-  await pool.query(sql);
+  await applyMigrations(console);
 }
 async function sqlGetSettings() {
   if (!pool) return null;
@@ -768,7 +757,19 @@ function listRoute(routePath, collection) {
 }
 
 app.get('/', (_req, res) => res.json({ ok: true, service: 'kryvexis-os-api', status: 'running', phase: 'SQL-A1' }));
-app.get('/health', (_req, res) => res.json({ status: 'ok', phase: 'SQL-A1', service: 'kryvexis-os-api', sqlAutomation: ENABLE_SQL }));
+app.get('/health', async (_req, res) => {
+  let database = { enabled: ENABLE_SQL, ready: false, migrations: 'json-mode' };
+  if (pool) {
+    try {
+      await pool.query('select 1');
+      const migrationCheck = await pool.query('select count(*)::int as count from schema_migrations');
+      database = { enabled: true, ready: true, migrations: migrationCheck.rows[0]?.count ?? 0 };
+    } catch (error) {
+      database = { enabled: true, ready: false, error: error.message };
+    }
+  }
+  return res.json({ status: database.ready || !ENABLE_SQL ? 'ok' : 'degraded', phase: 'SQL-A1', service: 'kryvexis-os-api', sqlAutomation: ENABLE_SQL, database });
+});
 app.get('/api/bootstrap', (_req, res) => res.json(envelope({ roles, themeOptions: settings.themes, support: { email: settings.supportEmail, whatsapp: settings.whatsapp } })));
 app.get('/api/dashboard', (req, res) => {
   const role = req.query.role || 'admin';
