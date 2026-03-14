@@ -1,309 +1,210 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Card } from '../components/Card';
-import { api } from '../lib/api';
-import type { ReportsResponse, RoleKey } from '../types';
 
-type PendingAction = 'close' | 'close-send' | 'resend' | null;
+type BranchRow = { branch?: string; sales?: number; target?: number; variance?: number; transactions?: number; };
+type LeaderboardRow = { name?: string; branch?: string; sales?: number; targetPercent?: number; };
+type AutomationSettings = {
+  triggerMode?: string;
+  closeTime?: string;
+  sendToManagers?: boolean;
+  sendToExecutives?: boolean;
+  managerRecipients?: string[];
+  executiveRecipients?: string[];
+};
+type EmailDispatch = { id?: string; branch?: string; sentAt?: string; recipient?: string; status?: string; };
+type CloseHistory = { id?: string; branch?: string; closedAt?: string; closedBy?: string; status?: string; };
+type ReportsResponse = {
+  branchScope?: string[];
+  selectedBranch?: string;
+  yesterdaySales?: number;
+  target?: number;
+  variance?: number;
+  transactions?: number;
+  branchPerformance?: BranchRow[];
+  sellerLeaderboard?: LeaderboardRow[];
+  dailySummaryPreview?: string;
+  automation?: AutomationSettings;
+  emailDispatches?: EmailDispatch[];
+  dayCloseHistory?: CloseHistory[];
+};
 
-function money(value: number) {
-  return new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR', maximumFractionDigits: 0 }).format(value).replace('ZAR', 'R').replace(/\u00a0/g, ' ');
+const money = (value?: number) => new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR', maximumFractionDigits: 0 }).format(Number.isFinite(value as number) ? (value as number) : 0);
+
+const panel: React.CSSProperties = {
+  background: 'linear-gradient(180deg, rgba(14,22,52,0.96), rgba(8,14,34,0.98))',
+  border: '1px solid rgba(83, 111, 175, 0.24)',
+  borderRadius: 20,
+  padding: 20,
+  boxShadow: '0 14px 30px rgba(0,0,0,0.22)',
+};
+
+async function fetchReports(): Promise<ReportsResponse> {
+  const response = await fetch('/api/reports', { headers: { Accept: 'application/json' } });
+  if (!response.ok) throw new Error(`Failed to load reports (${response.status})`);
+  const raw = (await response.json()) as ReportsResponse | null;
+  return {
+    branchScope: raw?.branchScope ?? ['Johannesburg'],
+    selectedBranch: raw?.selectedBranch ?? raw?.branchScope?.[0] ?? 'Johannesburg',
+    yesterdaySales: raw?.yesterdaySales ?? 0,
+    target: raw?.target ?? 0,
+    variance: raw?.variance ?? 0,
+    transactions: raw?.transactions ?? 0,
+    branchPerformance: Array.isArray(raw?.branchPerformance) ? raw!.branchPerformance : [],
+    sellerLeaderboard: Array.isArray(raw?.sellerLeaderboard) ? raw!.sellerLeaderboard : [],
+    dailySummaryPreview: raw?.dailySummaryPreview ?? 'Daily summary preview is not available yet.',
+    automation: {
+      triggerMode: raw?.automation?.triggerMode ?? 'manual-close',
+      closeTime: raw?.automation?.closeTime ?? '18:00',
+      sendToManagers: raw?.automation?.sendToManagers ?? true,
+      sendToExecutives: raw?.automation?.sendToExecutives ?? true,
+      managerRecipients: Array.isArray(raw?.automation?.managerRecipients) ? raw!.automation!.managerRecipients : [],
+      executiveRecipients: Array.isArray(raw?.automation?.executiveRecipients) ? raw!.automation!.executiveRecipients : [],
+    },
+    emailDispatches: Array.isArray(raw?.emailDispatches) ? raw!.emailDispatches : [],
+    dayCloseHistory: Array.isArray(raw?.dayCloseHistory) ? raw!.dayCloseHistory : [],
+  };
 }
 
-export function ReportsPage({ role }: { role: RoleKey }) {
-  const [branch, setBranch] = useState('all');
+export default function ReportsPage() {
   const [report, setReport] = useState<ReportsResponse | null>(null);
-  const [busy, setBusy] = useState<PendingAction>(null);
-  const [message, setMessage] = useState('');
-  const [error, setError] = useState('');
-  const [confirmAction, setConfirmAction] = useState<PendingAction>(null);
-
-  const canAccess = role === 'manager' || role === 'executive' || role === 'admin';
-
-  async function loadReport(selectedBranch = branch) {
-    const data = await api.reports(role, selectedBranch);
-    setReport(data);
-    if (!data.canViewAllBranches && selectedBranch !== data.scope) {
-      setBranch(data.scope);
-    }
-  }
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [branch, setBranch] = useState('');
 
   useEffect(() => {
-    if (!canAccess) return;
-    loadReport();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [role]);
+    let active = true;
+    fetchReports()
+      .then((data) => {
+        if (!active) return;
+        setReport(data);
+        setBranch(data.selectedBranch ?? data.branchScope?.[0] ?? 'Johannesburg');
+        setError(null);
+      })
+      .catch((err: unknown) => {
+        if (!active) return;
+        setError(err instanceof Error ? err.message : 'Failed to load reports');
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
-  useEffect(() => {
-    if (!canAccess) return;
-    loadReport(branch);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [branch]);
-
-  const branchOptions = useMemo(() => {
-    if (!report) return [];
-    const names = report.automation.branchManagers.map((item) => item.branch);
-    return report.canViewAllBranches ? ['all', ...names] : [report.scope];
-  }, [report]);
-
-  if (!canAccess) {
-    return <div className="loading-state">Reports are available only to managers, executives, and admins.</div>;
-  }
-
-  if (!report) return <div className="loading-state">Loading reports...</div>;
-
-  async function runConfirmedAction(action: Exclude<PendingAction, null>) {
-    setBusy(action);
-    setMessage('');
-    setError('');
-    try {
-      if (action === 'close') {
-        await api.runDayClose({ force: report.closeStatus.state === 'closed' });
-        setMessage(report.closeStatus.state === 'closed' ? 'Day close rerun and snapshot replaced.' : 'Day close completed and snapshot saved.');
-      }
-      if (action === 'close-send') {
-        await api.runDayClose({ sendEmail: true, force: report.closeStatus.state === 'closed' });
-        setMessage(report.closeStatus.state === 'closed' ? 'Day close rerun and summary email resent.' : 'Day close completed and summary email sent.');
-      }
-      if (action === 'resend') {
-        await api.sendSummaryEmail({ resend: true });
-        setMessage('Summary email resent from the latest closed snapshot.');
-      }
-      await loadReport(branch);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Action failed');
-    } finally {
-      setBusy(null);
-      setConfirmAction(null);
-    }
-  }
-
-  const statusTone = report.closeStatus.state === 'closed' ? 'ok' : 'warning';
-  const sendTone = report.sendStatus.state === 'sent' ? 'ok' : report.sendStatus.state === 'pending' ? 'warning' : 'neutral';
+  const rows = useMemo(() => {
+    const base = report?.branchPerformance ?? [];
+    if (!branch || branch === 'All branches') return base;
+    return base.filter((row) => row.branch === branch);
+  }, [report, branch]);
 
   return (
-    <div className="page-grid reports-layout">
-      <div className="toolbar-actions reports-toolbar">
-        <label className="stack-field inline-field">
-          <span>Branch scope</span>
-          <select value={branch} onChange={(event) => setBranch(event.target.value)} disabled={!report.canViewAllBranches}>
-            {branchOptions.map((item) => (
-              <option key={item} value={item}>{item === 'all' ? 'All branches' : item}</option>
-            ))}
-          </select>
-        </label>
-        <button className="ghost-button" type="button" onClick={() => setConfirmAction('close')} disabled={busy !== null}>
-          {busy === 'close' ? 'Running close…' : 'Run day close'}
-        </button>
-        <button className="solid-button" type="button" onClick={() => setConfirmAction('close-send')} disabled={busy !== null}>
-          {busy === 'close-send' ? 'Closing…' : 'Close + send email'}
-        </button>
-        <button className="ghost-button" type="button" onClick={() => setConfirmAction('resend')} disabled={busy !== null || report.closeStatus.state !== 'closed'}>
-          {busy === 'resend' ? 'Resending…' : 'Resend summary'}
-        </button>
-      </div>
-
-      <div className="status-strip-grid">
-        <div className={`status-strip-card ${statusTone}`}>
-          <span>Close status</span>
-          <strong>{report.closeStatus.label}</strong>
-          <p>{report.closeStatus.lastClosedAt ? `Last close ${new Date(report.closeStatus.lastClosedAt).toLocaleString()}` : 'No saved close yet'}</p>
+    <div style={{ padding: 24, color: '#eef4ff', display: 'grid', gap: 16 }}>
+      <section style={{ ...panel, paddingBottom: 18 }}>
+        <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 1.2, opacity: 0.65 }}>Module / Reports</div>
+        <div style={{ display: 'flex', alignItems: 'end', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', marginTop: 6 }}>
+          <div>
+            <h1 style={{ margin: 0, fontSize: 40, lineHeight: 1, fontWeight: 800 }}>Reports</h1>
+            <div style={{ marginTop: 8, opacity: 0.72 }}>Locked layout hotfix: stable mockup-style reporting screen.</div>
+          </div>
+          <div>
+            <label style={{ display: 'block', fontSize: 11, textTransform: 'uppercase', opacity: 0.65, marginBottom: 6 }}>Branch scope</label>
+            <select value={branch} onChange={(e) => setBranch(e.target.value)} style={{ minWidth: 220, padding: '11px 12px', borderRadius: 14, background: 'rgba(12,22,48,0.96)', color: '#eef4ff', border: '1px solid rgba(83, 111, 175, 0.3)' }}>
+              {(report?.branchScope ?? ['Johannesburg']).map((item) => <option key={item} value={item}>{item}</option>)}
+            </select>
+          </div>
         </div>
-        <div className={`status-strip-card ${sendTone}`}>
-          <span>Email status</span>
-          <strong>{report.sendStatus.label}</strong>
-          <p>{report.sendStatus.lastSentAt ? `Last email ${new Date(report.sendStatus.lastSentAt).toLocaleString()}` : 'Waiting for first summary email'}</p>
-        </div>
-      </div>
+        {error ? <div style={{ marginTop: 14, color: '#ffb6b6' }}>{error}</div> : null}
+      </section>
 
-      {message ? <div className="banner-note">{message}</div> : null}
-      {error ? <div className="banner-note error">{error}</div> : null}
+      {loading ? <section style={panel}>Loading reports…</section> : (
+        <>
+          <section style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 16 }}>
+            <div style={panel}><div style={{ opacity: 0.7 }}>Yesterday sales</div><div style={{ fontSize: 36, fontWeight: 800, marginTop: 10 }}>{money(report?.yesterdaySales)}</div></div>
+            <div style={panel}><div style={{ opacity: 0.7 }}>Target</div><div style={{ fontSize: 36, fontWeight: 800, marginTop: 10 }}>{money(report?.target)}</div></div>
+            <div style={panel}><div style={{ opacity: 0.7 }}>Variance</div><div style={{ fontSize: 36, fontWeight: 800, marginTop: 10 }}>{money(report?.variance)}</div></div>
+            <div style={panel}><div style={{ opacity: 0.7 }}>Transactions</div><div style={{ fontSize: 36, fontWeight: 800, marginTop: 10 }}>{report?.transactions ?? 0}</div></div>
+          </section>
 
-      <div className="kpi-grid compact-kpi-grid">
-        <Card className="metric-card" title="Yesterday sales"><strong>{money(report.totals.totalSales)}</strong><p>{report.date}</p></Card>
-        <Card className="metric-card" title="Target"><strong>{money(report.totals.target)}</strong><p>{report.totals.targetAchievedPct}% achieved</p></Card>
-        <Card className="metric-card" title="Variance"><strong>{money(report.totals.varianceToTarget)}</strong><p>{report.totals.varianceToTarget >= 0 ? 'Above target' : 'Behind target'}</p></Card>
-        <Card className="metric-card" title="Transactions"><strong>{report.totals.transactions}</strong><p>Across visible branches</p></Card>
-      </div>
-
-      <div className="split-grid reports-split">
-        <Card title="Branch performance" subtitle="Yesterday totals, target attainment, and basket quality by branch.">
-          <div className="table-wrap">
-            <table className="data-grid">
-              <thead>
-                <tr>
-                  <th>Branch</th>
-                  <th>Sales</th>
-                  <th>Target</th>
-                  <th>Variance</th>
-                  <th>Mix</th>
-                  <th>Basket</th>
-                </tr>
-              </thead>
-              <tbody>
-                {report.visibleBranches.map((item) => (
-                  <tr key={item.branch}>
-                    <td>
-                      <strong>{item.branch}</strong>
-                      <div className="muted-inline">{item.transactions} txns</div>
-                    </td>
-                    <td>{money(item.totalSales)}</td>
-                    <td>{money(item.target)} <span className="muted-inline">({item.targetAchievedPct}%)</span></td>
-                    <td>{money(item.varianceToTarget)}</td>
-                    <td>POS {money(item.posSales)} / Inv {money(item.invoiceSales)}</td>
-                    <td>{money(item.averageBasket)}</td>
+          <section style={{ display: 'grid', gridTemplateColumns: '1.15fr 0.85fr', gap: 16 }}>
+            <div style={panel}>
+              <div style={{ fontSize: 24, fontWeight: 700, marginBottom: 12 }}>Branch performance</div>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ textAlign: 'left', opacity: 0.65 }}>
+                    <th style={{ padding: '10px 8px' }}>Branch</th>
+                    <th style={{ padding: '10px 8px' }}>Sales</th>
+                    <th style={{ padding: '10px 8px' }}>Target</th>
+                    <th style={{ padding: '10px 8px' }}>Variance</th>
+                    <th style={{ padding: '10px 8px' }}>Txns</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-
-        <Card title="Seller leaderboard" subtitle="Keep this operational: who is moving the number against their own target?">
-          <div className="notification-stack">
-            {report.sellerBoard.map((seller) => {
-              const pct = seller.target ? Math.round((seller.sales / seller.target) * 100) : 0;
-              return (
-                <div key={`${seller.name}-${seller.branch}`} className="mini-list-row report-mini-row">
-                  <div>
-                    <strong>{seller.name}</strong>
-                    <p>{seller.branch}</p>
-                  </div>
-                  <div className="align-right">
-                    <strong>{money(seller.sales)}</strong>
-                    <p>{pct}% of target</p>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </Card>
-      </div>
-
-      <div className="split-grid reports-split">
-        <Card title="Daily summary email preview" subtitle="This is the message the boss or managers receive after close.">
-          <div className="email-preview-box">
-            <strong>{report.emailPreview.subject}</strong>
-            <pre>{report.emailPreview.body}</pre>
-          </div>
-        </Card>
-
-        <Card title="Automation status" subtitle="Stored recipient rules and live delivery readiness.">
-          <div className="setting-list">
-            <div><span>Trigger mode</span><strong>{report.automation.triggerMode}</strong></div>
-            <div><span>Close time</span><strong>{report.automation.closeTime}</strong></div>
-            <div><span>Managers receive</span><strong>{report.automation.sendToManagers ? 'Yes' : 'No'}</strong></div>
-            <div><span>Executives receive</span><strong>{report.automation.sendToExecutives ? 'Yes' : 'No'}</strong></div>
-            <div><span>Manager recipients</span><strong>{report.automation.managerRecipients.join(', ')}</strong></div>
-            <div><span>Executive recipients</span><strong>{report.automation.executiveRecipients.join(', ')}</strong></div>
-            <div><span>Duplicate send guard</span><strong>{report.sendStatus.duplicateBlocked ? 'Blocked until resend' : 'Ready'}</strong></div>
-          </div>
-        </Card>
-      </div>
-
-      <div className="split-grid reports-split reports-bottom-grid">
-        <Card title="Audit trail" subtitle="Who closed, sent, retried, or got blocked.">
-          <div className="notification-stack">
-            {report.auditTrail.length ? report.auditTrail.map((entry) => (
-              <div key={entry.id} className="mini-list-row report-mini-row">
-                <div>
-                  <strong>{entry.action}</strong>
-                  <p>{entry.detail}</p>
-                </div>
-                <div className="align-right">
-                  <strong>{entry.actor}</strong>
-                  <p>{new Date(entry.occurredAt).toLocaleString()}</p>
-                </div>
-              </div>
-            )) : <div className="loading-state">No audit events yet.</div>}
-          </div>
-        </Card>
-
-        <Card title="Email dispatch log" subtitle="Last sent summaries and provider status.">
-          <div className="notification-stack">
-            {report.emailDispatches.length ? report.emailDispatches.map((dispatch) => (
-              <div key={dispatch.id} className="mini-list-row report-mini-row">
-                <div>
-                  <strong>{dispatch.subject}</strong>
-                  <p>{dispatch.recipients.join(', ')}</p>
-                </div>
-                <div className="align-right">
-                  <strong>{dispatch.resend ? 'Resent' : dispatch.status}</strong>
-                  <p>{new Date(dispatch.sentAt).toLocaleString()}</p>
-                </div>
-              </div>
-            )) : <div className="loading-state">No summary emails sent yet.</div>}
-          </div>
-        </Card>
-      </div>
-
-      <div className="split-grid reports-split reports-bottom-grid">
-        <Card title="Day close history" subtitle="Saved close snapshots persisted on the backend.">
-          <div className="notification-stack">
-            {report.dayCloseHistory.length ? report.dayCloseHistory.map((item) => (
-              <div key={item.id} className="mini-list-row report-mini-row">
-                <div>
-                  <strong>{item.date}</strong>
-                  <p>{item.closedBy} • {new Date(item.closedAt).toLocaleString()}</p>
-                </div>
-                <div className="align-right">
-                  <strong>{money(item.totalSales)}</strong>
-                  <p>{item.sentStatus === 'sent' ? 'Email sent' : 'Pending email'}</p>
-                </div>
-              </div>
-            )) : <div className="loading-state">No day close history yet.</div>}
-          </div>
-        </Card>
-
-        <Card title="Per-branch close history" subtitle="Operational snapshot by branch for the latest closes.">
-          <div className="notification-stack">
-            {report.branchCloseHistory.length ? report.branchCloseHistory.map((item) => (
-              <div key={`${item.recordId}-${item.branch}`} className="mini-list-row report-mini-row">
-                <div>
-                  <strong>{item.branch}</strong>
-                  <p>{item.date} • {new Date(item.closedAt).toLocaleString()}</p>
-                </div>
-                <div className="align-right">
-                  <strong>{money(item.totalSales)}</strong>
-                  <p>{item.sentStatus === 'sent' ? 'Sent' : 'Pending send'}</p>
-                </div>
-              </div>
-            )) : <div className="loading-state">No branch close history yet.</div>}
-          </div>
-        </Card>
-      </div>
-
-      {confirmAction ? (
-        <div className="modal-scrim" role="presentation" onClick={() => setConfirmAction(null)}>
-          <div className="confirm-modal" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
-            <h3>
-              {confirmAction === 'close' ? 'Confirm day close' : confirmAction === 'close-send' ? 'Confirm close and send' : 'Confirm resend'}
-            </h3>
-            <p>
-              {confirmAction === 'close' && report.closeStatus.state === 'closed'
-                ? 'This day is already closed. Confirming again will replace the saved close snapshot for this date.'
-                : null}
-              {confirmAction === 'close' && report.closeStatus.state !== 'closed'
-                ? 'This will lock the current figures into the close history for the selected date.'
-                : null}
-              {confirmAction === 'close-send' && report.closeStatus.state === 'closed'
-                ? 'This day is already closed. Confirming again will replace the close snapshot and send a fresh summary email.'
-                : null}
-              {confirmAction === 'close-send' && report.closeStatus.state !== 'closed'
-                ? 'This will lock the day and send the branch summary email immediately.'
-                : null}
-              {confirmAction === 'resend'
-                ? 'This will send the latest closed summary again and keep the original close record intact.'
-                : null}
-            </p>
-            <div className="confirm-modal-actions">
-              <button className="ghost-button" type="button" onClick={() => setConfirmAction(null)}>Cancel</button>
-              <button className="solid-button" type="button" onClick={() => runConfirmedAction(confirmAction)}>
-                Confirm
-              </button>
+                </thead>
+                <tbody>
+                  {rows.length ? rows.map((row, index) => (
+                    <tr key={`${row.branch ?? 'row'}-${index}`} style={{ borderTop: '1px solid rgba(83, 111, 175, 0.15)' }}>
+                      <td style={{ padding: '12px 8px' }}>{row.branch ?? '—'}</td>
+                      <td style={{ padding: '12px 8px' }}>{money(row.sales)}</td>
+                      <td style={{ padding: '12px 8px' }}>{money(row.target)}</td>
+                      <td style={{ padding: '12px 8px' }}>{money(row.variance)}</td>
+                      <td style={{ padding: '12px 8px' }}>{row.transactions ?? 0}</td>
+                    </tr>
+                  )) : <tr><td colSpan={5} style={{ padding: '12px 8px', opacity: 0.65 }}>No branch rows available.</td></tr>}
+                </tbody>
+              </table>
             </div>
-          </div>
-        </div>
-      ) : null}
+            <div style={panel}>
+              <div style={{ fontSize: 24, fontWeight: 700, marginBottom: 12 }}>Seller leaderboard</div>
+              <div style={{ display: 'grid', gap: 10 }}>
+                {(report?.sellerLeaderboard ?? []).length ? (report?.sellerLeaderboard ?? []).map((seller, index) => (
+                  <div key={`${seller.name ?? 'seller'}-${index}`} style={{ border: '1px solid rgba(83, 111, 175, 0.18)', borderRadius: 16, padding: 14, background: 'rgba(255,255,255,0.02)' }}>
+                    <div style={{ fontWeight: 700 }}>{seller.name ?? 'Unknown seller'}</div>
+                    <div style={{ opacity: 0.72, marginTop: 4 }}>{seller.branch ?? '—'}</div>
+                    <div style={{ marginTop: 8 }}>{money(seller.sales)} · {seller.targetPercent ?? 0}% of target</div>
+                  </div>
+                )) : <div style={{ opacity: 0.65 }}>No seller data available.</div>}
+              </div>
+            </div>
+          </section>
+
+          <section style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+            <div style={panel}>
+              <div style={{ fontSize: 24, fontWeight: 700, marginBottom: 12 }}>Daily summary email preview</div>
+              <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.65, opacity: 0.9 }}>{report?.dailySummaryPreview ?? 'No summary available.'}</div>
+            </div>
+            <div style={panel}>
+              <div style={{ fontSize: 24, fontWeight: 700, marginBottom: 12 }}>Automation status</div>
+              <div style={{ display: 'grid', gap: 10 }}>
+                <div>Trigger mode: <strong>{report?.automation?.triggerMode ?? 'manual-close'}</strong></div>
+                <div>Close time: <strong>{report?.automation?.closeTime ?? '18:00'}</strong></div>
+                <div>Managers receive: <strong>{report?.automation?.sendToManagers ? 'Yes' : 'No'}</strong></div>
+                <div>Executives receive: <strong>{report?.automation?.sendToExecutives ? 'Yes' : 'No'}</strong></div>
+                <div>Manager recipients: <strong>{(report?.automation?.managerRecipients ?? []).join(', ') || '—'}</strong></div>
+                <div>Executive recipients: <strong>{(report?.automation?.executiveRecipients ?? []).join(', ') || '—'}</strong></div>
+              </div>
+            </div>
+          </section>
+
+          <section style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+            <div style={panel}>
+              <div style={{ fontSize: 24, fontWeight: 700, marginBottom: 12 }}>Email dispatch log</div>
+              {(report?.emailDispatches ?? []).length ? (report?.emailDispatches ?? []).map((item, index) => (
+                <div key={`${item.id ?? 'email'}-${index}`} style={{ padding: '12px 0', borderTop: index ? '1px solid rgba(83, 111, 175, 0.15)' : 'none' }}>
+                  <div><strong>{item.status ?? 'sent'}</strong> · {item.branch ?? '—'}</div>
+                  <div style={{ opacity: 0.72 }}>{item.recipient ?? '—'} · {item.sentAt ?? '—'}</div>
+                </div>
+              )) : <div style={{ opacity: 0.65 }}>No dispatches yet.</div>}
+            </div>
+            <div style={panel}>
+              <div style={{ fontSize: 24, fontWeight: 700, marginBottom: 12 }}>Day close history</div>
+              {(report?.dayCloseHistory ?? []).length ? (report?.dayCloseHistory ?? []).map((item, index) => (
+                <div key={`${item.id ?? 'close'}-${index}`} style={{ padding: '12px 0', borderTop: index ? '1px solid rgba(83, 111, 175, 0.15)' : 'none' }}>
+                  <div><strong>{item.branch ?? '—'}</strong> · {item.status ?? 'closed'}</div>
+                  <div style={{ opacity: 0.72 }}>{item.closedBy ?? 'System'} · {item.closedAt ?? '—'}</div>
+                </div>
+              )) : <div style={{ opacity: 0.65 }}>No close history yet.</div>}
+            </div>
+          </section>
+        </>
+      )}
     </div>
   );
 }
