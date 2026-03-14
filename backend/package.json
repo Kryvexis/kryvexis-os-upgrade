@@ -5,9 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "node server.js",
-    "start": "node server.js",
-    "migrate": "node -e \"import('./lib/db.js').then(async (m) => { await m.runMigrations(); console.log('migrations complete'); if (m.pool) await m.pool.end(); }).catch((err) => { console.error(err); process.exit(1); })\"",
-    "seed:core": "node scripts/seed-core-records.js"
+    "start": "node server.js"
   },
   "dependencies": {
     "cors": "^2.8.5",

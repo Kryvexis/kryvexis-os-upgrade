@@ -22,6 +22,12 @@ import { SalesWorkspacePage } from './pages/SalesWorkspacePage';
 import { InventoryWorkspacePage } from './pages/InventoryWorkspacePage';
 import { ProcurementWorkspacePage } from './pages/ProcurementWorkspacePage';
 import { AccountingWorkspacePage } from './pages/AccountingWorkspacePage';
+import { DebtorsPage } from './pages/DebtorsPage';
+import { StatementsPage } from './pages/StatementsPage';
+import { CashUpPage } from './pages/CashUpPage';
+import { ExpensesPage } from './pages/ExpensesPage';
+import { CreditorsPage } from './pages/CreditorsPage';
+import { FinanceExceptionsPage } from './pages/FinanceExceptionsPage';
 import { OperationsWorkspacePage } from './pages/OperationsWorkspacePage';
 import { ReportsPage } from './pages/ReportsPage';
 import { applyTheme, getStoredTheme, type ThemeMode } from './lib/theme';
@@ -45,6 +51,12 @@ export default function App() {
         <Route path="/inventory" element={<InventoryWorkspacePage />} />
         <Route path="/procurement" element={<ProcurementWorkspacePage />} />
         <Route path="/accounting" element={<AccountingWorkspacePage />} />
+        <Route path="/accounting/debtors" element={<DebtorsPage />} />
+        <Route path="/accounting/statements" element={<StatementsPage />} />
+        <Route path="/accounting/cash-up" element={<CashUpPage />} />
+        <Route path="/accounting/expenses" element={<ExpensesPage />} />
+        <Route path="/accounting/creditors" element={<CreditorsPage />} />
+        <Route path="/accounting/exceptions" element={<FinanceExceptionsPage />} />
         <Route path="/operations" element={<OperationsWorkspacePage />} />
         <Route path="/reports" element={<ReportsPage role={role} />} />
         <Route path="/customers" element={<CustomersPage />} />

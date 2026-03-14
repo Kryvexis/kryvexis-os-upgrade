@@ -3,14 +3,9 @@ import cors from 'cors';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { dbHealth, pool, runMigrations, SQL_ENABLED as ENABLE_SQL } from './lib/db.js';
-import { moneyToNumber, parseRelativeDue } from './lib/format.js';
-import { createCustomersRepository } from './repositories/customersRepository.js';
-import { createProductsRepository } from './repositories/productsRepository.js';
-import { createSuppliersRepository } from './repositories/suppliersRepository.js';
-import { createQuotesRepository } from './repositories/quotesRepository.js';
-import { createInvoicesRepository } from './repositories/invoicesRepository.js';
-import { createPaymentsRepository } from './repositories/paymentsRepository.js';
+import pg from 'pg';
+
+const { Pool } = pg;
 const app = express();
 const port = process.env.PORT || 4000;
 
@@ -22,12 +17,14 @@ const __dirname = path.dirname(__filename);
 const dataDir = path.join(__dirname, 'data');
 const stateFile = path.join(dataDir, 'automation-state.json');
 
-const customersRepo = ENABLE_SQL ? createCustomersRepository(pool) : null;
-const productsRepo = ENABLE_SQL ? createProductsRepository(pool) : null;
-const suppliersRepo = ENABLE_SQL ? createSuppliersRepository(pool) : null;
-const quotesRepo = ENABLE_SQL ? createQuotesRepository(pool) : null;
-const invoicesRepo = ENABLE_SQL ? createInvoicesRepository(pool) : null;
-const paymentsRepo = ENABLE_SQL ? createPaymentsRepository(pool) : null;
+const DATABASE_URL = process.env.DATABASE_URL || '';
+const ENABLE_SQL = process.env.USE_SQL_AUTOMATION === 'true' && Boolean(DATABASE_URL);
+const pool = ENABLE_SQL
+  ? new Pool({
+      connectionString: DATABASE_URL,
+      ssl: process.env.PGSSL === 'false' ? false : { rejectUnauthorized: false }
+    })
+  : null;
 
 const roles = [
   { key: 'admin', label: 'Admin', description: 'Full platform visibility, settings, templates, automation rules, user management, audit access.', dashboards: ['system activity', 'approvals', 'branch health', 'audit highlights'] },
@@ -771,48 +768,32 @@ function listRoute(routePath, collection) {
 }
 
 app.get('/', (_req, res) => res.json({ ok: true, service: 'kryvexis-os-api', status: 'running', phase: 'SQL-A1' }));
-app.get('/health', async (_req, res) => {
-  try {
-    const sql = await dbHealth();
-    return res.json({ status: 'ok', phase: 'SQL-A1', service: 'kryvexis-os-api', sqlAutomation: ENABLE_SQL, db: sql });
-  } catch (error) {
-    return res.status(500).json({ status: 'error', service: 'kryvexis-os-api', sqlAutomation: ENABLE_SQL, error: error.message || 'db health failed' });
-  }
-});
+app.get('/health', (_req, res) => res.json({ status: 'ok', phase: 'SQL-A1', service: 'kryvexis-os-api', sqlAutomation: ENABLE_SQL }));
 app.get('/api/bootstrap', (_req, res) => res.json(envelope({ roles, themeOptions: settings.themes, support: { email: settings.supportEmail, whatsapp: settings.whatsapp } })));
 app.get('/api/dashboard', (req, res) => {
   const role = req.query.role || 'admin';
   res.json(envelope(buildDashboard(role)));
 });
-app.get('/api/customers/:id/summary', async (req, res) => {
+app.get('/api/customers/:id/summary', (req, res) => {
   const summary = buildCustomerSummary(req.params.id);
   if (!summary) return res.status(404).json({ ok: false, error: 'customer summary not found' });
   return res.json(envelope(summary));
 });
-app.get('/api/quotes', async (_req, res) => {
-  const data = ENABLE_SQL ? await quotesRepo.listView() : quotes;
-  return res.json(envelope(data));
-});
-app.get('/api/quotes/:id', async (req, res) => {
-  const quote = ENABLE_SQL ? await quotesRepo.detail(req.params.id) : findQuote(req.params.id);
+app.get('/api/quotes', (_req, res) => res.json(envelope(quotes)));
+app.get('/api/quotes/:id', (req, res) => {
+  const quote = findQuote(req.params.id);
   if (!quote) return res.status(404).json({ ok: false, error: 'quote item not found' });
   return res.json(envelope(buildQuoteDetail(quote)));
 });
-app.get('/api/invoices', async (_req, res) => {
-  const data = ENABLE_SQL ? await invoicesRepo.listView() : invoices;
-  return res.json(envelope(data));
-});
-app.get('/api/invoices/:id', async (req, res) => {
-  const invoice = ENABLE_SQL ? await invoicesRepo.detail(req.params.id) : findInvoice(req.params.id);
+app.get('/api/invoices', (_req, res) => res.json(envelope(invoices)));
+app.get('/api/invoices/:id', (req, res) => {
+  const invoice = findInvoice(req.params.id);
   if (!invoice) return res.status(404).json({ ok: false, error: 'invoice item not found' });
   return res.json(envelope(buildInvoiceDetail(invoice)));
 });
-app.get('/api/payments', async (_req, res) => {
-  const data = ENABLE_SQL ? await paymentsRepo.listView() : payments;
-  return res.json(envelope(data));
-});
-app.get('/api/payments/:id', async (req, res) => {
-  const payment = ENABLE_SQL ? await paymentsRepo.detail(req.params.id) : findPayment(req.params.id);
+app.get('/api/payments', (_req, res) => res.json(envelope(payments)));
+app.get('/api/payments/:id', (req, res) => {
+  const payment = findPayment(req.params.id);
   if (!payment) return res.status(404).json({ ok: false, error: 'payment item not found' });
   return res.json(envelope(buildPaymentDetail(payment)));
 });
@@ -984,39 +965,46 @@ function buildEmailDraft(kind, id) {
   return null;
 }
 
-app.get('/api/customers', async (_req, res) => {
-  const data = ENABLE_SQL ? await customersRepo.listView() : customers;
-  return res.json(envelope(data));
-});
-app.get('/api/customers/:id', async (req, res) => {
-  const item = ENABLE_SQL ? await customersRepo.detail(req.params.id) : findCustomer(req.params.id);
-  if (!item) return res.status(404).json({ ok: false, error: 'customers item not found' });
-  return res.json(envelope(item));
-});
-app.get('/api/products', async (_req, res) => {
-  const data = ENABLE_SQL ? await productsRepo.listView() : products;
-  return res.json(envelope(data));
-});
-app.get('/api/products/:id', async (req, res) => {
-  const item = ENABLE_SQL ? await productsRepo.detail(req.params.id) : products.find((entry) => entry.id === req.params.id);
-  if (!item) return res.status(404).json({ ok: false, error: 'products item not found' });
-  return res.json(envelope(item));
-});
-app.get('/api/suppliers', async (_req, res) => {
-  const data = ENABLE_SQL ? await suppliersRepo.listView() : suppliers;
-  return res.json(envelope(data));
-});
-app.get('/api/suppliers/:id', async (req, res) => {
-  const item = ENABLE_SQL ? await suppliersRepo.detail(req.params.id) : suppliers.find((entry) => entry.id === req.params.id);
-  if (!item) return res.status(404).json({ ok: false, error: 'suppliers item not found' });
-  return res.json(envelope(item));
-});
+listRoute('customers', customers);
+listRoute('products', products);
+listRoute('suppliers', suppliers);
 listRoute('purchase-orders', purchaseOrders);
 app.get('/api/emails/:kind/:id', (req, res) => {
   const draft = buildEmailDraft(req.params.kind, req.params.id);
   if (!draft) return res.status(404).json({ ok: false, error: 'email draft not found' });
   return res.json(envelope(draft));
 });
+app.get('/api/accounting/overview', (_req, res) => res.json(envelope(buildAccountingOverview())));
+app.get('/api/accounting/debtors', (_req, res) => res.json(envelope(buildDebtorRows())));
+app.get('/api/accounting/statements', (_req, res) => res.json(envelope(buildStatementRows())));
+app.post('/api/accounting/statements/:customerId/send', (req, res) => {
+  const customer = findCustomer(req.params.customerId);
+  if (!customer) return res.status(404).json({ ok: false, error: 'customer not found' });
+  pushAudit({ title: 'Statement sent', detail: `Statement queued for ${customer.name}.`, actor: 'Finance Team', timestamp: stampNow(), recordType: 'system', recordId: `STM-${customer.id}`, recordPath: `/accounting/statements`, customerId: customer.id, status: 'Sent' });
+  pushNotification({ id: `NT-${Date.now()}`, title: `Statement sent for ${customer.name}`, meta: `${customer.branch} - Finance`, state: 'Done', read: true, type: 'collection', dismissed: false, snoozedUntil: null });
+  return res.json(envelope(buildStatementRows().find((item) => item.customerId === customer.id)));
+});
+app.get('/api/accounting/cash-ups', (_req, res) => res.json(envelope(cashUps)));
+app.post('/api/accounting/cash-ups/:id/approve', (req, res) => {
+  const item = cashUps.find((entry) => entry.id === req.params.id);
+  if (!item) return res.status(404).json({ ok: false, error: 'cash-up not found' });
+  item.status = 'Approved';
+  item.recommendation = 'Released to close history';
+  pushAudit({ title: 'Cash-up approved', detail: `${item.branch} cash-up approved for ${item.date}.`, actor: 'Finance Team', timestamp: stampNow(), recordType: 'system', recordId: item.id, recordPath: '/accounting/cash-up', status: 'Approved' });
+  return res.json(envelope(item));
+});
+app.get('/api/accounting/expenses', (_req, res) => res.json(envelope(expenses)));
+app.post('/api/accounting/expenses/:id/approve', (req, res) => {
+  const item = expenses.find((entry) => entry.id === req.params.id);
+  if (!item) return res.status(404).json({ ok: false, error: 'expense not found' });
+  item.status = 'Approved';
+  item.recommendation = 'Posted and cleared for reporting';
+  pushAudit({ title: 'Expense approved', detail: `${item.id} approved for ${item.branch}.`, actor: 'Finance Team', timestamp: stampNow(), recordType: 'system', recordId: item.id, recordPath: '/accounting/expenses', status: 'Approved' });
+  return res.json(envelope(item));
+});
+app.get('/api/accounting/creditors', (_req, res) => res.json(envelope(buildCreditorRows())));
+app.get('/api/accounting/exceptions', (_req, res) => res.json(envelope(buildFinanceExceptions())));
+
 app.get('/api/reports', async (req, res) => {
   if (pool) await hydrateAutomationState();
   const role = String(req.query.role || 'admin');
@@ -1062,297 +1050,6 @@ app.get('/api/settings', async (_req, res) => {
 });
 app.get('/api/roles', (_req, res) => res.json(envelope(roles)));
 
-
-function branchIdByName(name) {
-  const match = { Johannesburg: 'JHB', 'Cape Town': 'CPT', Durban: 'DBN' }[name];
-  return match || null;
-}
-
-async function getTableColumns(tableName) {
-  if (!pool) return new Set();
-  const result = await pool.query(
-    `select column_name from information_schema.columns where table_schema = 'public' and table_name = $1`,
-    [tableName]
-  );
-  return new Set(result.rows.map((row) => row.column_name));
-}
-
-async function upsertSeedOrganization() {
-  const columns = await getTableColumns('organizations');
-  if (!columns.size) return;
-
-  const values = { id: 'ORG-1' };
-  if (columns.has('name')) values.name = 'Kryvexis';
-  if (columns.has('legal_name')) values.legal_name = 'Kryvexis';
-  if (columns.has('trading_name')) values.trading_name = 'Kryvexis';
-  if (columns.has('country_code')) values.country_code = 'ZA';
-  if (columns.has('currency_code')) values.currency_code = 'ZAR';
-
-  const keys = Object.keys(values);
-  const placeholders = keys.map((_, index) => `$${index + 1}`).join(', ');
-  const updates = keys
-    .filter((key) => key !== 'id')
-    .map((key) => `${key} = excluded.${key}`)
-    .join(', ');
-
-  await pool.query(
-    `insert into organizations (${keys.join(', ')}) values (${placeholders}) on conflict (id) do update set ${updates || 'id = excluded.id'}`,
-    keys.map((key) => values[key])
-  );
-}
-
-
-
-async function loadExistingIds(tableName) {
-  const columns = await getTableColumns(tableName);
-  if (!columns.size || !columns.has('id')) return new Set();
-  const result = await pool.query(`select id from ${tableName}`);
-  return new Set(result.rows.map((row) => row.id).filter(Boolean));
-}
-
-function resolveInvoiceQuoteReference(source, validQuoteIds) {
-  const normalized = typeof source === 'string' ? source.trim() : '';
-  if (!normalized) return null;
-  return validQuoteIds.has(normalized) ? normalized : null;
-}
-async function insertCompatible(tableName, values, options = {}) {
-  const columns = await getTableColumns(tableName);
-  if (!columns.size) return;
-
-  const filteredEntries = Object.entries(values).filter(([key, value]) => columns.has(key) && value !== undefined);
-  if (!filteredEntries.length) return;
-
-  const keys = filteredEntries.map(([key]) => key);
-  const params = filteredEntries.map(([, value]) => value);
-  const placeholders = keys.map((_, index) => `$${index + 1}`).join(', ');
-  const preferredConflictKeys = [options.conflictKey || 'id', ...(options.fallbackConflictKeys || ['key', 'email', 'sku', 'ref', 'name'])]
-    .filter((key, index, arr) => key && arr.indexOf(key) === index);
-  const conflictKey = preferredConflictKeys.find((key) => columns.has(key));
-
-  if (!conflictKey) {
-    await pool.query(
-      `insert into ${tableName} (${keys.join(', ')}) values (${placeholders})`,
-      params
-    );
-    return;
-  }
-
-  const updateKeys = options.update === false ? [] : keys.filter((key) => key !== conflictKey);
-  const updates = updateKeys.length
-    ? updateKeys.map((key) => `${key} = excluded.${key}`).join(', ')
-    : `${conflictKey} = excluded.${conflictKey}`;
-
-  await pool.query(
-    `insert into ${tableName} (${keys.join(', ')}) values (${placeholders}) on conflict (${conflictKey}) do update set ${updates}`,
-    params
-  );
-}
-
-async function upsertSeedBranches() {
-  const columns = await getTableColumns('branches');
-  if (!columns.size) return;
-
-  const branchSeeds = [
-    { id: 'JHB', organization_id: 'ORG-1', code: 'JHB', name: 'Johannesburg', manager_name: 'Antonie Meyer', manager_email: 'kryvexissolutions@gmail.com', city: 'Johannesburg', is_active: true },
-    { id: 'CPT', organization_id: 'ORG-1', code: 'CPT', name: 'Cape Town', manager_name: 'Alex Morgan', manager_email: 'capetown@kryvexis.local', city: 'Cape Town', is_active: true },
-    { id: 'DBN', organization_id: 'ORG-1', code: 'DBN', name: 'Durban', manager_name: 'Tariq Naidoo', manager_email: 'durban@kryvexis.local', city: 'Durban', is_active: true }
-  ];
-
-  for (const branch of branchSeeds) {
-    const values = Object.fromEntries(Object.entries(branch).filter(([key]) => columns.has(key)));
-    const keys = Object.keys(values);
-    const placeholders = keys.map((_, index) => `$${index + 1}`).join(', ');
-    const updates = keys
-      .filter((key) => key !== 'id')
-      .map((key) => `${key} = excluded.${key}`)
-      .join(', ');
-
-    await pool.query(
-      `insert into branches (${keys.join(', ')}) values (${placeholders}) on conflict (id) do update set ${updates || 'id = excluded.id'}`,
-      keys.map((key) => values[key])
-    );
-  }
-}
-
-async function ensureCoreSqlSeed() {
-  if (!pool) return;
-  const customerColumns = await getTableColumns('customers');
-  if (!customerColumns.size) return;
-
-  const countResult = await pool.query('select count(*)::int as count from customers');
-  if ((countResult.rows[0]?.count || 0) > 0) return;
-
-  await upsertSeedOrganization();
-  await upsertSeedBranches();
-
-  for (const role of roles) {
-    await insertCompatible('roles', {
-      key: role.key,
-      label: role.label,
-      description: role.description,
-      dashboards: JSON.stringify(role.dashboards)
-    });
-  }
-
-  const customerHasRisk = customerColumns.has('risk');
-  const customerHasRiskLevel = customerColumns.has('risk_level');
-  const customerHasCreditTerms = customerColumns.has('credit_terms');
-  const customerHasCreditTermsDays = customerColumns.has('credit_terms_days');
-
-  for (const customer of customers) {
-    await insertCompatible('customers', {
-      id: customer.id,
-      customer_code: customer.id,
-      code: customer.id,
-      name: customer.name,
-      owner: customer.owner,
-      branch_id: branchIdByName(customer.branch),
-      status: customer.status,
-      balance: moneyToNumber(customer.balance),
-      risk: customerHasRisk ? customer.risk : undefined,
-      risk_level: customerHasRiskLevel ? customer.risk : undefined,
-      credit_terms: customerHasCreditTerms ? customer.creditTerms : undefined,
-      credit_terms_days: customerHasCreditTermsDays ? parseRelativeDue(`Due in ${parseInt(customer.creditTerms, 10) || 0} days`) : undefined,
-      price_list: customer.priceList,
-      contact_email: customer.contact,
-      phone: customer.phone,
-      notes: customer.notes,
-      next_action: customer.nextAction
-    }, { fallbackConflictKeys: ['customer_code', 'code', 'name'] });
-
-    const activityColumns = await getTableColumns('customer_activity');
-    if (activityColumns.size && activityColumns.has('customer_id') && activityColumns.has('activity_text')) {
-      for (const activity of customer.activity || []) {
-        await pool.query('insert into customer_activity (customer_id, activity_text) values ($1, $2)', [customer.id, activity]);
-      }
-    }
-  }
-
-  for (const supplier of suppliers) {
-    await insertCompatible('suppliers', {
-      id: supplier.id,
-      name: supplier.name,
-      category: supplier.category,
-      lead_time: supplier.leadTime,
-      lead_time_days: parseInt(supplier.leadTime, 10) || undefined,
-      status: supplier.status,
-      contact_email: supplier.contact,
-      next_action: supplier.nextAction
-    });
-  }
-
-  for (const product of products) {
-    await insertCompatible('products', {
-      id: product.id,
-      sku: product.sku,
-      name: product.name,
-      branch_id: branchIdByName(product.branch),
-      status: product.status,
-      stock: product.stock,
-      reorder_at: product.reorderAt,
-      price: moneyToNumber(product.price),
-      cost: moneyToNumber(product.cost),
-      supplier_id: suppliers.find((s) => s.name === product.supplier)?.id || suppliers.find((s) => s.id === product.supplier)?.id || null,
-      barcode: product.barcode,
-      variants: product.variants,
-      movement_summary: product.movementSummary,
-      next_action: product.nextAction
-    });
-  }
-
-  for (const quote of quotes) {
-    await insertCompatible('quotes', {
-      id: quote.id,
-      customer_id: quote.customerId,
-      customer_name: quote.customer,
-      owner: quote.owner,
-      owner_name: quote.owner,
-      branch_id: branchIdByName(quote.branch),
-      value_total: moneyToNumber(quote.total),
-      total: moneyToNumber(quote.total),
-      status: quote.status,
-      validity_date: quote.validity,
-      trigger_reason: quote.trigger,
-      updated_label: quote.updated,
-      notes: quote.notes,
-      next_action: quote.nextAction,
-      subtotal: moneyToNumber(quote.subtotal),
-      tax: moneyToNumber(quote.tax),
-      margin_band: quote.marginBand,
-      approval_owner: quote.approvalOwner
-    });
-
-    const quoteLineColumns = await getTableColumns('quote_lines');
-    if (quoteLineColumns.size) {
-      for (const line of quote.lines || []) {
-        await insertCompatible('quote_lines', {
-          id: line.id,
-          quote_id: quote.id,
-          product_id: null,
-          sku: line.sku,
-          description: line.description,
-          qty: line.qty,
-          unit_price: moneyToNumber(line.unitPrice),
-          total: moneyToNumber(line.total),
-          line_total: moneyToNumber(line.total)
-        });
-      }
-    }
-
-    const workflowColumns = await getTableColumns('quote_workflow_events');
-    if (workflowColumns.size && workflowColumns.has('quote_id') && workflowColumns.has('label') && workflowColumns.has('detail')) {
-      for (const event of quote.workflow || []) {
-        await pool.query('insert into quote_workflow_events (quote_id, label, detail) values ($1,$2,$3)', [quote.id, event.label, event.detail]);
-      }
-    }
-  }
-
-  const validQuoteIds = new Set([...(await loadExistingIds('quotes')), ...quotes.map((quote) => quote.id)]);
-
-  for (const invoice of invoices) {
-    const quoteReference = resolveInvoiceQuoteReference(invoice.source, validQuoteIds);
-    await insertCompatible('invoices', {
-      id: invoice.id,
-      customer_id: invoice.customerId,
-      customer_name: invoice.customer,
-      amount: moneyToNumber(invoice.amount),
-      branch_id: branchIdByName(invoice.branch),
-      status: invoice.status,
-      due_label: invoice.due,
-      due_date: null,
-      source_quote_id: quoteReference,
-      quote_id: quoteReference,
-      payment_status: invoice.paymentStatus,
-      tax_label: invoice.tax,
-      reminders: invoice.reminders,
-      next_action: invoice.nextAction,
-      due_in_days: parseRelativeDue(invoice.due),
-      subtotal: moneyToNumber(invoice.amount),
-      tax: 0,
-      total: moneyToNumber(invoice.amount)
-    });
-  }
-
-  for (const payment of payments) {
-    await insertCompatible('payments', {
-      id: payment.id,
-      customer_id: payment.customerId,
-      party: payment.party,
-      amount: moneyToNumber(payment.amount),
-      branch_id: branchIdByName(payment.branch),
-      status: payment.status,
-      method: payment.method,
-      ref: payment.ref,
-      reference: payment.ref,
-      proof: payment.proof,
-      proof_status: payment.proof,
-      applied_to: payment.appliedTo,
-      invoice_id: payment.appliedTo?.startsWith('INV-') ? payment.appliedTo : null,
-      next_action: payment.nextAction
-    });
-  }
-}
-
 function startScheduler() {
   if (process.env.ENABLE_DAY_CLOSE_SCHEDULER !== 'true') return;
   automationState.scheduler.enabled = true;
@@ -1377,10 +1074,9 @@ function startScheduler() {
 
 async function boot() {
   if (pool) {
-    const applied = await runMigrations();
-    await ensureCoreSqlSeed();
+    await ensureSqlSchema();
     await hydrateAutomationState();
-    console.log('Kryvexis OS SQL automation enabled', applied.length ? { applied } : '');
+    console.log('Kryvexis OS SQL automation enabled');
   } else {
     console.log('Kryvexis OS using JSON automation state');
   }

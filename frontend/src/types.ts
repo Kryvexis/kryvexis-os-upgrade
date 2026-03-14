@@ -55,9 +55,18 @@ export type AutomationAuditEntry = { id: string; occurredAt: string; actor: stri
 export type BranchCloseHistoryRow = { recordId: string; branch: string; date: string; closedAt: string; totalSales: number; varianceToTarget: number; sentStatus: 'pending' | 'sent'; };
 export type ReportsResponse = { scope: string; date: string; canViewAllBranches: boolean; visibleBranches: ReportBranch[]; totals: ReportTotals; sellerBoard: SellerRow[]; emailPreview: { subject: string; body: string }; emailDispatches: EmailDispatch[]; dayCloseHistory: DayCloseRecord[]; branchCloseHistory: BranchCloseHistoryRow[]; automation: AutomationSettings; closeStatus: CloseStatus; sendStatus: SendStatus; auditTrail: AutomationAuditEntry[]; };
 
-
-export type AuthUser = { id: string; fullName: string; email: string; roleKey: RoleKey; branchId?: string | null; branchName?: string | null; isActive: boolean; };
-export type AuthLoginResponse = { token: string; expiresAt: string; user: AuthUser; permissions: string[]; };
-export type AuthMeResponse = { user: AuthUser; permissions: string[]; expiresAt: string; };
-export type PermissionBundle = { roleKey: RoleKey; permissions: string[]; };
-export type Invitation = { id: string; email: string; role_key: RoleKey; branch_id?: string | null; invite_token?: string; token?: string; expires_at?: string; accepted_at?: string | null; created_at?: string; };
+export type DebtorRow = { id: string; customerId: string; customer: string; branch: string; overdueAmount: string; currentAmount: string; totalOpen: string; oldestBucket: string; risk: string; recommendation: string; score: number; };
+export type StatementRow = { id: string; customerId: string; customer: string; branch: string; balance: string; overdueInvoices: number; lastIssued: string; nextAction: string; status: string; };
+export type CashUpRow = { id: string; branch: string; date: string; expected: string; counted: string; variance: string; status: string; owner: string; recommendation: string; };
+export type ExpenseRow = { id: string; branch: string; category: string; supplier: string; amount: string; status: string; submittedBy: string; incurredOn: string; recommendation: string; };
+export type CreditorRow = { id: string; supplier: string; branch: string; outstanding: string; dueWindow: string; status: string; recommendation: string; };
+export type FinanceExceptionRow = { id: string; kind: string; title: string; branch: string; severity: string; detail: string; action: string; recordPath: string; };
+export type AccountingOverview = {
+  kpis: KPI[];
+  priorityActions: FinanceExceptionRow[];
+  debtors: DebtorRow[];
+  statements: StatementRow[];
+  cashUps: CashUpRow[];
+  expenses: ExpenseRow[];
+  creditors: CreditorRow[];
+};
