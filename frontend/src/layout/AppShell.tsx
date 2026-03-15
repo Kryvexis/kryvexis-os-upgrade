@@ -181,6 +181,10 @@ export function AppShell({ role, setRole, theme, setTheme }: { role: RoleKey; se
           </div>
 
           <div className="topbar-actions topbar-user-row enhanced-topbar-actions">
+            {canAccessModule(role, 'sales-pos') ? (
+              <Link to="/sales/pos" className="ghost-button topbar-action-button">POS</Link>
+            ) : null}
+
             {filteredQuick.length ? (
               <div className={`topbar-popover ${quickOpen ? 'open' : ''}`}>
                 <button className="ghost-button topbar-action-button" type="button" onClick={() => setQuickOpen((v) => !v)}>＋ Quick actions</button>

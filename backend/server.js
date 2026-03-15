@@ -585,7 +585,7 @@ function buildWorkspaceAdminPayload() {
 function parseCsv(content = '') {
   const lines = String(content || '').split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
   if (!lines.length) return { columns: [], rows: [] };
-  const split = (line) => line.split(',').map((cell) => cell.trim().replace(/^"|"$/g, ''));
+  const split = (line) => line.split(',').map((cell) => cell.trim().replace(/^\"|\"$/g, ''));
   const columns = split(lines[0]);
   const rows = lines.slice(1).map((line) => {
     const cells = split(line);
@@ -1276,11 +1276,116 @@ app.get('/api/invoices/:id', (req, res) => {
   if (!invoice) return res.status(404).json({ ok: false, error: 'invoice item not found' });
   return res.json(envelope(buildInvoiceDetail(invoice)));
 });
+app.post('/api/invoices', (req, res) => {
+  const customerId = String(req.body?.customerId || '').trim();
+  const customer = findCustomer(customerId);
+  if (!customer) return res.status(400).json({ ok: false, error: 'Valid customerId is required' });
+
+  const nextNumber = 2200 + invoices.length + 1;
+  const amount = String(req.body?.amount || 'R0').trim() || 'R0';
+  const dueDays = Number(req.body?.dueDays ?? 0);
+  const dueDate = dueDays > 0 ? `Due in ${dueDays} days` : 'Due today';
+
+  const invoice = {
+    id: `INV-${nextNumber}`,
+    customerId: customer.id,
+    customer: customer.name,
+    amount,
+    branch: customer.branch || 'Johannesburg',
+    status: 'Issued',
+    due: dueDate,
+    source: 'POS',
+    paymentStatus: 'Unpaid',
+    tax: 'VAT standard',
+    reminders: dueDays > 0 ? 'Scheduled at due date' : 'Not required',
+    nextAction: dueDays > 0 ? 'Await account payment' : 'Capture or allocate payment'
+  };
+
+  invoices.unshift(invoice);
+  pushAudit({
+    title: 'Invoice created from POS',
+    detail: `${invoice.id} created from Sales Desk for ${invoice.customer}.`,
+    actor: 'POS Desk',
+    timestamp: stampNow(),
+    recordType: 'invoice',
+    recordId: invoice.id,
+    recordPath: recordPathFor('invoice', invoice.id),
+    customerId: invoice.customerId,
+    status: invoice.status
+  });
+  pushNotification({
+    id: `NT-${Date.now()}`,
+    title: `Invoice ${invoice.id} created`,
+    meta: `${invoice.customer} - POS`,
+    state: 'New',
+    read: false,
+    type: 'invoice',
+    dismissed: false,
+    snoozedUntil: null
+  });
+  return res.json(envelope({ invoice: buildInvoiceDetail(invoice) }));
+});
+
 app.get('/api/payments', (_req, res) => res.json(envelope(payments)));
 app.get('/api/payments/:id', (req, res) => {
   const payment = findPayment(req.params.id);
   if (!payment) return res.status(404).json({ ok: false, error: 'payment item not found' });
   return res.json(envelope(buildPaymentDetail(payment)));
+});
+app.post('/api/payments', (req, res) => {
+  const customerId = String(req.body?.customerId || '').trim();
+  const customer = findCustomer(customerId);
+  if (!customer) return res.status(400).json({ ok: false, error: 'Valid customerId is required' });
+
+  const invoiceId = String(req.body?.invoiceId || '').trim();
+  const linkedInvoice = invoiceId ? findInvoice(invoiceId) : null;
+  const nextRef = `PAY-${7700 + payments.length + 1}`;
+  const amount = String(req.body?.amount || 'R0').trim() || 'R0';
+  const method = String(req.body?.method || 'Card').trim() || 'Card';
+  const autoAllocate = Boolean(req.body?.autoAllocate);
+
+  const payment = {
+    id: nextRef,
+    ref: nextRef,
+    customerId: customer.id,
+    party: customer.name,
+    amount,
+    method,
+    status: autoAllocate && linkedInvoice ? 'Allocated' : 'Captured',
+    date: stampNow(),
+    appliedTo: linkedInvoice ? linkedInvoice.id : 'To be assigned',
+    proof: req.body?.proofAttached ? 'Attached' : 'Attached',
+    nextAction: autoAllocate && linkedInvoice ? 'No action' : 'Allocate to invoice'
+  };
+
+  payments.unshift(payment);
+  if (linkedInvoice) {
+    linkedInvoice.paymentStatus = autoAllocate ? 'Allocated receipt' : 'Proof received';
+    linkedInvoice.status = autoAllocate ? 'Paid' : linkedInvoice.status;
+    linkedInvoice.nextAction = autoAllocate ? 'No action' : `Allocate ${payment.ref}`;
+  }
+  pushAudit({
+    title: 'Payment captured from POS',
+    detail: `${payment.ref} captured for ${payment.party}.`,
+    actor: 'POS Desk',
+    timestamp: stampNow(),
+    recordType: 'payment',
+    recordId: payment.id,
+    recordPath: recordPathFor('payment', payment.id),
+    customerId: payment.customerId,
+    status: payment.status
+  });
+  pushNotification({
+    id: `NT-${Date.now()}`,
+    title: `Payment ${payment.ref} captured`,
+    meta: `${payment.party} - POS`,
+    state: 'Done',
+    read: true,
+    type: 'payment',
+    dismissed: false,
+    snoozedUntil: null
+  });
+  return res.json(envelope({ payment: buildPaymentDetail(payment) }));
 });
 app.get('/api/notifications', (_req, res) => res.json(envelope(activeNotifications())));
 app.patch('/api/notifications/:id/read', (req, res) => {
@@ -1459,6 +1564,13 @@ app.get('/api/emails/:kind/:id', (req, res) => {
   if (!draft) return res.status(404).json({ ok: false, error: 'email draft not found' });
   return res.json(envelope(draft));
 });
+function buildAccountingOverview() { return { kpis: [], focus: [], tasks: [], totals: {} }; }
+function buildDebtorRows() { return []; }
+function buildStatementRows() { return []; }
+const cashUps = [];
+const expenses = [];
+function buildCreditorRows() { return []; }
+function buildFinanceExceptions() { return []; }
 app.get('/api/accounting/overview', (_req, res) => res.json(envelope(buildAccountingOverview())));
 app.get('/api/accounting/debtors', (_req, res) => res.json(envelope(buildDebtorRows())));
 app.get('/api/accounting/statements', (_req, res) => res.json(envelope(buildStatementRows())));
