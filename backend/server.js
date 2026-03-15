@@ -251,7 +251,9 @@ function defaultAutomationState() {
     documentBranding: null,
     workspaceUsers: [],
     importJobs: [],
-    rolePolicies: []
+    rolePolicies: [],
+    workspaces: [],
+    activeWorkspaceId: null
   };
 }
 function loadAutomationState() {
@@ -274,7 +276,9 @@ function loadAutomationState() {
       documentBranding: raw.documentBranding || null,
       workspaceUsers: Array.isArray(raw.workspaceUsers) ? raw.workspaceUsers : [],
       importJobs: Array.isArray(raw.importJobs) ? raw.importJobs : [],
-      rolePolicies: Array.isArray(raw.rolePolicies) ? raw.rolePolicies : []
+      rolePolicies: Array.isArray(raw.rolePolicies) ? raw.rolePolicies : [],
+      workspaces: Array.isArray(raw.workspaces) ? raw.workspaces : [],
+      activeWorkspaceId: raw.activeWorkspaceId || null
     };
   } catch (error) {
     console.error('Failed to load automation state', error);
@@ -285,6 +289,174 @@ let automationState = loadAutomationState();
 function saveAutomationState() {
   ensureDataDir();
   fs.writeFileSync(stateFile, JSON.stringify(automationState, null, 2));
+}
+
+function slugifyWorkspace(value = '') {
+  return String(value || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || `workspace-${Date.now()}`;
+}
+function workspaceBranchRecords() {
+  return branchDirectory.map((branch) => ({
+    id: branch.id,
+    name: branch.name,
+    managerName: branch.managerName,
+    managerEmail: branch.managerEmail,
+    isPrimary: branch.id === (automationState.companyProfile?.primaryBranchId || branchDirectory[0]?.id || branch.id),
+    active: branch.active !== false
+  }));
+}
+function snapshotWorkspaceFromState(idOverride = null) {
+  const companyProfile = automationState.companyProfile || {
+    companyName: 'Kryvexis Solutions',
+    adminName: 'Antonie Meyer',
+    email: 'kryvexissolutions@gmail.com',
+    phone: '',
+    businessType: 'Retail',
+    currency: settings.business.currency || 'ZAR',
+    branchCount: branchDirectory.length,
+    primaryBranchId: branchDirectory[0]?.id || 'JHB',
+    branches: branchDirectory.map((branch) => ({ id: branch.id, name: branch.name }))
+  };
+  return {
+    id: idOverride || automationState.activeWorkspaceId || `WS-${Date.now()}`,
+    slug: slugifyWorkspace(companyProfile.companyName),
+    companyProfile,
+    documentBranding: automationState.documentBranding || { companyName: companyProfile.companyName },
+    branches: workspaceBranchRecords(),
+    workspaceUsers: Array.isArray(automationState.workspaceUsers) ? automationState.workspaceUsers : [],
+    importJobs: Array.isArray(automationState.importJobs) ? automationState.importJobs : [],
+    rolePolicies: Array.isArray(automationState.rolePolicies) && automationState.rolePolicies.length ? automationState.rolePolicies : createDefaultRolePolicies(),
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  };
+}
+function syncLegacyFromWorkspace(workspace) {
+  if (!workspace) return null;
+  automationState.companyProfile = workspace.companyProfile || automationState.companyProfile;
+  automationState.documentBranding = workspace.documentBranding || automationState.documentBranding;
+  automationState.workspaceUsers = Array.isArray(workspace.workspaceUsers) ? workspace.workspaceUsers : [];
+  automationState.importJobs = Array.isArray(workspace.importJobs) ? workspace.importJobs : [];
+  automationState.rolePolicies = Array.isArray(workspace.rolePolicies) ? workspace.rolePolicies : createDefaultRolePolicies();
+  const workspaceBranches = Array.isArray(workspace.branches) && workspace.branches.length
+    ? workspace.branches
+    : (workspace.companyProfile?.branches || []).map((branch) => ({ id: branch.id, name: branch.name, managerName: 'Branch Lead', managerEmail: `${branch.id.toLowerCase()}@company.local`, isPrimary: branch.id === workspace.companyProfile?.primaryBranchId, active: true }));
+  branchDirectory.splice(0, branchDirectory.length, ...workspaceBranches.map((branch, index) => ({
+    id: branch.id,
+    name: branch.name,
+    managerName: branch.managerName || (index === 0 ? workspace.companyProfile?.adminName || 'Branch Lead' : `Branch ${index + 1} Lead`),
+    managerEmail: branch.managerEmail || (index === 0 ? workspace.companyProfile?.email || 'branch@company.local' : `branch${index + 1}@company.local`),
+    active: branch.active !== false
+  })));
+  automationState.automationSettings = {
+    ...automationState.automationSettings,
+    defaultManagerBranch: branchDirectory.find((branch) => branch.id === (workspace.companyProfile?.primaryBranchId || branchDirectory[0]?.id))?.name || branchDirectory[0]?.name || automationState.automationSettings.defaultManagerBranch,
+    branchManagers: branchDirectory.map((branch) => ({ branch: branch.name, manager: branch.managerName, email: branch.managerEmail }))
+  };
+  settings.business.currency = workspace.companyProfile?.currency || settings.business.currency;
+  settings.business.defaultBranch = branchDirectory[0]?.name || settings.business.defaultBranch;
+  return workspace;
+}
+function ensureTenantFoundation() {
+  const hasWorkspaces = Array.isArray(automationState.workspaces) && automationState.workspaces.length;
+  if (!hasWorkspaces) {
+    const seeded = snapshotWorkspaceFromState('WS-PRIMARY');
+    seeded.slug = slugifyWorkspace(seeded.companyProfile?.companyName || 'primary-workspace');
+    automationState.workspaces = [seeded];
+    automationState.activeWorkspaceId = seeded.id;
+    saveAutomationState();
+  }
+  if (!automationState.activeWorkspaceId) automationState.activeWorkspaceId = automationState.workspaces[0]?.id || null;
+  const active = automationState.workspaces.find((workspace) => workspace.id === automationState.activeWorkspaceId) || automationState.workspaces[0] || null;
+  if (active) {
+    automationState.activeWorkspaceId = active.id;
+    syncLegacyFromWorkspace(active);
+  }
+  return active;
+}
+function persistCurrentWorkspace() {
+  const active = ensureTenantFoundation();
+  if (!active) return null;
+  const snapshot = { ...snapshotWorkspaceFromState(active.id), createdAt: active.createdAt || new Date().toISOString(), updatedAt: new Date().toISOString() };
+  automationState.workspaces = automationState.workspaces.map((workspace) => workspace.id === snapshot.id ? snapshot : workspace);
+  saveAutomationState();
+  return snapshot;
+}
+function listWorkspaceSummaries() {
+  ensureTenantFoundation();
+  return (automationState.workspaces || []).map((workspace) => ({
+    id: workspace.id,
+    slug: workspace.slug,
+    companyName: workspace.companyProfile?.companyName || 'Workspace',
+    adminName: workspace.companyProfile?.adminName || 'Admin',
+    email: workspace.companyProfile?.email || '',
+    branchCount: Array.isArray(workspace.branches) ? workspace.branches.filter((branch) => branch.active !== false).length : 0,
+    userCount: Array.isArray(workspace.workspaceUsers) ? workspace.workspaceUsers.length : 0,
+    active: workspace.id === automationState.activeWorkspaceId
+  }));
+}
+function selectWorkspace(workspaceId) {
+  ensureTenantFoundation();
+  const workspace = automationState.workspaces.find((item) => item.id === workspaceId);
+  if (!workspace) return null;
+  automationState.activeWorkspaceId = workspace.id;
+  syncLegacyFromWorkspace(workspace);
+  saveAutomationState();
+  return workspace;
+}
+function createWorkspaceFromPayload(payload = {}) {
+  ensureTenantFoundation();
+  const branchCount = Math.max(1, Math.min(12, Number(payload.branchCount) || 1));
+  const branches = Array.from({ length: branchCount }, (_, index) => {
+    const raw = Array.isArray(payload.branches) ? payload.branches[index] || {} : {};
+    const id = normalizeBranchId(raw.id || `BR${index + 1}`, index);
+    return {
+      id,
+      name: normalizeBranchName(raw.name || (index === 0 ? 'Main Branch' : `Branch ${index + 1}`)),
+      managerName: String(raw.managerName || (index === 0 ? payload.adminName || 'Admin User' : `Branch ${index + 1} Lead`)).trim(),
+      managerEmail: String(raw.managerEmail || (index === 0 ? payload.email || 'admin@company.local' : `branch${index + 1}@company.local`)).trim().toLowerCase(),
+      isPrimary: index === 0,
+      active: true
+    };
+  });
+  const workspaceId = `WS-${Date.now()}`;
+  const companyProfile = {
+    companyName: String(payload.companyName || `Workspace ${automationState.workspaces.length + 1}`).trim(),
+    adminName: String(payload.adminName || 'Admin User').trim(),
+    email: String(payload.email || '').trim().toLowerCase(),
+    phone: String(payload.phone || '').trim(),
+    businessType: String(payload.businessType || 'Retail').trim(),
+    currency: String(payload.currency || settings.business.currency || 'ZAR').trim().toUpperCase(),
+    branchCount: branches.length,
+    primaryBranchId: branches[0].id,
+    branches: branches.map((branch) => ({ id: branch.id, name: branch.name }))
+  };
+  const workspace = {
+    id: workspaceId,
+    slug: slugifyWorkspace(companyProfile.companyName),
+    companyProfile,
+    documentBranding: { companyName: companyProfile.companyName, logoDataUrl: payload.logoDataUrl || null, logoFileName: payload.logoFileName || null },
+    branches,
+    workspaceUsers: [{
+      id: `WU-${workspaceId}-ADMIN`,
+      fullName: companyProfile.adminName,
+      email: companyProfile.email,
+      roleKey: 'admin',
+      branchId: branches[0].id,
+      branchName: branches[0].name,
+      status: 'active',
+      canManageRoles: true,
+      canManageWorkspace: true,
+      invitedAt: null
+    }],
+    importJobs: [],
+    rolePolicies: createDefaultRolePolicies(),
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  };
+  automationState.workspaces = [...(automationState.workspaces || []), workspace];
+  automationState.activeWorkspaceId = workspace.id;
+  syncLegacyFromWorkspace(workspace);
+  saveAutomationState();
+  return workspace;
 }
 
 function normalizeBranchName(value) {
@@ -347,6 +519,9 @@ function buildWorkspaceAdminPayload() {
   };
   const primaryBranchId = companyProfile.primaryBranchId || branchDirectory[0]?.id || 'JHB';
   return {
+    workspaceId: automationState.activeWorkspaceId || ensureTenantFoundation()?.id || 'WS-PRIMARY',
+    workspaceLabel: companyProfile.companyName,
+    availableWorkspaces: listWorkspaceSummaries(),
     companyProfile,
     documentBranding: automationState.documentBranding || { companyName: companyProfile.companyName },
     branches: branchDirectory.map((branch) => ({ id: branch.id, name: branch.name, managerName: branch.managerName, managerEmail: branch.managerEmail, isPrimary: branch.id === primaryBranchId, active: branch.active !== false })),
@@ -463,7 +638,7 @@ function applyCompanyOnboarding(payload = {}) {
     users[0].branchId = primaryBranchId;
     users[0].branchName = branches.find((branch) => branch.id === primaryBranchId)?.name || branches[0]?.name || users[0].branchName;
   }
-  saveAutomationState();
+  persistCurrentWorkspace();
   return companyProfile;
 }
 
@@ -1308,7 +1483,24 @@ app.post('/api/day-close/send-summary', async (req, res) => {
   }
 });
 
+app.get('/api/workspaces', (_req, res) => {
+  ensureTenantFoundation();
+  return res.json(envelope({ activeWorkspaceId: automationState.activeWorkspaceId, workspaces: listWorkspaceSummaries() }));
+});
+app.post('/api/workspaces', (req, res) => {
+  const payload = req.body || {};
+  if (!payload.companyName || !payload.adminName || !payload.email) return res.status(400).json({ ok: false, error: 'Company name, admin name, and email are required.' });
+  createWorkspaceFromPayload(payload);
+  return res.json(envelope(buildWorkspaceAdminPayload()));
+});
+app.post('/api/workspaces/select', (req, res) => {
+  const workspace = selectWorkspace(String(req.body?.workspaceId || ''));
+  if (!workspace) return res.status(404).json({ ok: false, error: 'workspace not found' });
+  return res.json(envelope({ activeWorkspaceId: automationState.activeWorkspaceId, workspaces: listWorkspaceSummaries(), workspace: buildWorkspaceAdminPayload() }));
+});
+
 app.get('/api/workspace-admin', (_req, res) => {
+  ensureTenantFoundation();
   ensureRolePolicies();
   ensureWorkspaceUsers();
   return res.json(envelope(buildWorkspaceAdminPayload()));
@@ -1318,6 +1510,7 @@ app.post('/api/workspace-admin/company', (req, res) => {
   const payload = req.body || {};
   const existing = automationState.companyProfile || { branchCount: branchDirectory.length, primaryBranchId: branchDirectory[0]?.id || 'JHB', branches: branchDirectory.map((branch) => ({ id: branch.id, name: branch.name })) };
   applyCompanyOnboarding({ ...existing, ...payload, logoDataUrl: payload.logoDataUrl, logoFileName: payload.logoFileName });
+  persistCurrentWorkspace();
   return res.json(envelope(buildWorkspaceAdminPayload()));
 });
 
@@ -1356,7 +1549,7 @@ app.post('/api/workspace-admin/branches', (req, res) => {
     const branch = normalized.find((item) => item.id === user.branchId) || normalized[0];
     return { ...user, branchId: branch.id, branchName: branch.name };
   });
-  saveAutomationState();
+  persistCurrentWorkspace();
   return res.json(envelope(buildWorkspaceAdminPayload()));
 });
 
@@ -1377,7 +1570,7 @@ app.post('/api/workspace-admin/users/invite', (req, res) => {
     canManageWorkspace: Boolean(payload.canManageWorkspace),
     invitedAt: new Date().toISOString()
   });
-  saveAutomationState();
+  persistCurrentWorkspace();
   return res.json(envelope(buildWorkspaceAdminPayload()));
 });
 
@@ -1401,7 +1594,7 @@ app.post('/api/workspace-admin/import-center/commit', (req, res) => {
     errorCount: preview.errorCount
   };
   automationState.importJobs = Array.isArray(automationState.importJobs) ? [importJob, ...automationState.importJobs].slice(0, 25) : [importJob];
-  saveAutomationState();
+  persistCurrentWorkspace();
   return res.json(envelope({ importJob, workspace: buildWorkspaceAdminPayload() }));
 });
 
@@ -1418,6 +1611,7 @@ app.post('/api/auth/company-signup', (req, res) => {
   if (!companyName) return res.status(400).json({ ok: false, error: 'Company name is required' });
   if (!adminName) return res.status(400).json({ ok: false, error: 'Admin name is required' });
   const profile = applyCompanyOnboarding(req.body || {});
+  persistCurrentWorkspace();
   return res.json(envelope(buildCompanySession(profile)));
 });
 
@@ -1453,6 +1647,7 @@ async function boot() {
   } else {
     console.log('Kryvexis OS using JSON automation state');
   }
+  ensureTenantFoundation();
   startScheduler();
   app.listen(port, () => console.log(`Kryvexis OS backend running on ${port}`));
 }

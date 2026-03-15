@@ -2,9 +2,11 @@ import { ChangeEvent, useEffect, useMemo, useState } from 'react';
 import { Card } from '../components/Card';
 import { api } from '../lib/api';
 import type {
+  CreateWorkspacePayload,
   ImportJob,
   ImportPreview,
   RoleKey,
+  WorkspaceSummary,
   WorkspaceAdminResponse,
   WorkspaceBranch,
   WorkspaceInvitePayload,
@@ -24,6 +26,7 @@ type ViewState = {
 };
 
 type InviteState = WorkspaceInvitePayload;
+type WorkspaceDraft = Pick<CreateWorkspacePayload, 'companyName' | 'adminName' | 'email' | 'currency' | 'branchCount' | 'branches'>;
 
 const emptyPreview: ImportPreview = {
   importType: 'customers',
@@ -36,6 +39,8 @@ const emptyPreview: ImportPreview = {
   issues: [],
   sampleRows: []
 };
+
+const emptyWorkspaceDraft: WorkspaceDraft = { companyName: '', adminName: '', email: '', currency: 'ZAR', branchCount: 1, branches: [{ id: 'BR1', name: 'Main Branch' }] };
 
 const emptyWorkspace: WorkspaceAdminResponse = {
   companyProfile: {
@@ -85,6 +90,7 @@ export function WorkspaceAdminPage() {
   const [importFilename, setImportFilename] = useState('');
   const [importContent, setImportContent] = useState('');
   const [preview, setPreview] = useState<ImportPreview>(emptyPreview);
+  const [workspaceDraft, setWorkspaceDraft] = useState<WorkspaceDraft>(emptyWorkspaceDraft);
 
   async function load() {
     const workspace = await api.workspaceAdmin();
@@ -227,6 +233,49 @@ export function WorkspaceAdminPage() {
     }
   }
 
+  async function switchWorkspace(workspaceId: string) {
+    setBusy('company');
+    setError('');
+    setMessage('');
+    try {
+      const result = await api.selectWorkspace(workspaceId);
+      const workspace = result.workspace || emptyWorkspace;
+      setData(workspace);
+      setView(toViewState(workspace));
+      setInvite((current) => ({ ...current, branchId: workspace.branches[0]?.id || current.branchId }));
+      setMessage(`Switched to ${workspace.companyProfile.companyName}.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to switch workspace');
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function createWorkspace() {
+    setBusy('company');
+    setError('');
+    setMessage('');
+    try {
+      const workspace = await api.createWorkspace({
+        companyName: workspaceDraft.companyName,
+        adminName: workspaceDraft.adminName,
+        email: workspaceDraft.email,
+        currency: workspaceDraft.currency,
+        branchCount: workspaceDraft.branchCount,
+        primaryBranchId: workspaceDraft.branches[0]?.id || 'BR1',
+        branches: workspaceDraft.branches
+      });
+      setData(workspace);
+      setView(toViewState(workspace));
+      setWorkspaceDraft(emptyWorkspaceDraft);
+      setMessage(`Workspace ${workspace.companyProfile.companyName} created and isolated.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to create workspace');
+    } finally {
+      setBusy(null);
+    }
+  }
+
   return (
     <div className="page-grid workspace-admin-page">
       <Card title="Workspace Admin" subtitle="Company control, branches, access, and migration intake in one governed surface.">
@@ -244,6 +293,44 @@ export function WorkspaceAdminPage() {
 
       {message ? <div className="banner-note">{message}</div> : null}
       {error ? <div className="banner-note error">{error}</div> : null}
+
+      <div className="split-grid reports-split">
+        <Card title="Tenant boundary" subtitle="Companies live in isolated workspaces before POS and deeper hardening land.">
+          <div className="notification-stack">
+            {(data.availableWorkspaces || []).map((workspace: WorkspaceSummary) => (
+              <article key={workspace.id} className="mini-list-row">
+                <div>
+                  <strong>{workspace.companyName}</strong>
+                  <p>{workspace.branchCount} branches • {workspace.userCount} users</p>
+                </div>
+                <div className="align-right">
+                  <strong>{workspace.active ? 'Active' : 'Isolated'}</strong>
+                  {!workspace.active ? <button className="ghost-button" type="button" onClick={() => switchWorkspace(workspace.id)} disabled={busy !== null}>Switch</button> : null}
+                </div>
+              </article>
+            ))}
+          </div>
+          <div className="setting-list compact-settings">
+            <label className="stack-field"><span>New company</span><input value={workspaceDraft.companyName} onChange={(e) => setWorkspaceDraft((current) => ({ ...current, companyName: e.target.value }))} /></label>
+            <div className="split-grid">
+              <label className="stack-field"><span>Admin</span><input value={workspaceDraft.adminName} onChange={(e) => setWorkspaceDraft((current) => ({ ...current, adminName: e.target.value }))} /></label>
+              <label className="stack-field"><span>Email</span><input value={workspaceDraft.email} onChange={(e) => setWorkspaceDraft((current) => ({ ...current, email: e.target.value }))} /></label>
+            </div>
+            <div className="split-grid">
+              <label className="stack-field"><span>Currency</span><select value={workspaceDraft.currency} onChange={(e) => setWorkspaceDraft((current) => ({ ...current, currency: e.target.value }))}><option value="ZAR">ZAR</option><option value="USD">USD</option><option value="EUR">EUR</option><option value="GBP">GBP</option></select></label>
+              <label className="stack-field"><span>Branches</span><input type="number" min={1} max={12} value={workspaceDraft.branchCount} onChange={(e) => {
+                const count = Math.max(1, Math.min(12, Number(e.target.value || 1)));
+                setWorkspaceDraft((current) => ({
+                  ...current,
+                  branchCount: count,
+                  branches: Array.from({ length: count }, (_, index) => current.branches[index] || { id: `BR${index + 1}`, name: index === 0 ? 'Main Branch' : `Branch ${index + 1}` })
+                }));
+              }} /></label>
+            </div>
+          </div>
+          <div className="toolbar-actions"><button className="solid-button" type="button" onClick={createWorkspace} disabled={busy !== null || !workspaceDraft.companyName || !workspaceDraft.adminName || !workspaceDraft.email}>{busy === 'company' ? 'Working…' : 'Create isolated workspace'}</button></div>
+        </Card>
+      </div>
 
       <div className="split-grid reports-split">
         <Card title="Company profile" subtitle="This drives workspace identity and document branding.">

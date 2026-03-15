@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { NavLink, Outlet, useLocation, Link } from 'react-router-dom';
 import { api } from '../lib/api';
-import type { Notification, RoleKey } from '../types';
+import type { Notification, RoleKey, WorkspaceSummary } from '../types';
 
 const coreModules = [
   ['/', 'Dashboard', '◔'],
@@ -62,11 +62,18 @@ export function AppShell({ role, setRole, theme, setTheme }: { role: RoleKey; se
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [alertsOpen, setAlertsOpen] = useState(false);
   const [quickOpen, setQuickOpen] = useState(false);
+  const [workspaces, setWorkspaces] = useState<WorkspaceSummary[]>([]);
+  const [switchingWorkspace, setSwitchingWorkspace] = useState(false);
   const activeLabel = pageTitles.find(([prefix]) => location.pathname === prefix || location.pathname.startsWith(`${prefix}/`))?.[1] ?? 'Dashboard';
 
   useEffect(() => {
     api.notifications().then(setNotifications).catch(() => setNotifications([]));
   }, [location.pathname]);
+
+  useEffect(() => {
+    if (role !== 'admin') return;
+    api.workspaces().then((result) => setWorkspaces(result.workspaces || [])).catch(() => setWorkspaces([]));
+  }, [role, location.pathname]);
 
   useEffect(() => {
     setAlertsOpen(false);
@@ -87,6 +94,7 @@ export function AppShell({ role, setRole, theme, setTheme }: { role: RoleKey; se
   const navItems = role === 'admin' ? adminItems : [];
   const shellClass = ['app-shell', sidebarCollapsed ? 'sidebar-collapsed' : '', sidebarOpen ? 'sidebar-open' : ''].filter(Boolean).join(' ');
   const unread = notifications.filter((item) => !item.read && !item.dismissed).length;
+  const activeWorkspace = workspaces.find((item) => item.active) || null;
   const recentAlerts = notifications.filter((item) => !item.dismissed).slice(0, 5);
   const breadcrumb = useMemo(() => {
     const section = pageTitles.find(([prefix]) => location.pathname === prefix || location.pathname.startsWith(`${prefix}/`))?.[1] ?? 'Dashboard';
@@ -99,7 +107,7 @@ export function AppShell({ role, setRole, theme, setTheme }: { role: RoleKey; se
         <div className="brand-block brand-block-tight">
           <span className="brand-mark">K</span>
           <div>
-            <strong>Kryvexis OS</strong>
+            <strong>{activeWorkspace?.companyName || 'Kryvexis OS'}</strong>
             <p>{roleLabels[role]} workspace</p>
           </div>
         </div>
@@ -127,6 +135,24 @@ export function AppShell({ role, setRole, theme, setTheme }: { role: RoleKey; se
         </div>
 
         <div className="sidebar-foot">
+          {role === 'admin' && workspaces.length ? <label className="stack-field">
+            <span>Company workspace</span>
+            <select value={activeWorkspace?.id || ''} onChange={async (e) => {
+              const workspaceId = e.target.value;
+              if (!workspaceId) return;
+              setSwitchingWorkspace(true);
+              try {
+                const result = await api.selectWorkspace(workspaceId);
+                setWorkspaces(result.workspaces || []);
+                if (typeof window !== 'undefined') window.location.assign('/workspace-admin');
+              } finally {
+                setSwitchingWorkspace(false);
+              }
+            }} disabled={switchingWorkspace}>
+              {workspaces.map((workspace) => <option key={workspace.id} value={workspace.id}>{workspace.companyName}</option>)}
+            </select>
+          </label> : null}
+
           <label className="stack-field">
             <span>Role view</span>
             <select value={role} onChange={(e) => setRole(e.target.value as RoleKey)}>
