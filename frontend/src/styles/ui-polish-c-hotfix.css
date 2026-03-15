@@ -1,0 +1,240 @@
+
+/* Direction C hotfix overlay
+   Minimal premium layer that keeps existing light/dark/system theme support intact.
+   This file is intentionally additive and should be imported after global.css and ui-lock.css.
+*/
+
+:root {
+  --kx-surface-0: #f5f7fb;
+  --kx-surface-1: rgba(255, 255, 255, 0.78);
+  --kx-surface-2: rgba(255, 255, 255, 0.92);
+  --kx-text-1: #0f172a;
+  --kx-text-2: #475569;
+  --kx-line: rgba(15, 23, 42, 0.10);
+  --kx-brand-a: #4f8cff;
+  --kx-brand-b: #9cc7ff;
+  --kx-shadow: 0 28px 60px rgba(15, 23, 42, 0.12);
+}
+
+:root[data-theme="dark"] {
+  --kx-surface-0: #060b17;
+  --kx-surface-1: rgba(10, 17, 31, 0.78);
+  --kx-surface-2: rgba(7, 13, 25, 0.92);
+  --kx-text-1: #eef4ff;
+  --kx-text-2: #98a7c2;
+  --kx-line: rgba(156, 199, 255, 0.12);
+  --kx-brand-a: #76b1ff;
+  --kx-brand-b: #d6e7ff;
+  --kx-shadow: 0 34px 70px rgba(0, 0, 0, 0.38);
+}
+
+html, body, #root {
+  min-height: 100%;
+  background:
+    radial-gradient(circle at 20% 15%, rgba(79, 140, 255, 0.18), transparent 32%),
+    radial-gradient(circle at 82% 20%, rgba(86, 167, 255, 0.12), transparent 24%),
+    linear-gradient(180deg, var(--kx-surface-0), color-mix(in srgb, var(--kx-surface-0) 86%, #000 14%));
+  color: var(--kx-text-1);
+}
+
+body {
+  color: var(--kx-text-1);
+}
+
+.entry-screen,
+.ignition-screen,
+.auth-screen,
+.intro-screen,
+.splash-screen {
+  background:
+    radial-gradient(circle at 16% 18%, rgba(79, 140, 255, 0.16), transparent 28%),
+    radial-gradient(circle at 86% 26%, rgba(79, 140, 255, 0.10), transparent 24%),
+    linear-gradient(180deg, transparent, transparent);
+}
+
+.entry-stage,
+.onboarding-stage,
+.ignition-stage {
+  max-width: 1320px;
+  margin: 0 auto;
+  padding-left: clamp(20px, 3vw, 40px);
+  padding-right: clamp(20px, 3vw, 40px);
+}
+
+.entry-logo,
+.entry-logo-large,
+.ignition-logo,
+.signup-logo-preview {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.entry-hero,
+.auth-card,
+.intro-panel,
+.card,
+.sidebar,
+.topbar,
+.workspace-logo-preview,
+.logo-upload-card,
+.branch-builder,
+.subtle-card {
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.auth-card,
+.intro-panel,
+.card,
+.workspace-logo-preview,
+.logo-upload-card,
+.branch-builder,
+.subtle-card {
+  background: var(--kx-surface-1) !important;
+  border: 1px solid var(--kx-line) !important;
+  box-shadow: var(--kx-shadow) !important;
+  border-radius: 24px !important;
+}
+
+.auth-card-wide {
+  max-width: 820px;
+}
+
+.entry-hero h1,
+.intro-panel h1,
+.ignition-copy h1,
+.topbar h1,
+.hero-value,
+strong,
+.card strong {
+  letter-spacing: -0.025em;
+  color: var(--kx-text-1);
+}
+
+.entry-copy,
+.hero-support,
+.card p,
+.muted-inline,
+.topbar-breadcrumb,
+.entry-hero p,
+.auth-logo-lockup p,
+.auth-helper-head span {
+  color: var(--kx-text-2) !important;
+}
+
+.entry-pill,
+.hero-chip,
+.entry-chip,
+.mode-tab,
+.ghost-button,
+.menu-chip,
+.icon-chip,
+.mobile-link,
+.nav-link,
+.popover-link {
+  border-radius: 999px !important;
+}
+
+.entry-primary-button,
+.solid-button {
+  border-radius: 16px !important;
+  border: 1px solid color-mix(in srgb, var(--kx-brand-a) 38%, transparent) !important;
+  background: linear-gradient(135deg, var(--kx-brand-b), var(--kx-brand-a)) !important;
+  color: #08101f !important;
+  box-shadow: 0 14px 30px rgba(79, 140, 255, 0.22) !important;
+}
+
+.entry-input,
+.stack-field input,
+.stack-field select,
+.stack-field textarea {
+  background: var(--kx-surface-2) !important;
+  border: 1px solid var(--kx-line) !important;
+  color: var(--kx-text-1) !important;
+  border-radius: 16px !important;
+}
+
+.entry-input::placeholder,
+.stack-field input::placeholder,
+.stack-field textarea::placeholder {
+  color: color-mix(in srgb, var(--kx-text-2) 82%, transparent);
+}
+
+.mode-tab {
+  background: transparent;
+  border: 1px solid var(--kx-line);
+  color: var(--kx-text-2);
+}
+
+.mode-tab.active {
+  background: color-mix(in srgb, var(--kx-brand-a) 16%, transparent);
+  color: var(--kx-text-1);
+  border-color: color-mix(in srgb, var(--kx-brand-a) 30%, var(--kx-line));
+}
+
+.brand-mark {
+  background: linear-gradient(135deg, var(--kx-brand-b), var(--kx-brand-a));
+  color: #08101f;
+  box-shadow: 0 10px 24px rgba(79, 140, 255, 0.22);
+}
+
+.sidebar {
+  background: color-mix(in srgb, var(--kx-surface-1) 88%, transparent) !important;
+  border-right: 1px solid var(--kx-line);
+}
+
+.topbar {
+  background: color-mix(in srgb, var(--kx-surface-1) 70%, transparent) !important;
+  border-bottom: 1px solid var(--kx-line);
+}
+
+.nav-link,
+.mobile-link,
+.popover-link,
+.alert-preview-row {
+  color: var(--kx-text-2) !important;
+}
+
+.nav-link.active,
+.mobile-link.active {
+  background: color-mix(in srgb, var(--kx-brand-a) 14%, transparent) !important;
+  color: var(--kx-text-1) !important;
+  border: 1px solid color-mix(in srgb, var(--kx-brand-a) 26%, transparent);
+}
+
+.page-body {
+  color: var(--kx-text-1);
+}
+
+.table-link,
+.action-link,
+a {
+  color: var(--kx-brand-a);
+}
+
+.danger-text,
+.banner-note.error {
+  color: #ff7b92 !important;
+}
+
+.entry-ambient-a,
+.entry-ambient-b,
+.auth-card-glow,
+.ignition-flare {
+  opacity: 0.7;
+}
+
+@media (max-width: 960px) {
+  .entry-stage,
+  .onboarding-stage,
+  .ignition-stage {
+    padding-left: 18px;
+    padding-right: 18px;
+  }
+
+  .auth-card,
+  .intro-panel,
+  .card {
+    border-radius: 22px !important;
+  }
+}
