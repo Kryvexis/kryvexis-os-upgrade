@@ -1,6 +1,6 @@
 import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from 'react';
 import { api } from '../lib/api';
-import logo from '../assets/kryvexis-logo.png';
+import logo from '../assets/kryvexis-logo-entry.png';
 import type { AuthSession, CompanyOnboardingPayload } from '../types';
 
 const starterEmails = [
@@ -100,7 +100,7 @@ export function AuthPage({ onAuthenticated }: { onAuthenticated: (session: AuthS
     setSignup((current) => ({
       ...current,
       branches: current.branches.map((branch, branchIndex) => {
-        if (branchIndex !== index) return branch;
+        if (branchIndex != index) return branch;
         return {
           ...branch,
           [field]: field === 'id' ? value.toUpperCase().replace(/\s+/g, '-') : value
@@ -170,7 +170,7 @@ export function AuthPage({ onAuthenticated }: { onAuthenticated: (session: AuthS
       <div className="entry-ambient entry-ambient-b" />
       <section className="entry-stage onboarding-stage">
         <div className="entry-hero">
-          <img src={logo} alt="Kryvexis" className="entry-logo entry-logo-large" />
+          <img src={logo} alt="Kryvexis" className="entry-logo entry-logo-large entry-logo-clean" />
           <h1>Launch the company, not just the user.</h1>
           <p className="entry-copy">{frame}</p>
           <div className="entry-pill-row">
@@ -190,7 +190,7 @@ export function AuthPage({ onAuthenticated }: { onAuthenticated: (session: AuthS
           {mode === 'login' ? (
             <>
               <div className="auth-logo-lockup compact-lockup">
-                <img src={logo} alt="Kryvexis" className="entry-logo" />
+                <img src={logo} alt="Kryvexis" className="entry-logo entry-logo-clean" />
                 <div>
                   <strong>Welcome back</strong>
                   <p>Sign in to the operating core</p>

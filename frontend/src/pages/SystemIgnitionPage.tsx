@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import logo from '../assets/kryvexis-logo.png';
+import logo from '../assets/kryvexis-logo-entry.png';
 
 const phases = [
   {
@@ -57,7 +57,7 @@ export function SystemIgnitionPage({ onFinish }: { onFinish: () => void }) {
         <div className="ignition-logo-lockup" aria-hidden="true">
           <span className="ignition-glow-ring" />
           <span className="ignition-core-pulse" />
-          <img src={logo} alt="Kryvexis" className="ignition-logo" />
+          <img src={logo} alt="Kryvexis" className="ignition-logo entry-logo-clean" />
           <div className="ignition-flare" />
         </div>
 

@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { AppShell } from './layout/AppShell';
@@ -12,7 +11,7 @@ import { InvoicesPage } from './pages/InvoicesPage';
 import { InvoiceDetailPage } from './pages/InvoiceDetailPage';
 import { QuotePrintPage } from './pages/QuotePrintPage';
 import { InvoicePrintPage } from './pages/InvoicePrintPage';
-import { ProductsPage } from './pages/ProductsPage';
+import { ProductsPage } from './pages/ProductDetailPage';
 import { ProductDetailPage } from './pages/ProductDetailPage';
 import { PaymentsPage } from './pages/PaymentsPage';
 import { PaymentDetailPage } from './pages/PaymentDetailPage';
@@ -50,7 +49,7 @@ import { applyTheme, getStoredTheme, type ThemeMode } from './lib/theme';
 import { api } from './lib/api';
 import { canAccessModule } from './lib/permissions';
 import type { AuthSession, RoleKey } from './types';
-import logo from './assets/kryvexis-logo.png';
+import logo from './assets/kryvexis-logo-entry.png';
 
 const INTRO_STORAGE_KEY = 'kryvexis.entry.intro-seen';
 
@@ -83,7 +82,7 @@ function SplashScreen() {
       <div className="entry-ambient entry-ambient-a" />
       <div className="entry-ambient entry-ambient-b" />
       <div className="splash-logo-wrap">
-        <img src={logo} alt="Kryvexis" className="entry-logo splash-logo" />
+        <img src={logo} alt="Kryvexis" className="entry-logo splash-logo entry-logo-clean" />
         <p className="eyebrow">Initializing command center</p>
       </div>
     </main>
@@ -108,9 +107,7 @@ export default function App() {
   const [role, setRole] = useState<RoleKey>('manager');
   const [theme, setTheme] = useState<ThemeMode>(getStoredTheme());
 
-  useEffect(() => {
-    applyTheme(theme);
-  }, [theme]);
+  useEffect(() => { applyTheme(theme); }, [theme]);
 
   useEffect(() => {
     let active = true;
@@ -129,9 +126,7 @@ export default function App() {
     };
   }, []);
 
-  useEffect(() => {
-    if (session?.role) setRole(session.role);
-  }, [session]);
+  useEffect(() => { if (session?.role) setRole(session.role); }, [session]);
 
   useEffect(() => {
     if (booting || !showIgnition) return;
@@ -140,16 +135,13 @@ export default function App() {
   }, [booting, showIgnition]);
 
   if (booting) return <SplashScreen />;
-
   if (showIgnition) return <SystemIgnitionPage onFinish={() => setShowIgnition(false)} />;
-
   if (!introSeen) {
     return <IntroPage onContinue={() => {
       window.localStorage.setItem(INTRO_STORAGE_KEY, 'true');
       setIntroSeen(true);
     }} />;
   }
-
   if (!session) {
     return <AuthPage onAuthenticated={(next) => {
       setSession(next);
