@@ -104,6 +104,16 @@ function writeCompanyProfile(profile: CompanyProfile | null) {
   window.localStorage.setItem(COMPANY_PROFILE_STORAGE_KEY, JSON.stringify(profile));
 }
 
+async function parseResponseBody(response: Response) {
+  const text = await response.text();
+  if (!text) return null;
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { raw: text };
+  }
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const session = readSession();
   const response = await fetch(`${API_BASE}${path}`, {
@@ -115,13 +125,22 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     ...init
   });
 
+  const payload = await parseResponseBody(response);
+
   if (!response.ok) {
-    const payload = await response.json().catch(() => null);
-    throw new Error(payload?.error || `Failed to load ${path}`);
+    const message = typeof payload === 'object' && payload !== null
+      ? (payload as { error?: string; message?: string; raw?: string }).error
+        || (payload as { error?: string; message?: string; raw?: string }).message
+        || (payload as { error?: string; message?: string; raw?: string }).raw
+      : null;
+    throw new Error(message || `Failed to load ${path}`);
   }
 
-  const payload = await response.json();
-  return payload.data as T;
+  if (payload && typeof payload === 'object' && 'data' in payload) {
+    return (payload as { data: T }).data;
+  }
+
+  return payload as T;
 }
 
 export const api = {
