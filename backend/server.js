@@ -475,9 +475,61 @@ function buildCompanySession(profile) {
     branch: primaryBranch.name,
     branchId: primaryBranch.id,
     permissions: ['dashboard.view', 'settings.write', 'users.manage', 'reports.read'],
-    token: `company-${Buffer.from(profile.email).toString('base64')}`,
+    token: buildSessionToken(profile.email),
     lastLoginAt: new Date().toISOString()
   };
+}
+
+function buildSessionToken(email) {
+  return `company-${Buffer.from(String(email || '').trim().toLowerCase()).toString('base64')}`;
+}
+function normalizeEmail(value) {
+  return String(value || '').trim().toLowerCase();
+}
+function sessionFromWorkspaceUser(user, branchIdOverride) {
+  if (!user) return null;
+  const branch = branchDirectory.find((entry) => entry.id === (branchIdOverride || user.branchId))
+    || branchDirectory.find((entry) => entry.name === user.branchName)
+    || branchDirectory[0]
+    || { id: user.branchId || 'JHB', name: user.branchName || 'Main Branch' };
+  return {
+    email: normalizeEmail(user.email),
+    name: user.fullName || user.email || 'User',
+    role: user.roleKey || 'manager',
+    branch: branch.name,
+    branchId: branch.id,
+    permissions: [
+      'dashboard.view',
+      ...(user.canManageWorkspace ? ['settings.write'] : []),
+      ...(user.canManageRoles ? ['users.manage'] : []),
+      ...(['admin', 'manager', 'executive', 'finance'].includes(user.roleKey) ? ['reports.read'] : [])
+    ],
+    token: buildSessionToken(user.email),
+    lastLoginAt: new Date().toISOString()
+  };
+}
+function parseSessionToken(token) {
+  const raw = String(token || '').trim();
+  if (!raw.startsWith('company-')) return null;
+  try {
+    return normalizeEmail(Buffer.from(raw.slice('company-'.length), 'base64').toString('utf8'));
+  } catch {
+    return null;
+  }
+}
+function getSessionEmailFromRequest(req) {
+  const header = String(req.headers.authorization || '');
+  const match = header.match(/^Bearer\s+(.+)$/i);
+  return parseSessionToken(match?.[1] || '');
+}
+function resolveSessionFromRequest(req) {
+  const email = getSessionEmailFromRequest(req);
+  if (!email) return null;
+  const workspaceUser = ensureWorkspaceUsers().find((entry) => normalizeEmail(entry.email) === email && entry.status !== 'disabled');
+  if (workspaceUser) return sessionFromWorkspaceUser(workspaceUser);
+  const company = automationState.companyProfile;
+  if (company && normalizeEmail(company.email) === email) return buildCompanySession(company);
+  return null;
 }
 
 function createDefaultRolePolicies() {
@@ -1613,6 +1665,46 @@ app.post('/api/auth/company-signup', (req, res) => {
   const profile = applyCompanyOnboarding(req.body || {});
   persistCurrentWorkspace();
   return res.json(envelope(buildCompanySession(profile)));
+});
+
+app.post('/api/auth/login', (req, res) => {
+  const email = normalizeEmail(req.body?.email);
+  if (!email) return res.status(400).json({ ok: false, error: 'Email is required' });
+  const workspaceUser = ensureWorkspaceUsers().find((entry) => normalizeEmail(entry.email) === email && entry.status !== 'disabled');
+  if (workspaceUser) return res.json(envelope(sessionFromWorkspaceUser(workspaceUser)));
+  const company = automationState.companyProfile;
+  if (company && normalizeEmail(company.email) === email) return res.json(envelope(buildCompanySession(company)));
+  return res.status(404).json({ ok: false, error: 'No user found for that email yet. Invite or onboard the workspace first.' });
+});
+
+app.post('/api/auth/logout', (_req, res) => res.json(envelope({ success: true })));
+
+app.get('/api/auth/me', (req, res) => {
+  const session = resolveSessionFromRequest(req);
+  if (!session) return res.status(401).json({ ok: false, error: 'Session not found' });
+  return res.json(envelope(session));
+});
+
+app.post('/api/auth/switch-branch', (req, res) => {
+  const session = resolveSessionFromRequest(req);
+  if (!session) return res.status(401).json({ ok: false, error: 'Session not found' });
+  const requestedBranchId = String(req.body?.branchId || '').trim().toUpperCase();
+  const requestedBranchName = String(req.body?.branchName || '').trim().toLowerCase();
+  const nextBranch = branchDirectory.find((branch) => branch.id === requestedBranchId)
+    || branchDirectory.find((branch) => String(branch.name).trim().toLowerCase() === requestedBranchName);
+  if (!nextBranch) return res.status(404).json({ ok: false, error: 'Branch not found' });
+  const workspaceUser = ensureWorkspaceUsers().find((entry) => normalizeEmail(entry.email) === normalizeEmail(session.email) && entry.status !== 'disabled');
+  if (workspaceUser) {
+    workspaceUser.branchId = nextBranch.id;
+    workspaceUser.branchName = nextBranch.name;
+    persistCurrentWorkspace();
+    return res.json(envelope(sessionFromWorkspaceUser(workspaceUser, nextBranch.id)));
+  }
+  const company = automationState.companyProfile;
+  if (company && normalizeEmail(company.email) === normalizeEmail(session.email)) {
+    return res.json(envelope({ ...buildCompanySession(company), branch: nextBranch.name, branchId: nextBranch.id }));
+  }
+  return res.status(404).json({ ok: false, error: 'Session user not found' });
 });
 
 app.get('/api/roles', (_req, res) => res.json(envelope(roles)));
