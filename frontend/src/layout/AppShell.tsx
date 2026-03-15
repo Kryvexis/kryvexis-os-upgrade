@@ -1,4 +1,3 @@
-
 import { useEffect, useMemo, useState } from 'react';
 import { NavLink, Outlet, useLocation, Link } from 'react-router-dom';
 import { api } from '../lib/api';
@@ -7,8 +6,8 @@ import type { Notification, RoleKey } from '../types';
 
 const coreModules: Array<[string, string, string, ModuleKey]> = [
   ['/', 'Dashboard', '◔', 'dashboard'],
-  ['/sales', 'Sales', '⌁', 'sales'],
   ['/sales/pos', 'POS', '⌗', 'sales-pos'],
+  ['/sales', 'Sales', '⌁', 'sales'],
   ['/inventory', 'Inventory', '◫', 'inventory'],
   ['/procurement', 'Purchasing', '◎', 'procurement'],
   ['/accounting', 'Accounting', '◌', 'accounting'],
@@ -24,10 +23,10 @@ const adminItems: Array<[string, string, string, ModuleKey]> = [
 ];
 
 const quickActions: Array<{ label: string; to: string; permission: ModuleKey }> = [
+  { label: 'Open POS', to: '/sales/pos', permission: 'sales-pos' },
   { label: 'New quote', to: '/quotes', permission: 'quotes' },
   { label: 'New invoice', to: '/invoices', permission: 'invoices' },
   { label: 'Record payment', to: '/payments', permission: 'payments' },
-  { label: 'Open POS', to: '/sales/pos', permission: 'sales-pos' },
   { label: 'Run reports', to: '/reports', permission: 'reports' }
 ];
 

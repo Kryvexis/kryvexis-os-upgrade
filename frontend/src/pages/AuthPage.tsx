@@ -49,11 +49,7 @@ const defaultForm = (): SignupForm => ({
 });
 
 function toTitleCase(value: string) {
-  return value
-    .split(/\s+/)
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
-    .join(' ');
+  return value.split(/\s+/).filter(Boolean).map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase()).join(' ');
 }
 
 async function fileToDataUrl(file: File) {
@@ -78,17 +74,10 @@ export function AuthPage({ onAuthenticated }: { onAuthenticated: (session: AuthS
       const nextBranches = Array.from({ length: current.branchCount }, (_, index) => {
         const existing = current.branches[index];
         const fallbackId = branchIdPresets[index] || `BR${index + 1}`;
-        return {
-          id: existing?.id || fallbackId,
-          name: existing?.name || (index === 0 ? 'Main Branch' : `Branch ${index + 1}`)
-        };
+        return { id: existing?.id || fallbackId, name: existing?.name || (index === 0 ? 'Main Branch' : `Branch ${index + 1}`) };
       });
       const primaryExists = nextBranches.some((item) => item.id === current.primaryBranchId);
-      return {
-        ...current,
-        branches: nextBranches,
-        primaryBranchId: primaryExists ? current.primaryBranchId : nextBranches[0]?.id || 'JHB'
-      };
+      return { ...current, branches: nextBranches, primaryBranchId: primaryExists ? current.primaryBranchId : nextBranches[0]?.id || 'JHB' };
     });
   }, [signup.branchCount]);
 
@@ -100,11 +89,8 @@ export function AuthPage({ onAuthenticated }: { onAuthenticated: (session: AuthS
     setSignup((current) => ({
       ...current,
       branches: current.branches.map((branch, branchIndex) => {
-        if (branchIndex != index) return branch;
-        return {
-          ...branch,
-          [field]: field === 'id' ? value.toUpperCase().replace(/\s+/g, '-') : value
-        };
+        if (branchIndex !== index) return branch;
+        return { ...branch, [field]: field === 'id' ? value.toUpperCase().replace(/\s+/g, '-') : value };
       })
     }));
   }
@@ -200,13 +186,7 @@ export function AuthPage({ onAuthenticated }: { onAuthenticated: (session: AuthS
               <form onSubmit={submitLogin} className="stack-field auth-form-stack">
                 <label className="stack-field">
                   <span>Work email</span>
-                  <input
-                    className="entry-input"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="name@company.com"
-                    autoComplete="email"
-                  />
+                  <input className="entry-input" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@company.com" autoComplete="email" />
                 </label>
                 <button className="entry-primary-button" type="submit" disabled={busy}>
                   {busy ? 'Launching command core...' : 'Launch Kryvexis'}
@@ -229,79 +209,31 @@ export function AuthPage({ onAuthenticated }: { onAuthenticated: (session: AuthS
           ) : (
             <form onSubmit={submitSignup} className="stack-field auth-form-stack onboarding-form">
               <div className="auth-signup-grid">
-                <label className="stack-field">
-                  <span>Company name</span>
-                  <input className="entry-input" value={signup.companyName} onChange={(e) => updateSignup('companyName', e.target.value)} placeholder="Kryvexis Retail Group" required />
-                </label>
-                <label className="stack-field">
-                  <span>Admin full name</span>
-                  <input className="entry-input" value={signup.adminName} onChange={(e) => updateSignup('adminName', e.target.value)} placeholder="Antonie Meyer" required />
-                </label>
-                <label className="stack-field">
-                  <span>Admin email</span>
-                  <input className="entry-input" value={signup.email} onChange={(e) => updateSignup('email', e.target.value)} placeholder="owner@company.com" autoComplete="email" required />
-                </label>
-                <label className="stack-field">
-                  <span>Phone</span>
-                  <input className="entry-input" value={signup.phone} onChange={(e) => updateSignup('phone', e.target.value)} placeholder="+27 68 628 2874" />
-                </label>
-                <label className="stack-field">
-                  <span>Business type</span>
-                  <input className="entry-input" value={signup.businessType} onChange={(e) => updateSignup('businessType', e.target.value)} placeholder="Retail / Distribution" />
-                </label>
-                <label className="stack-field">
-                  <span>Currency</span>
-                  <select className="entry-input" value={signup.currency} onChange={(e) => updateSignup('currency', e.target.value)}>
-                    <option value="ZAR">ZAR</option>
-                    <option value="USD">USD</option>
-                    <option value="EUR">EUR</option>
-                    <option value="GBP">GBP</option>
-                  </select>
-                </label>
-                <label className="stack-field">
-                  <span>How many branches?</span>
-                  <input className="entry-input" type="number" min={1} max={12} value={signup.branchCount} onChange={(e) => updateSignup('branchCount', Math.min(12, Math.max(1, Number(e.target.value) || 1)))} />
-                </label>
-                <label className="stack-field">
-                  <span>Primary branch ID</span>
-                  <select className="entry-input" value={signup.primaryBranchId} onChange={(e) => updateSignup('primaryBranchId', e.target.value)}>
-                    {signup.branches.map((branch) => (
-                      <option key={branch.id} value={branch.id}>{branch.id}</option>
-                    ))}
-                  </select>
-                </label>
+                <label className="stack-field"><span>Company name</span><input className="entry-input" value={signup.companyName} onChange={(e) => updateSignup('companyName', e.target.value)} placeholder="Kryvexis Retail Group" required /></label>
+                <label className="stack-field"><span>Admin full name</span><input className="entry-input" value={signup.adminName} onChange={(e) => updateSignup('adminName', e.target.value)} placeholder="Antonie Meyer" required /></label>
+                <label className="stack-field"><span>Admin email</span><input className="entry-input" value={signup.email} onChange={(e) => updateSignup('email', e.target.value)} placeholder="owner@company.com" autoComplete="email" required /></label>
+                <label className="stack-field"><span>Phone</span><input className="entry-input" value={signup.phone} onChange={(e) => updateSignup('phone', e.target.value)} placeholder="+27 68 628 2874" /></label>
+                <label className="stack-field"><span>Business type</span><input className="entry-input" value={signup.businessType} onChange={(e) => updateSignup('businessType', e.target.value)} placeholder="Retail / Distribution" /></label>
+                <label className="stack-field"><span>Currency</span><select className="entry-input" value={signup.currency} onChange={(e) => updateSignup('currency', e.target.value)}><option value="ZAR">ZAR</option><option value="USD">USD</option><option value="EUR">EUR</option><option value="GBP">GBP</option></select></label>
+                <label className="stack-field"><span>How many branches?</span><input className="entry-input" type="number" min={1} max={12} value={signup.branchCount} onChange={(e) => updateSignup('branchCount', Math.min(12, Math.max(1, Number(e.target.value) || 1)))} /></label>
+                <label className="stack-field"><span>Primary branch ID</span><select className="entry-input" value={signup.primaryBranchId} onChange={(e) => updateSignup('primaryBranchId', e.target.value)}>{signup.branches.map((branch) => (<option key={branch.id} value={branch.id}>{branch.id}</option>))}</select></label>
               </div>
 
               <div className="branch-builder card subtle-card">
-                <div className="branch-builder-head">
-                  <strong>Branch setup</strong>
-                  <span>Name the branches you want ready from day one.</span>
-                </div>
+                <div className="branch-builder-head"><strong>Branch setup</strong><span>Name the branches you want ready from day one.</span></div>
                 <div className="branch-builder-list">
                   {signup.branches.map((branch, index) => (
                     <div key={`${branch.id}-${index}`} className="branch-builder-row">
-                      <label className="stack-field">
-                        <span>Branch ID</span>
-                        <input className="entry-input" value={branch.id} onChange={(e) => updateBranch(index, 'id', e.target.value)} placeholder={`BR${index + 1}`} />
-                      </label>
-                      <label className="stack-field branch-name-field">
-                        <span>Branch name</span>
-                        <input className="entry-input" value={branch.name} onChange={(e) => updateBranch(index, 'name', e.target.value)} placeholder={`Branch ${index + 1}`} />
-                      </label>
+                      <label className="stack-field"><span>Branch ID</span><input className="entry-input" value={branch.id} onChange={(e) => updateBranch(index, 'id', e.target.value)} placeholder={`BR${index + 1}`} /></label>
+                      <label className="stack-field branch-name-field"><span>Branch name</span><input className="entry-input" value={branch.name} onChange={(e) => updateBranch(index, 'name', e.target.value)} placeholder={`Branch ${index + 1}`} /></label>
                     </div>
                   ))}
                 </div>
               </div>
 
               <div className="logo-upload-card card subtle-card">
-                <div>
-                  <strong>Document logo</strong>
-                  <p>This logo is used on quotes and invoices, not the app icon.</p>
-                </div>
-                <label className="logo-upload-field">
-                  <span>{signup.logoFileName ? `Selected: ${signup.logoFileName}` : 'Upload PNG / JPG / SVG'}</span>
-                  <input type="file" accept="image/png,image/jpeg,image/svg+xml" onChange={handleLogoChange} />
-                </label>
+                <div><strong>Document logo</strong><p>This logo is used on quotes and invoices, not the app icon.</p></div>
+                <label className="logo-upload-field"><span>{signup.logoFileName ? `Selected: ${signup.logoFileName}` : 'Upload PNG / JPG / SVG'}</span><input type="file" accept="image/png,image/jpeg,image/svg+xml" onChange={handleLogoChange} /></label>
                 {signup.logoDataUrl ? <img src={signup.logoDataUrl} alt="Document logo preview" className="signup-logo-preview" /> : null}
               </div>
 

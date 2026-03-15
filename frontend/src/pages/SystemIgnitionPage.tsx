@@ -2,31 +2,16 @@ import { useEffect, useMemo, useState } from 'react';
 import logo from '../assets/kryvexis-logo-entry.png';
 
 const phases = [
-  {
-    eyebrow: 'Phase 01 // ignition',
-    title: 'Kryvexis command core waking up.',
-    copy: 'Power rails active. Signal paths aligning. The operating system is stepping into view.'
-  },
-  {
-    eyebrow: 'Phase 02 // systems online',
-    title: 'Finance, procurement, and stock control in one pulse.',
-    copy: 'Collections, buying, inventory pressure, and branch execution move through one intelligent command layer.'
-  },
-  {
-    eyebrow: 'Phase 03 // ready state',
-    title: 'Operating intelligence online.',
-    copy: 'A cinematic entry into the command center that runs the business like it came from the future.'
-  }
+  { eyebrow: 'Phase 01 // ignition', title: 'Kryvexis command core waking up.', copy: 'Power rails active. Signal paths aligning. The operating system is stepping into view.' },
+  { eyebrow: 'Phase 02 // systems online', title: 'Finance, procurement, and stock control in one pulse.', copy: 'Collections, buying, inventory pressure, and branch execution move through one intelligent command layer.' },
+  { eyebrow: 'Phase 03 // ready state', title: 'Operating intelligence online.', copy: 'A cinematic entry into the command center that runs the business like it came from the future.' }
 ] as const;
 
 export function SystemIgnitionPage({ onFinish }: { onFinish: () => void }) {
   const [phaseIndex, setPhaseIndex] = useState(0);
 
   useEffect(() => {
-    const phaseTimers = [
-      window.setTimeout(() => setPhaseIndex(1), 1700),
-      window.setTimeout(() => setPhaseIndex(2), 3800)
-    ];
+    const phaseTimers = [window.setTimeout(() => setPhaseIndex(1), 1700), window.setTimeout(() => setPhaseIndex(2), 3800)];
     return () => phaseTimers.forEach((timer) => window.clearTimeout(timer));
   }, []);
 
@@ -62,13 +47,9 @@ export function SystemIgnitionPage({ onFinish }: { onFinish: () => void }) {
         </div>
 
         <div className="ignition-timeline" aria-hidden="true">
-          <div className="ignition-progress-track">
-            <div className="ignition-progress-fill" style={{ width: progressWidth }} />
-          </div>
+          <div className="ignition-progress-track"><div className="ignition-progress-fill" style={{ width: progressWidth }} /></div>
           <div className="ignition-phase-row">
-            {phases.map((item, index) => (
-              <span key={item.eyebrow} className={index <= phaseIndex ? 'ignition-phase-dot active' : 'ignition-phase-dot'} />
-            ))}
+            {phases.map((item, index) => (<span key={item.eyebrow} className={index <= phaseIndex ? 'ignition-phase-dot active' : 'ignition-phase-dot'} />))}
           </div>
         </div>
 
