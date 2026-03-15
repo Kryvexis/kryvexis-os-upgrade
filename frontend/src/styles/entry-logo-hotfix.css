@@ -2,38 +2,38 @@
 .entry-logo-clean {
   background: transparent !important;
   box-shadow: none !important;
-  filter: drop-shadow(0 16px 34px rgba(27, 122, 255, 0.22));
+  filter: drop-shadow(0 12px 28px rgba(27, 122, 255, 0.18));
 }
 
 .splash-logo.entry-logo-clean {
-  width: min(340px, 54vw) !important;
-  max-width: 340px !important;
+  width: min(320px, 52vw) !important;
+  max-width: 320px !important;
   object-fit: contain;
 }
 
 .entry-logo-large.entry-logo-clean {
-  width: min(360px, 60vw) !important;
-  max-width: 360px !important;
+  width: min(340px, 58vw) !important;
+  max-width: 340px !important;
   object-fit: contain;
 }
 
 .ignition-logo.entry-logo-clean {
-  width: min(520px, 62vw) !important;
-  max-width: 520px !important;
+  width: min(420px, 56vw) !important;
+  max-width: 420px !important;
   object-fit: contain;
 }
 
-.ignition-logo-lockup {
+.ignition-logo-lockup,
+.splash-logo-wrap {
   background: none !important;
 }
 
 @media (max-width: 900px) {
   .ignition-logo.entry-logo-clean {
-    width: min(420px, 76vw) !important;
+    width: min(340px, 72vw) !important;
   }
-
   .entry-logo-large.entry-logo-clean,
   .splash-logo.entry-logo-clean {
-    width: min(280px, 70vw) !important;
+    width: min(260px, 68vw) !important;
   }
 }

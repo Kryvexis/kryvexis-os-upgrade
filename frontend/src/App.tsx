@@ -11,7 +11,7 @@ import { InvoicesPage } from './pages/InvoicesPage';
 import { InvoiceDetailPage } from './pages/InvoiceDetailPage';
 import { QuotePrintPage } from './pages/QuotePrintPage';
 import { InvoicePrintPage } from './pages/InvoicePrintPage';
-import { ProductsPage } from './pages/ProductDetailPage';
+import { ProductsPage } from './pages/ProductsPage';
 import { ProductDetailPage } from './pages/ProductDetailPage';
 import { PaymentsPage } from './pages/PaymentsPage';
 import { PaymentDetailPage } from './pages/PaymentDetailPage';
@@ -60,7 +60,7 @@ function IntroPage({ onContinue }: { onContinue: () => void }) {
       <div className="entry-ambient entry-ambient-b" />
       <section className="entry-stage intro-stage">
         <div className="intro-panel card">
-          <img src={logo} alt="Kryvexis" className="entry-logo entry-logo-large" />
+          <img src={logo} alt="Kryvexis" className="entry-logo entry-logo-large entry-logo-clean" />
           <p className="eyebrow">Welcome to Kryvexis OS</p>
           <h1>One intelligent command center for finance, procurement, stock control, and sales.</h1>
           <p className="entry-copy">Built to feel cinematic on mobile, sharp on desktop, and governed enough to keep roles, workspaces, and automation clean.</p>
@@ -90,9 +90,7 @@ function SplashScreen() {
 }
 
 function GuardedRoute({ role, moduleKey, children }: { role: RoleKey; moduleKey: Parameters<typeof canAccessModule>[1]; children: JSX.Element }) {
-  if (!canAccessModule(role, moduleKey)) {
-    return <Navigate to="/" replace />;
-  }
+  if (!canAccessModule(role, moduleKey)) return <Navigate to="/" replace />;
   return children;
 }
 
@@ -142,12 +140,7 @@ export default function App() {
       setIntroSeen(true);
     }} />;
   }
-  if (!session) {
-    return <AuthPage onAuthenticated={(next) => {
-      setSession(next);
-      setRole(next.role);
-    }} />;
-  }
+  if (!session) return <AuthPage onAuthenticated={(next) => { setSession(next); setRole(next.role); }} />;
 
   return (
     <Routes>
