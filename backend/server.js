@@ -375,7 +375,7 @@ function buildFinanceExceptions() {
   }));
 }
 
-function buildActionCenter(role = 'admin') {
+function buildActionCenter(role = 'admin', scope = 'all', lane = 'all') {
   const financeActions = buildFinanceBrain();
   const procurementActions = buildProcurementExceptions().map((item, index) => ({
     id: `PRO-${index}-${item.id}`,
@@ -409,24 +409,48 @@ function buildActionCenter(role = 'admin') {
     status: item.severity,
     autoReady: item.action.toLowerCase().includes('transfer')
   }));
-  const roleActions = [...financeActions, ...procurementActions, ...inventoryActions].sort((a, b) => b.score - a.score).map((item, index) => ({ ...item, lane: index < 5 ? 'top-focus' : item.autoReady ? 'quick-win' : 'watch' }));
+  const notificationActions = activeNotifications().map((item) => ({
+    ...operationalActionForNotification(item),
+    domain: 'Operational',
+    reason: item.meta,
+    impact: 'Keep the inbox from becoming operational drag.',
+    score: item.state === 'Urgent' ? 91 : item.state === 'Action' ? 76 : 62,
+    autoReady: false
+  }));
+  const roleActions = [...financeActions, ...procurementActions, ...inventoryActions, ...notificationActions]
+    .filter((item) => isVisibleForBranch(item.branch, scope) || item.branch === 'System')
+    .sort((a, b) => b.score - a.score)
+    .map((item, index) => ({
+      ...item,
+      lane: index < 5 ? 'top-focus' : item.autoReady ? 'quick-win' : item.priority === 'critical' || item.priority === 'high' ? 'blocked' : 'watch'
+    }));
+  const filtered = lane === 'all' ? roleActions : roleActions.filter((item) => item.lane === lane);
+  const branches = Array.from(new Set(roleActions.map((item) => item.branch).filter(Boolean)));
   return {
     generatedAt: new Date().toISOString(),
     topFocus: roleActions.slice(0, 5),
-    quickWins: roleActions.filter((item) => item.autoReady).slice(0, 6),
-    recommendationFeed: roleActions,
-    domainSummaries: ['Finance', 'Procurement', 'Inventory'].map((domain) => {
+    quickWins: roleActions.filter((item) => item.lane === 'quick-win').slice(0, 6),
+    recommendationFeed: filtered,
+    domainSummaries: ['Finance', 'Procurement', 'Inventory', 'Operational'].map((domain) => {
       const items = roleActions.filter((item) => item.domain === domain);
       return {
         domain,
         count: items.length,
         urgent: items.filter((item) => item.priority === 'critical' || item.priority === 'high').length,
         headline: items[0]?.title || `${domain} is stable`,
-        impact: domain === 'Inventory' ? 'Stock cover, transfer flow, and movement pressure.' : domain === 'Procurement' ? 'Reorders, suppliers, and PO pressure.' : 'Collections, statements, and payment allocation.'
+        impact: domain === 'Inventory' ? 'Stock cover, transfer flow, and movement pressure.' : domain === 'Procurement' ? 'Reorders, suppliers, and PO pressure.' : domain === 'Operational' ? 'Alerts, blockers, and follow-through.' : 'Collections, statements, and payment allocation.'
       };
     }),
-    branchSnapshots: buildBranchSnapshots().map((item) => ({ ...item, heat: item.approvals + item.collections + item.exceptions })),
-    auditHighlights: auditLog.slice(0, 6)
+    branchSnapshots: buildBranchSnapshots().map((item) => ({ ...item, heat: item.approvals + item.collections + item.exceptions })).filter((item) => scope === 'all' || item.branch === normalizeBranchScope(scope)),
+    auditHighlights: auditLog.slice(0, 6),
+    availableBranches: ['all', ...branches],
+    laneSummary: {
+      all: roleActions.length,
+      'top-focus': roleActions.filter((item) => item.lane === 'top-focus').length,
+      'quick-win': roleActions.filter((item) => item.lane === 'quick-win').length,
+      blocked: roleActions.filter((item) => item.lane === 'blocked').length,
+      watch: roleActions.filter((item) => item.lane === 'watch').length
+    }
   };
 }
 
@@ -628,6 +652,172 @@ function findCustomer(id) { return customers.find((entry) => entry.id === id); }
 function activeNotifications() { return notifications.filter((item) => !item.dismissed); }
 function stampNow() { return 'Just now'; }
 function numericAmount(value) { return Number(String(value || '').replace(/[^\d.-]/g, '')) || 0; }
+function formatMoneyValue(amount) { return formatCurrency(Math.max(0, Math.round(amount))); }
+function nextNumericId(prefix, collection, field = 'id', start = 1) {
+  const max = collection.reduce((highest, item) => {
+    const value = String(item[field] || '').match(/(\d+)/g);
+    const current = value ? Number(value[value.length - 1]) : 0;
+    return Math.max(highest, current);
+  }, start);
+  return `${prefix}${max + 1}`;
+}
+function normalizeBranchScope(branch) {
+  if (!branch || branch === 'all') return 'all';
+  return normalizeBranchName(branch) || String(branch);
+}
+function isVisibleForBranch(recordBranch, scope = 'all') {
+  return scope === 'all' || !scope || recordBranch === normalizeBranchScope(scope) || normalizeBranchName(recordBranch) === normalizeBranchScope(scope);
+}
+function quoteLinesTotal(lines = []) {
+  return lines.reduce((sum, line) => sum + numericAmount(line.total || (numericAmount(line.unitPrice) * Number(line.qty || 0))), 0);
+}
+function buildQuoteLinesFromPayload(lines = []) {
+  return lines.filter((line) => line && (line.sku || line.description)).map((line, index) => {
+    const product = products.find((item) => item.sku === line.sku) || null;
+    const qty = Math.max(1, Number(line.qty || 1));
+    const unit = numericAmount(line.unitPrice || product?.price || 0);
+    const total = Math.round(unit * qty);
+    return {
+      id: `QL-${Date.now()}-${index + 1}`,
+      sku: line.sku || product?.sku || `SKU-MANUAL-${index + 1}`,
+      description: line.description || product?.name || `Manual line ${index + 1}`,
+      qty,
+      unitPrice: formatMoneyValue(unit),
+      total: formatMoneyValue(total)
+    };
+  });
+}
+function allocatedTotalForInvoice(invoiceId) {
+  return payments.filter((item) => item.appliedTo === invoiceId && item.status === 'Allocated').reduce((sum, item) => sum + numericAmount(item.amount), 0);
+}
+function refreshInvoicePaymentState(invoiceId) {
+  const invoice = findInvoice(invoiceId);
+  if (!invoice) return null;
+  const invoiceTotal = numericAmount(invoice.amount);
+  const allocated = allocatedTotalForInvoice(invoiceId);
+  if (allocated <= 0) {
+    invoice.paymentStatus = 'Unpaid';
+    if (invoice.status === 'Awaiting allocation') invoice.status = 'Issued';
+    return invoice;
+  }
+  if (allocated >= invoiceTotal) {
+    invoice.paymentStatus = 'Paid';
+    invoice.status = 'Paid';
+    invoice.nextAction = 'No action';
+  } else {
+    invoice.paymentStatus = 'Partially paid';
+    invoice.status = invoice.status === 'Overdue' ? 'Collections in progress' : 'Awaiting allocation';
+    invoice.nextAction = `Collect remaining ${formatMoneyValue(invoiceTotal - allocated)}`;
+  }
+  return invoice;
+}
+function refreshCustomerFinancials(customerId) {
+  const customer = findCustomer(customerId);
+  if (!customer) return null;
+  const invoiceExposure = invoices.filter((item) => item.customerId === customerId && item.status !== 'Paid').reduce((sum, item) => sum + Math.max(0, numericAmount(item.amount) - allocatedTotalForInvoice(item.id)), 0);
+  customer.balance = formatMoneyValue(invoiceExposure);
+  customer.risk = invoiceExposure > 50000 ? 'High' : invoiceExposure > 15000 ? 'Medium' : 'Low';
+  customer.status = invoiceExposure > 25000 ? 'Needs follow-up' : invoiceExposure > 0 ? 'Approval watch' : 'Healthy';
+  customer.nextAction = invoiceExposure > 0 ? `Collect ${customer.balance} and review open documents` : 'Expand account activity';
+  return customer;
+}
+function buildPurchaseHistory(customerId) {
+  const history = [];
+  for (const quote of quotes.filter((item) => item.customerId === customerId)) {
+    history.push({ id: `PH-${quote.id}`, date: quote.updated, type: 'quote', reference: quote.id, amount: quote.total, status: quote.status, note: quote.nextAction });
+  }
+  for (const invoice of invoices.filter((item) => item.customerId === customerId)) {
+    history.push({ id: `PH-${invoice.id}`, date: invoice.due, type: 'invoice', reference: invoice.id, amount: invoice.amount, status: invoice.status, note: invoice.nextAction });
+  }
+  for (const payment of payments.filter((item) => item.customerId === customerId)) {
+    history.push({ id: `PH-${payment.id}`, date: payment.date, type: 'payment', reference: payment.ref, amount: payment.amount, status: payment.status, note: payment.nextAction });
+  }
+  return history.slice(0, 20);
+}
+function buildTopProducts(customerId) {
+  const totals = new Map();
+  const relatedQuotes = quotes.filter((item) => item.customerId === customerId);
+  for (const quote of relatedQuotes) {
+    for (const line of quote.lines || []) {
+      const current = totals.get(line.sku) || { sku: line.sku, name: line.description, quantity: 0, revenue: 0 };
+      current.quantity += Number(line.qty || 0);
+      current.revenue += numericAmount(line.total);
+      totals.set(line.sku, current);
+    }
+  }
+  return Array.from(totals.values()).sort((a, b) => b.revenue - a.revenue).slice(0, 5).map((item) => ({ ...item, revenue: formatMoneyValue(item.revenue) }));
+}
+function buildTopClientsDynamic(scope = 'all') {
+  return customers.filter((customer) => isVisibleForBranch(customer.branch, scope)).map((customer) => {
+    const customerInvoices = invoices.filter((item) => item.customerId === customer.id);
+    const revenue = customerInvoices.reduce((sum, item) => sum + numericAmount(item.amount), 0);
+    const overdueBalance = customerInvoices.filter((item) => /overdue|collections/i.test(item.status)).reduce((sum, item) => sum + Math.max(0, numericAmount(item.amount) - allocatedTotalForInvoice(item.id)), 0);
+    return {
+      customerId: customer.id,
+      name: customer.name,
+      revenue: formatMoneyValue(revenue),
+      invoices: customerInvoices.length,
+      averageOrderValue: formatMoneyValue(customerInvoices.length ? revenue / customerInvoices.length : 0),
+      overdueBalance: formatMoneyValue(overdueBalance),
+      trend: overdueBalance > 0 ? 'Collections pressure building' : 'Healthy collections'
+    };
+  }).sort((a, b) => numericAmount(b.revenue) - numericAmount(a.revenue)).slice(0, 6);
+}
+function buildDocumentQueue(scope = 'all') {
+  const quoteDocs = quotes.filter((item) => isVisibleForBranch(item.branch, scope) && ['Approved', 'Sent to customer'].includes(item.status)).map((item) => ({
+    id: `DOC-${item.id}`,
+    type: 'Quote',
+    reference: item.id,
+    customer: item.customer,
+    branch: item.branch,
+    status: item.status === 'Approved' ? 'Ready to send' : 'Ready to print',
+    actionLabel: item.status === 'Approved' ? 'Send quote' : 'Print quote',
+    recordPath: `/quotes/${item.id}/print`
+  }));
+  const invoiceDocs = invoices.filter((item) => isVisibleForBranch(item.branch, scope) && item.status !== 'Paid').map((item) => ({
+    id: `DOC-${item.id}`,
+    type: 'Invoice',
+    reference: item.id,
+    customer: item.customer,
+    branch: item.branch,
+    status: item.paymentStatus === 'Unpaid' ? 'Ready to send' : 'Needs statement',
+    actionLabel: item.paymentStatus === 'Unpaid' ? 'Print invoice' : 'Send statement',
+    recordPath: item.paymentStatus === 'Unpaid' ? `/invoices/${item.id}/print` : '/accounting/statements'
+  }));
+  return [...quoteDocs, ...invoiceDocs].slice(0, 12);
+}
+function buildTransactionCoreOverview(scope = 'all') {
+  const visibleQuotes = quotes.filter((item) => isVisibleForBranch(item.branch, scope));
+  const visibleInvoices = invoices.filter((item) => isVisibleForBranch(item.branch, scope));
+  const visiblePayments = payments.filter((item) => isVisibleForBranch(findCustomer(item.customerId)?.branch, scope));
+  return {
+    counts: {
+      draftQuotes: visibleQuotes.filter((item) => item.status === 'Draft').length,
+      approvalQuotes: visibleQuotes.filter((item) => item.status === 'Pending approval').length,
+      convertibleQuotes: visibleQuotes.filter((item) => ['Approved', 'Sent to customer'].includes(item.status)).length,
+      openInvoices: visibleInvoices.filter((item) => item.status !== 'Paid').length,
+      overdueInvoices: visibleInvoices.filter((item) => /overdue|collections/i.test(item.status)).length,
+      unallocatedPayments: visiblePayments.filter((item) => item.status === 'Unallocated').length,
+      proofPendingPayments: visiblePayments.filter((item) => item.status === 'Pending proof').length
+    },
+    quotePipeline: visibleQuotes.slice(0, 6),
+    invoiceQueue: visibleInvoices.slice(0, 6),
+    paymentQueue: visiblePayments.slice(0, 6),
+    topClients: buildTopClientsDynamic(scope),
+    documentQueue: buildDocumentQueue(scope)
+  };
+}
+function buildFinanceSummary(scope = 'all') {
+  const visibleInvoices = invoices.filter((item) => isVisibleForBranch(item.branch, scope));
+  const visiblePayments = payments.filter((item) => isVisibleForBranch(findCustomer(item.customerId)?.branch, scope));
+  const overdueExposure = visibleInvoices.filter((item) => /overdue|collections/i.test(item.status)).reduce((sum, item) => sum + Math.max(0, numericAmount(item.amount) - allocatedTotalForInvoice(item.id)), 0);
+  return {
+    overdueExposure: formatMoneyValue(overdueExposure),
+    collectionCalls: visibleInvoices.filter((item) => /overdue|collections/i.test(item.status)).length,
+    allocationQueue: visiblePayments.filter((item) => item.status === 'Unallocated').length,
+    proofExceptions: visiblePayments.filter((item) => item.status === 'Pending proof').length
+  };
+}
 
 function ensureDataDir() {
   if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
@@ -1112,9 +1302,9 @@ function buildReportPayload(role = 'admin', branch = 'all') {
     })))
     .filter((item) => allowedBranch === 'all' || !allowedBranch || item.branch === allowedBranch)
     .slice(0, 30);
-
+  const scope = role === 'manager' ? allowedBranch : branch;
   return {
-    scope: role === 'manager' ? allowedBranch : branch,
+    scope,
     date: summary.date,
     canViewAllBranches: role === 'admin' || role === 'executive',
     visibleBranches,
@@ -1143,7 +1333,11 @@ function buildReportPayload(role = 'admin', branch = 'all') {
       duplicateBlocked: Boolean(closeRecord && closeRecord.sentStatus === 'sent'),
       lastDispatchId: lastDispatch?.id || closeRecord?.emailDispatchId || null
     },
-    auditTrail: (automationState.auditTrail || []).filter((item) => allowedBranch === 'all' || !allowedBranch || item.branch.includes(allowedBranch)).slice(0, 20)
+    auditTrail: (automationState.auditTrail || []).filter((item) => allowedBranch === 'all' || !allowedBranch || item.branch.includes(allowedBranch)).slice(0, 20),
+    financeSummary: buildFinanceSummary(scope),
+    transactionCore: buildTransactionCoreOverview(scope),
+    topClients: buildTopClientsDynamic(scope),
+    documentQueue: buildDocumentQueue(scope)
   };
 }
 
@@ -1193,32 +1387,39 @@ function buildPaymentDetail(payment) {
     activityLog: collectActivity({ recordType: 'payment', recordId: payment.id, customerId: payment.customerId })
   };
 }
-const baseCustomerSummaries = {
-  'CUS-001': {
-    customerId: 'CUS-001', totalSpend: 'R78,240', invoiceCount: 6, averageOrderValue: 'R13,040', overdueBalance: 'R5,040', lastPurchaseDate: '2026-03-09', lastPaymentDate: 'Today 10:42', collectionStatus: '1 overdue invoice needs follow-up',
-    topProducts: [
-      { sku: 'SKU-1001', name: 'Kryvexis Label Printer', quantity: 18, revenue: 'R44,982' },
-      { sku: 'SKU-1021', name: 'Thermal Roll Box', quantity: 56, revenue: 'R21,280' },
-      { sku: 'SKU-1033', name: 'Warehouse Scanner Dock', quantity: 9, revenue: 'R11,610' }
-    ],
-    purchaseHistory: [
-      { id: 'PH-1', date: '2026-03-10', type: 'payment', reference: 'PAY-7701', amount: 'R7,400', status: 'Allocated', note: 'Part-payment allocated to INV-2201' }
-    ]
-  }
-};
 function buildCustomerSummary(id) {
-  const base = baseCustomerSummaries[id];
   const customer = findCustomer(id);
-  if (!base || !customer) return null;
-  const recentInvoices = invoices.filter((item) => item.customerId === id).slice(0, 3);
-  const recentPayments = payments.filter((item) => item.customerId === id).slice(0, 3);
+  if (!customer) return null;
+  refreshCustomerFinancials(id);
+  const allInvoices = invoices.filter((item) => item.customerId === id);
+  const recentInvoices = allInvoices.slice(0, 5);
+  const recentPayments = payments.filter((item) => item.customerId === id).slice(0, 5);
   const openQuotes = quotes.filter((item) => item.customerId === id && item.status !== 'Converted');
-  const overdueInvoices = invoices.filter((item) => item.customerId === id && /overdue|collections/i.test(item.status)).length;
-  const overdueAmount = numericAmount(base.overdueBalance);
-  const openBalance = customer.balance;
-  const health = overdueAmount > 10000 ? 'At risk' : customer.risk === 'Low' ? 'Healthy' : 'Needs attention';
+  const overdueInvoices = allInvoices.filter((item) => /overdue|collections/i.test(item.status)).length;
+  const topProducts = buildTopProducts(id);
+  const purchaseHistory = buildPurchaseHistory(id);
+  const totalSpendValue = allInvoices.reduce((sum, item) => sum + numericAmount(item.amount), 0);
+  const overdueBalanceValue = allInvoices.filter((item) => /overdue|collections/i.test(item.status)).reduce((sum, item) => sum + Math.max(0, numericAmount(item.amount) - allocatedTotalForInvoice(item.id)), 0);
   const linkedActivity = collectActivity({ customerId: id }).slice(0, 10);
-  return { ...base, openQuotes, recentInvoices, recentPayments, overdueInvoices, openBalance, accountHealth: health, linkedActivity };
+  return {
+    customerId: id,
+    totalSpend: formatMoneyValue(totalSpendValue),
+    invoiceCount: allInvoices.length,
+    averageOrderValue: formatMoneyValue(totalSpendValue / Math.max(1, allInvoices.length)),
+    overdueBalance: formatMoneyValue(overdueBalanceValue),
+    lastPurchaseDate: recentInvoices[0]?.due || 'No invoice yet',
+    lastPaymentDate: recentPayments[0]?.date || 'No payment yet',
+    collectionStatus: overdueInvoices ? `${overdueInvoices} overdue invoices need follow-up` : 'Collections are under control',
+    topProducts,
+    openQuotes,
+    recentInvoices,
+    recentPayments,
+    purchaseHistory,
+    overdueInvoices,
+    openBalance: customer.balance,
+    accountHealth: overdueBalanceValue > 10000 ? 'At risk' : customer.risk === 'Low' ? 'Healthy' : 'Needs attention',
+    linkedActivity
+  };
 }
 
 function listRoute(routePath, collection) {
@@ -1294,7 +1495,9 @@ app.get('/api/dashboard', (req, res) => {
 });
 app.get('/api/action-center', (req, res) => {
   const role = String(req.query.role || 'admin');
-  return res.json(envelope(buildActionCenter(role)));
+  const branch = String(req.query.branch || 'all');
+  const lane = String(req.query.lane || 'all');
+  return res.json(envelope(buildActionCenter(role, branch, lane)));
 });
 app.get('/api/customers/:id/summary', (req, res) => {
   const summary = buildCustomerSummary(req.params.id);
@@ -1318,6 +1521,117 @@ app.get('/api/payments/:id', (req, res) => {
   const payment = findPayment(req.params.id);
   if (!payment) return res.status(404).json({ ok: false, error: 'payment item not found' });
   return res.json(envelope(buildPaymentDetail(payment)));
+});
+app.get('/api/transaction-core/overview', (req, res) => {
+  const branch = String(req.query.branch || 'all');
+  return res.json(envelope(buildTransactionCoreOverview(branch)));
+});
+app.get('/api/documents/queue', (req, res) => {
+  const branch = String(req.query.branch || 'all');
+  return res.json(envelope(buildDocumentQueue(branch)));
+});
+app.post('/api/quotes', requirePermission('quotes.write'), (req, res) => {
+  const customer = findCustomer(req.body?.customerId);
+  if (!customer) return res.status(400).json({ ok: false, error: 'valid customerId is required' });
+  const lines = buildQuoteLinesFromPayload(req.body?.lines || []);
+  if (!lines.length) return res.status(400).json({ ok: false, error: 'at least one line is required' });
+  const subtotalAmount = quoteLinesTotal(lines);
+  const taxAmount = Math.round(subtotalAmount * 0.15);
+  const totalAmount = subtotalAmount + taxAmount;
+  const quote = {
+    id: nextNumericId('Q-', quotes),
+    customerId: customer.id,
+    customer: customer.name,
+    owner: String(req.body?.owner || customer.owner || 'Sales Desk'),
+    value: formatMoneyValue(totalAmount),
+    status: req.body?.status || 'Draft',
+    validity: req.body?.validity || isoDateOffset(7),
+    branch: req.body?.branch || customer.branch,
+    trigger: totalAmount > 50000 ? 'High-value threshold' : 'None',
+    updated: stampNow(),
+    notes: String(req.body?.notes || 'Created from transactional core workflow.'),
+    nextAction: req.body?.status === 'Pending approval' ? 'Manager review required before send' : 'Review and send to customer',
+    subtotal: formatMoneyValue(subtotalAmount),
+    tax: formatMoneyValue(taxAmount),
+    total: formatMoneyValue(totalAmount),
+    marginBand: totalAmount > 50000 ? 'Protected margin' : 'Standard margin',
+    approvalOwner: totalAmount > 50000 ? 'Sales Manager' : 'Not required',
+    lines,
+    workflow: [
+      { label: 'Drafted', detail: `Quote created for ${customer.name} from the transaction core.` },
+      { label: 'Next step', detail: totalAmount > 50000 ? 'Route for approval before send.' : 'Send to customer or convert later.' }
+    ]
+  };
+  quotes.unshift(quote);
+  pushAudit({ title: 'Quote created', detail: `${quote.id} created for ${quote.customer}.`, actor: quote.owner, timestamp: stampNow(), recordType: 'quote', recordId: quote.id, recordPath: recordPathFor('quote', quote.id), customerId: quote.customerId, status: quote.status });
+  if (quote.status === 'Pending approval') {
+    pushNotification({ id: `NT-${Date.now()}`, title: `Quote approval required`, meta: `${quote.id} - Sales`, state: 'Pending', read: false, type: 'approval', dismissed: false, snoozedUntil: null });
+  }
+  return res.json(envelope({ quote: buildQuoteDetail(quote) }));
+});
+app.post('/api/invoices', requirePermission('invoices.write'), (req, res) => {
+  const customer = findCustomer(req.body?.customerId);
+  if (!customer) return res.status(400).json({ ok: false, error: 'valid customerId is required' });
+  const sourceQuote = req.body?.sourceQuoteId ? findQuote(req.body.sourceQuoteId) : null;
+  const amount = sourceQuote ? numericAmount(sourceQuote.total) : numericAmount(req.body?.amount);
+  if (!amount) return res.status(400).json({ ok: false, error: 'amount or sourceQuoteId is required' });
+  const invoice = {
+    id: nextNumericId('INV-', invoices),
+    customerId: customer.id,
+    customer: customer.name,
+    amount: formatMoneyValue(amount),
+    branch: req.body?.branch || customer.branch,
+    status: 'Issued',
+    due: req.body?.due || `Due in ${Number(req.body?.dueDays || 30)} days`,
+    source: sourceQuote?.id || 'Manual',
+    paymentStatus: 'Unpaid',
+    tax: 'VAT standard',
+    reminders: 'Not started',
+    nextAction: 'Send invoice and monitor payment'
+  };
+  invoices.unshift(invoice);
+  if (sourceQuote) {
+    sourceQuote.status = 'Converted';
+    sourceQuote.updated = stampNow();
+    sourceQuote.nextAction = `Invoice ${invoice.id} ready for collection workflow`;
+    sourceQuote.workflow.push({ label: 'Converted', detail: `Invoice ${invoice.id} created from this quote` });
+  }
+  refreshCustomerFinancials(customer.id);
+  pushAudit({ title: 'Invoice created', detail: `${invoice.id} created for ${invoice.customer}.`, actor: 'Finance Team', timestamp: stampNow(), recordType: 'invoice', recordId: invoice.id, recordPath: recordPathFor('invoice', invoice.id), customerId: invoice.customerId, status: invoice.status });
+  pushNotification({ id: `NT-${Date.now()}`, title: `Invoice ${invoice.id} issued`, meta: `${invoice.customer} - Finance`, state: 'New', read: false, type: 'collection', dismissed: false, snoozedUntil: null });
+  return res.json(envelope({ invoice: buildInvoiceDetail(invoice) }));
+});
+app.post('/api/payments', requirePermission('payments.allocate'), (req, res) => {
+  const customer = findCustomer(req.body?.customerId);
+  if (!customer) return res.status(400).json({ ok: false, error: 'valid customerId is required' });
+  const amount = numericAmount(req.body?.amount);
+  if (!amount) return res.status(400).json({ ok: false, error: 'amount is required' });
+  const targetInvoiceId = String(req.body?.invoiceId || '').trim() || null;
+  const proofAttached = Boolean(req.body?.proofAttached);
+  const payment = {
+    id: nextNumericId('PAY-', payments),
+    ref: nextNumericId('PAY-', payments, 'ref'),
+    customerId: customer.id,
+    party: customer.name,
+    amount: formatMoneyValue(amount),
+    method: req.body?.method || 'EFT',
+    status: proofAttached ? (targetInvoiceId ? 'Ready to allocate' : 'Unallocated') : 'Pending proof',
+    date: stampNow(),
+    appliedTo: targetInvoiceId || 'To be assigned',
+    proof: proofAttached ? 'Attached' : 'Missing',
+    nextAction: proofAttached ? (targetInvoiceId ? `Allocate against ${targetInvoiceId}` : 'Allocate to open invoice') : 'Request proof attachment'
+  };
+  payments.unshift(payment);
+  if (proofAttached && targetInvoiceId && req.body?.autoAllocate !== false) {
+    payment.status = 'Allocated';
+    payment.nextAction = 'Allocation complete';
+    const invoice = refreshInvoicePaymentState(targetInvoiceId);
+    if (invoice) invoice.nextAction = `Payment ${payment.ref} allocated`;
+  }
+  refreshCustomerFinancials(customer.id);
+  pushAudit({ title: 'Payment captured', detail: `${payment.ref} captured for ${customer.name}.`, actor: 'Finance Team', timestamp: stampNow(), recordType: 'payment', recordId: payment.id, recordPath: recordPathFor('payment', payment.id), customerId: payment.customerId, status: payment.status });
+  pushNotification({ id: `NT-${Date.now()}`, title: `Payment ${payment.ref} captured`, meta: `${customer.name} - Finance`, state: payment.status === 'Pending proof' ? 'Action' : 'New', read: false, type: 'payment', dismissed: false, snoozedUntil: null });
+  return res.json(envelope({ payment: buildPaymentDetail(payment) }));
 });
 app.get('/api/notifications', (_req, res) => res.json(envelope(activeNotifications())));
 app.patch('/api/notifications/:id/read', (req, res) => {
@@ -1415,13 +1729,12 @@ app.post('/api/payments/:id/allocate', requirePermission('payments.allocate'), (
   payment.appliedTo = invoiceId;
   payment.status = 'Allocated';
   payment.nextAction = 'Allocation complete';
-  const invoice = findInvoice(invoiceId);
+  const invoice = refreshInvoicePaymentState(invoiceId);
   if (invoice) {
-    invoice.paymentStatus = 'Allocated receipt';
-    invoice.status = invoice.status === 'Overdue' ? 'Collections in progress' : invoice.status;
     invoice.nextAction = `Payment ${payment.ref} allocated`;
     pushAudit({ title: 'Invoice updated from payment', detail: `${invoice.id} now reflects allocation from ${payment.ref}.`, actor: 'Finance Team', timestamp: stampNow(), recordType: 'invoice', recordId: invoice.id, recordPath: recordPathFor('invoice', invoice.id), customerId: invoice.customerId, status: invoice.status });
   }
+  refreshCustomerFinancials(payment.customerId);
   pushAudit({ title: 'Payment allocated', detail: `${payment.ref} allocated to ${invoiceId}.`, actor: 'Finance Team', timestamp: stampNow(), recordType: 'payment', recordId: payment.id, recordPath: recordPathFor('payment', payment.id), customerId: payment.customerId, status: 'Allocated' });
   pushNotification({ id: `NT-${Date.now()}`, title: `Payment ${payment.ref} allocated`, meta: `${invoiceId} - Finance`, state: 'Done', read: true, type: 'payment', dismissed: false, snoozedUntil: null });
   return res.json(envelope({ payment: buildPaymentDetail(payment) }));

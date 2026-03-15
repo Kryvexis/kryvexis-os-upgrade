@@ -25,6 +25,10 @@ export type Product = { id: string; sku: string; name: string; branch: string; s
 export type QuoteStatus = 'Draft' | 'Pending approval' | 'Approved' | 'Sent to customer' | 'Converted';
 export type Quote = { id: string; customer: string; owner: string; value: string; status: string; validity: string; branch: string; trigger: string; updated: string; notes: string; nextAction: string; };
 export type QuoteLine = { id: string; sku: string; description: string; qty: number; unitPrice: string; total: string; };
+export type QuoteLineInput = { sku?: string; description?: string; qty: number; unitPrice?: string; };
+export type CreateQuotePayload = { customerId: string; owner?: string; branch?: string; status?: QuoteStatus; validity?: string; notes?: string; lines: QuoteLineInput[]; };
+export type CreateInvoicePayload = { customerId: string; branch?: string; sourceQuoteId?: string; amount?: string; due?: string; dueDays?: number; };
+export type CreatePaymentPayload = { customerId: string; invoiceId?: string; amount: string; method?: string; proofAttached?: boolean; autoAllocate?: boolean; };
 export type QuoteWorkflowEvent = { label: string; detail: string; };
 export type ActivityEntry = { id: string; title: string; detail: string; actor: string; timestamp: string; recordType: 'quote' | 'invoice' | 'payment' | 'system' | string; recordId: string; recordPath: string; customerId?: string | null; status?: string; };
 export type QuoteDetail = Quote & { customerId?: string; subtotal: string; tax: string; total: string; marginBand: string; approvalOwner: string; sourceCustomerId: string; lines: QuoteLine[]; workflow: QuoteWorkflowEvent[]; activityLog: ActivityEntry[]; };
@@ -55,7 +59,10 @@ export type CloseStatus = { date: string; state: 'open' | 'closed'; label: strin
 export type SendStatus = { state: 'not-ready' | 'pending' | 'sent'; label: string; lastSentAt: string | null; duplicateBlocked: boolean; lastDispatchId: string | null; };
 export type AutomationAuditEntry = { id: string; occurredAt: string; actor: string; action: string; status: 'success' | 'blocked' | 'info' | 'error'; detail: string; branch: string; date: string; };
 export type BranchCloseHistoryRow = { recordId: string; branch: string; date: string; closedAt: string; totalSales: number; varianceToTarget: number; sentStatus: 'pending' | 'sent'; };
-export type ReportsResponse = { scope: string; date: string; canViewAllBranches: boolean; visibleBranches: ReportBranch[]; totals: ReportTotals; sellerBoard: SellerRow[]; emailPreview: { subject: string; body: string }; emailDispatches: EmailDispatch[]; dayCloseHistory: DayCloseRecord[]; branchCloseHistory: BranchCloseHistoryRow[]; automation: AutomationSettings; closeStatus: CloseStatus; sendStatus: SendStatus; auditTrail: AutomationAuditEntry[]; };
+export type FinanceSummary = { overdueExposure: string; collectionCalls: number; allocationQueue: number; proofExceptions: number; };
+export type DocumentQueueItem = { id: string; type: string; reference: string; customer: string; branch: string; status: string; actionLabel: string; recordPath: string; };
+export type TransactionCoreOverview = { counts: { draftQuotes: number; approvalQuotes: number; convertibleQuotes: number; openInvoices: number; overdueInvoices: number; unallocatedPayments: number; proofPendingPayments: number; }; quotePipeline: Quote[]; invoiceQueue: Invoice[]; paymentQueue: Payment[]; topClients: TopClient[]; documentQueue: DocumentQueueItem[]; };
+export type ReportsResponse = { scope: string; date: string; canViewAllBranches: boolean; visibleBranches: ReportBranch[]; totals: ReportTotals; sellerBoard: SellerRow[]; emailPreview: { subject: string; body: string }; emailDispatches: EmailDispatch[]; dayCloseHistory: DayCloseRecord[]; branchCloseHistory: BranchCloseHistoryRow[]; automation: AutomationSettings; closeStatus: CloseStatus; sendStatus: SendStatus; auditTrail: AutomationAuditEntry[]; financeSummary?: FinanceSummary; transactionCore?: TransactionCoreOverview; topClients?: TopClient[]; documentQueue?: DocumentQueueItem[]; };
 
 export type DebtorRow = { id: string; customerId: string; customer: string; branch: string; overdueAmount: string; currentAmount: string; totalOpen: string; oldestBucket: string; risk: string; recommendation: string; score: number; };
 export type StatementRow = { id: string; customerId: string; customer: string; branch: string; balance: string; overdueInvoices: number; lastIssued: string; nextAction: string; status: string; };
@@ -89,7 +96,7 @@ export type PeriodClosePayload = { readiness: string; status: string; checklist:
 export type ActionCenterDomain = 'Finance' | 'Procurement' | 'Inventory' | 'Operations';
 export type ActionRecommendation = { id: string; domain: ActionCenterDomain | string; title: string; detail: string; reason: string; owner: string; branch: string; priority: 'critical' | 'high' | 'medium' | 'low' | string; score: number; impact: string; actionLabel: string; recordPath: string; status: string; autoReady?: boolean; lane?: 'top-focus' | 'quick-win' | 'watch' | string; };
 export type ActionCenterDomainSummary = { domain: ActionCenterDomain | string; count: number; urgent: number; headline: string; impact: string; };
-export type ActionCenterResponse = { generatedAt: string; topFocus: ActionRecommendation[]; quickWins: ActionRecommendation[]; recommendationFeed: ActionRecommendation[]; domainSummaries: ActionCenterDomainSummary[]; branchSnapshots: BranchSnapshot[]; auditHighlights: ActivityEntry[]; };
+export type ActionCenterResponse = { generatedAt: string; topFocus: ActionRecommendation[]; quickWins: ActionRecommendation[]; recommendationFeed: ActionRecommendation[]; domainSummaries: ActionCenterDomainSummary[]; branchSnapshots: BranchSnapshot[]; auditHighlights: ActivityEntry[]; availableBranches?: string[]; laneSummary?: Record<string, number>; };
 
 
 export type ProcurementRecommendation = {
