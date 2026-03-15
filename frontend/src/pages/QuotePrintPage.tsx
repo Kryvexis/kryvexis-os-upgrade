@@ -46,6 +46,8 @@ export function QuotePrintPage() {
       notes={`${item.notes} Next action: ${item.nextAction}`}
       supportEmail={settings?.supportEmail}
       whatsapp={settings?.whatsapp}
+      companyName={settings?.documentBranding?.companyName ?? settings?.companyProfile?.companyName}
+      logoDataUrl={settings?.documentBranding?.logoDataUrl}
       sourceLabel="Customer profile"
       sourceValue={<Link to={`/customers/${item.sourceCustomerId}`}>Open customer record</Link>}
     />

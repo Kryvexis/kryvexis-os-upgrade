@@ -4,8 +4,6 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import pg from 'pg';
-import { createSessionForEmail, revokeSession, switchSessionBranch, listRolePermissions } from './src/auth/auth-service.js';
-import { attachSession, requireAuth, requirePermission } from './src/middleware/auth.js';
 
 const { Pool } = pg;
 const app = express();
@@ -13,7 +11,6 @@ const port = process.env.PORT || 4000;
 
 app.use(cors());
 app.use(express.json());
-app.use(attachSession);
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -64,395 +61,6 @@ const purchaseOrders = [
   { id: 'PO-3094', supplier: 'Metro Warehouse Goods', branch: 'Durban', status: 'Goods received', value: 'R9,880', eta: '2026-03-10', buyer: 'Tariq Naidoo', nextAction: 'Match supplier bill to GRN' }
 ];
 
-const networkInventory = [
-  { sku: 'SKU-1001', name: 'Kryvexis Label Printer', branch: 'Johannesburg', stock: 14, reorderAt: 10, movementSummary: '2 units sold today', supplier: 'Prime Devices' },
-  { sku: 'SKU-1001', name: 'Kryvexis Label Printer', branch: 'Cape Town', stock: 7, reorderAt: 8, movementSummary: 'Tender activity spiked this week', supplier: 'Prime Devices' },
-  { sku: 'SKU-1021', name: 'Thermal Roll Box', branch: 'Cape Town', stock: 8, reorderAt: 12, movementSummary: 'Threshold breached this morning', supplier: 'Cape Paper Supply' },
-  { sku: 'SKU-1021', name: 'Thermal Roll Box', branch: 'Johannesburg', stock: 26, reorderAt: 12, movementSummary: 'Steady movement with deep cover', supplier: 'Cape Paper Supply' },
-  { sku: 'SKU-1021', name: 'Thermal Roll Box', branch: 'Durban', stock: 17, reorderAt: 10, movementSummary: 'Stable warehouse pull-through', supplier: 'Cape Paper Supply' },
-  { sku: 'SKU-1033', name: 'Warehouse Scanner Dock', branch: 'Johannesburg', stock: 21, reorderAt: 6, movementSummary: 'No movement today', supplier: 'Prime Devices' },
-  { sku: 'SKU-1033', name: 'Warehouse Scanner Dock', branch: 'Durban', stock: 4, reorderAt: 6, movementSummary: 'Receipt delay affecting dispatch prep', supplier: 'Prime Devices' }
-];
-
-
-
-function normalizeBranchName(branchIdOrName) {
-  if (!branchIdOrName) return null;
-  const branch = branchDirectory.find((item) => item.id === branchIdOrName || `BR-${item.id}` === branchIdOrName || item.name === branchIdOrName);
-  return branch?.name || String(branchIdOrName).replace(/^BR-/, '');
-}
-function branchTransferCandidates(product) {
-  return networkInventory
-    .filter((entry) => entry.sku === product.sku && entry.branch !== product.branch)
-    .map((entry) => ({
-      branch: entry.branch,
-      stock: entry.stock,
-      reorderAt: entry.reorderAt,
-      surplus: Math.max(entry.stock - entry.reorderAt, 0),
-      movementSummary: entry.movementSummary
-    }))
-    .filter((entry) => entry.surplus > 0)
-    .sort((a, b) => b.surplus - a.surplus);
-}
-function buildReservationPressure() {
-  const reservedBySku = new Map();
-  const activeQuoteStatuses = new Set(['Pending approval', 'Approved', 'Sent to customer']);
-  for (const quote of quotes) {
-    if (!activeQuoteStatuses.has(quote.status)) continue;
-    for (const line of quote.lines || []) {
-      const current = reservedBySku.get(line.sku) || { quoteQty: 0, invoiceQty: 0, customerPressure: 0 };
-      current.quoteQty += Number(line.qty || 0);
-      current.customerPressure += 1;
-      reservedBySku.set(line.sku, current);
-    }
-  }
-  for (const invoice of invoices) {
-    if (invoice.paymentStatus === 'Paid') continue;
-    const sourceQuote = quotes.find((item) => item.id === invoice.source);
-    for (const line of sourceQuote?.lines || []) {
-      const current = reservedBySku.get(line.sku) || { quoteQty: 0, invoiceQty: 0, customerPressure: 0 };
-      current.invoiceQty += Number(line.qty || 0);
-      current.customerPressure += 1;
-      reservedBySku.set(line.sku, current);
-    }
-  }
-  return reservedBySku;
-}
-function classifyMovement(summary = '') {
-  const text = String(summary).toLowerCase();
-  if (/(spike|breached|fast|sold today|high movement)/.test(text)) return { band: 'Fast mover', riskBoost: 10, note: 'Demand is running hotter than normal.' };
-  if (/(delay|receipt|abnormal|exception)/.test(text)) return { band: 'Abnormal', riskBoost: 14, note: 'Movement pattern suggests an operational exception.' };
-  if (/(no movement|slow|idle)/.test(text)) return { band: 'Slow mover', riskBoost: -4, note: 'Movement is quiet and cover is likely stable.' };
-  return { band: 'Steady', riskBoost: 0, note: 'Movement is within expected operating rhythm.' };
-}
-function buildInventoryRows() {
-  const reservations = buildReservationPressure();
-  return products.map((product) => {
-    const reserve = reservations.get(product.sku) || { quoteQty: 0, invoiceQty: 0, customerPressure: 0 };
-    const reserved = reserve.quoteQty + reserve.invoiceQty;
-    const freeToSell = Math.max(product.stock - reserved, 0);
-    const coverGap = product.reorderAt - freeToSell;
-    const movement = classifyMovement(product.movementSummary);
-    const transfers = branchTransferCandidates(product);
-    const stockRiskScore = Math.max(18, Math.min(98, 55 + Math.max(coverGap, 0) * 6 + reserve.customerPressure * 5 + movement.riskBoost + (product.status === 'Low stock' ? 8 : 0)));
-    const riskBand = coverGap > 6 ? 'Critical' : coverGap > 0 ? 'High' : freeToSell <= product.reorderAt + 2 ? 'Watch' : 'Healthy';
-    const buyShortfallOnly = Math.max(coverGap - (transfers[0]?.surplus || 0), 0);
-    const suggestedTransferUnits = coverGap > 0 ? Math.min(Math.max(coverGap, 0), transfers[0]?.surplus || 0) : 0;
-    const recommendation = coverGap > 0
-      ? suggestedTransferUnits > 0
-        ? `Move ${suggestedTransferUnits} units from ${transfers[0].branch} first, then buy only ${buyShortfallOnly || 0} more if demand holds.`
-        : `No internal cover is available. Raise a buy recommendation for ${coverGap + Math.max(3, Math.floor(product.reorderAt / 2))} units.`
-      : movement.band === 'Slow mover'
-        ? 'Hold buying and keep this SKU under slow-mover watch.'
-        : 'No urgent action. Keep monitoring branch demand.'
-    return {
-      id: product.id,
-      sku: product.sku,
-      product: product.name,
-      name: product.name,
-      branch: product.branch,
-      supplier: product.supplier,
-      stock: product.stock,
-      onHand: product.stock,
-      reserved,
-      freeToSell,
-      reorderAt: product.reorderAt,
-      coverGap,
-      riskBand,
-      stockRiskScore,
-      movementBand: movement.band,
-      movementSummary: product.movementSummary,
-      movementInsight: movement.note,
-      transferOptions: transfers,
-      suggestedTransferUnits,
-      buyShortfallOnly,
-      recommendation,
-      nextAction: recommendation,
-      status: riskBand === 'Healthy' ? product.status : `${riskBand} cover`,
-      barcode: product.barcode,
-      variants: product.variants,
-      price: product.price,
-      cost: product.cost
-    };
-  }).sort((a, b) => b.stockRiskScore - a.stockRiskScore);
-}
-function buildInventoryKpis(rows) {
-  return [
-    { label: 'Critical stock risks', value: String(rows.filter((item) => item.riskBand === 'Critical').length), detail: 'SKUs where free stock is materially below safe cover.' },
-    { label: 'Units reserved', value: String(rows.reduce((sum, item) => sum + item.reserved, 0)), detail: 'Quote and invoice demand already consuming stock.' },
-    { label: 'Transfer-first saves', value: String(rows.filter((item) => item.suggestedTransferUnits > 0).length), detail: 'Cases where internal stock can reduce buying.' },
-    { label: 'Movement anomalies', value: String(rows.filter((item) => item.movementBand === 'Abnormal').length), detail: 'Products showing unusual movement or receipt pressure.' }
-  ];
-}
-function buildStockRisks(rows = buildInventoryRows()) {
-  return rows.map((item) => ({
-    id: `ISR-${item.id}`,
-    sku: item.sku,
-    product: item.product,
-    branch: item.branch,
-    onHand: item.onHand,
-    reserved: item.reserved,
-    freeToSell: item.freeToSell,
-    reorderAt: item.reorderAt,
-    coverGap: item.coverGap,
-    riskBand: item.riskBand,
-    score: item.stockRiskScore,
-    recommendation: item.recommendation
-  }));
-}
-function buildTransferSuggestions(rows = buildInventoryRows()) {
-  return rows
-    .filter((item) => item.suggestedTransferUnits > 0 || item.coverGap > 0)
-    .map((item) => ({
-      id: `TR-${item.id}`,
-      sku: item.sku,
-      product: item.product,
-      toBranch: item.branch,
-      fromBranch: item.transferOptions[0]?.branch || 'Buy externally',
-      suggestedUnits: item.suggestedTransferUnits,
-      coverGap: item.coverGap,
-      buyShortfallOnly: item.buyShortfallOnly,
-      urgency: item.riskBand,
-      score: item.stockRiskScore,
-      recommendation: item.recommendation
-    }))
-    .sort((a, b) => b.score - a.score);
-}
-function buildMovementIntelligence(rows = buildInventoryRows()) {
-  return rows.map((item) => ({
-    id: `MOV-${item.id}`,
-    sku: item.sku,
-    product: item.product,
-    branch: item.branch,
-    movementBand: item.movementBand,
-    summary: item.movementSummary,
-    insight: item.movementInsight,
-    score: item.stockRiskScore,
-    recommendation: item.movementBand === 'Fast mover' && item.coverGap > 0 ? 'Protect cover immediately; this demand trend is now risky.' : item.movementBand === 'Abnormal' ? 'Investigate receipts, counting, or dispatch flow before the next cycle.' : item.movementBand === 'Slow mover' ? 'Pause any aggressive buying until movement improves.' : 'Movement is healthy for now.'
-  })).sort((a, b) => b.score - a.score);
-}
-function buildInventoryExceptions(rows = buildInventoryRows()) {
-  return rows
-    .filter((item) => item.riskBand !== 'Healthy' || item.movementBand === 'Abnormal')
-    .map((item) => ({
-      id: `IEX-${item.id}`,
-      title: item.riskBand === 'Critical' ? `${item.product} is at immediate stockout risk` : item.movementBand === 'Abnormal' ? `${item.product} has an abnormal movement signal` : `${item.product} is below safe free-to-sell cover`,
-      severity: item.riskBand === 'Critical' ? 'High' : item.movementBand === 'Abnormal' ? 'Medium' : 'Watch',
-      branch: item.branch,
-      detail: `${item.product} has ${item.onHand} on hand, ${item.reserved} reserved, and ${item.freeToSell} free to sell against a reorder point of ${item.reorderAt}.`,
-      action: item.suggestedTransferUnits > 0 ? `Transfer ${item.suggestedTransferUnits} units from ${item.transferOptions[0].branch}` : item.coverGap > 0 ? 'Raise replenishment or approve buy-shortfall plan' : 'Review movement history',
-      recordPath: `/products/${item.id}`
-    }))
-    .sort((a, b) => (a.severity === 'High' ? -1 : 1));
-}
-function buildInventoryFocus(rows = buildInventoryRows()) {
-  return rows.slice(0, 5).map((item) => ({
-    id: `IF-${item.id}`,
-    title: item.product,
-    detail: item.recommendation,
-    impact: item.riskBand === 'Critical' ? 'Protect branch readiness and avoid missed sales.' : 'Reduce noise by acting only where cover is actually stressed.',
-    actionLabel: item.suggestedTransferUnits > 0 ? 'Open transfer plan' : 'Open stock record',
-    recordPath: `/products/${item.id}`,
-    priority: item.riskBand === 'Critical' ? 'high' : item.riskBand === 'High' ? 'medium' : 'low',
-    domain: item.suggestedTransferUnits > 0 ? 'transfer' : 'stock-risk'
-  }));
-}
-function buildInventoryOverview() {
-  const rows = buildInventoryRows();
-  return {
-    generatedAt: new Date().toISOString(),
-    kpis: buildInventoryKpis(rows),
-    focus: buildInventoryFocus(rows),
-    stockRisks: buildStockRisks(rows),
-    transferSuggestions: buildTransferSuggestions(rows),
-    movementIntelligence: buildMovementIntelligence(rows),
-    exceptions: buildInventoryExceptions(rows),
-    rows
-  };
-}
-
-function buildDebtorRows() {
-  return customers.map((customer) => {
-    const linkedInvoices = invoices.filter((item) => item.customerId === customer.id);
-    const overdueTotal = linkedInvoices.filter((item) => /overdue|collections/i.test(item.status)).reduce((sum, item) => sum + numericAmount(item.amount), 0);
-    const currentTotal = linkedInvoices.filter((item) => !/overdue|collections/i.test(item.status) && item.paymentStatus !== 'Settled').reduce((sum, item) => sum + numericAmount(item.amount), 0);
-    const riskScore = Math.min(99, Math.round((overdueTotal / 1000) + (customer.risk === 'High' ? 28 : customer.risk === 'Medium' ? 16 : 8) + linkedInvoices.length * 3));
-    return {
-      id: `DEBT-${customer.id}`,
-      customerId: customer.id,
-      customer: customer.name,
-      branch: customer.branch,
-      overdueAmount: formatCurrency(overdueTotal),
-      currentAmount: formatCurrency(currentTotal),
-      totalOpen: formatCurrency(overdueTotal + currentTotal),
-      oldestBucket: overdueTotal > 0 ? '31+ days' : 'Current',
-      risk: riskScore >= 80 ? 'Critical' : riskScore >= 60 ? 'High' : 'Watch',
-      recommendation: overdueTotal > 0 ? 'Call debtor and issue statement now.' : currentTotal > 0 ? 'Keep on polite reminder cadence.' : 'No collections pressure right now.',
-      score: riskScore
-    };
-  }).sort((a, b) => b.score - a.score);
-}
-
-function buildStatementRows() {
-  return buildDebtorRows().map((item) => ({
-    id: `STM-${item.customerId}`,
-    customerId: item.customerId,
-    customer: item.customer,
-    branch: item.branch,
-    balance: item.totalOpen,
-    overdueInvoices: invoices.filter((entry) => entry.customerId === item.customerId && /overdue|collections/i.test(entry.status)).length,
-    lastIssued: item.score >= 70 ? 'Today 09:12' : 'Yesterday 16:30',
-    nextAction: item.score >= 70 ? 'Send refreshed statement now' : 'Keep standard statement cadence',
-    status: item.score >= 70 ? 'Priority' : 'Healthy'
-  }));
-}
-
-function buildFinanceBrain() {
-  const debtorActions = buildDebtorRows().slice(0, 5).map((item) => ({
-    id: `FB-DEBT-${item.customerId}`,
-    domain: 'Finance',
-    title: `${item.customer} collections pressure is building`,
-    detail: `${item.overdueAmount} overdue and ${item.totalOpen} still open across the account.`,
-    reason: item.recommendation,
-    owner: 'Finance',
-    branch: item.branch,
-    priority: item.score >= 82 ? 'critical' : item.score >= 65 ? 'high' : 'medium',
-    score: item.score,
-    impact: 'Protect cash conversion and customer payment discipline.',
-    actionLabel: item.score >= 82 ? 'Call debtor now' : 'Open debtor card',
-    recordPath: `/customers/${item.customerId}`,
-    status: item.risk,
-    autoReady: false
-  }));
-
-  const paymentActions = payments.filter((item) => item.status === 'Pending proof' || item.status === 'Unallocated').map((item) => ({
-    id: `FB-PAY-${item.id}`,
-    domain: 'Finance',
-    title: item.status === 'Pending proof' ? `${item.party} payment still needs proof` : `${item.party} payment is ready for allocation`,
-    detail: `${item.ref} for ${item.amount} is ${item.status.toLowerCase()} and still interrupting a clean close loop.`,
-    reason: item.status === 'Pending proof' ? 'Proof missing keeps the receipt from becoming audit-safe.' : 'Allocation is the fastest way to clean debtor visibility.',
-    owner: 'Finance',
-    branch: findCustomer(item.customerId)?.branch || 'Finance',
-    priority: item.status === 'Unallocated' ? 'high' : 'medium',
-    score: item.status === 'Unallocated' ? 86 : 74,
-    impact: 'Reduce exception noise and clean receipting before close.',
-    actionLabel: item.status === 'Pending proof' ? 'Resolve proof' : 'Allocate payment',
-    recordPath: `/payments/${item.id}`,
-    status: item.status,
-    autoReady: item.status === 'Unallocated'
-  }));
-
-  const statementActions = buildStatementRows().filter((item) => item.status === 'Priority').slice(0, 3).map((item) => ({
-    id: `FB-STM-${item.customerId}`,
-    domain: 'Finance',
-    title: `${item.customer} should receive a fresh statement`,
-    detail: `${item.balance} remains open and the account has ${item.overdueInvoices} overdue invoices.`,
-    reason: 'Fresh statements accelerate calls, reminders, and dispute clearing.',
-    owner: 'Finance',
-    branch: item.branch,
-    priority: 'medium',
-    score: 68,
-    impact: 'Move collections faster with cleaner customer visibility.',
-    actionLabel: 'Send statement',
-    recordPath: '/accounting/statements',
-    status: item.status,
-    autoReady: true
-  }));
-
-  return [...debtorActions, ...paymentActions, ...statementActions].sort((a, b) => b.score - a.score);
-}
-
-function buildFinanceExceptions() {
-  return buildFinanceBrain().map((item) => ({
-    id: `FEX-${item.id}`,
-    kind: item.title.toLowerCase().includes('statement') ? 'statements' : item.title.toLowerCase().includes('payment') ? 'payments' : 'collections',
-    title: item.title,
-    branch: item.branch,
-    severity: item.priority === 'critical' ? 'High' : item.priority === 'high' ? 'Medium' : 'Watch',
-    detail: item.detail,
-    action: item.actionLabel,
-    recordPath: item.recordPath
-  }));
-}
-
-function buildActionCenter(role = 'admin', scope = 'all', lane = 'all') {
-  const financeActions = buildFinanceBrain();
-  const procurementActions = buildProcurementExceptions().map((item, index) => ({
-    id: `PRO-${index}-${item.id}`,
-    domain: 'Procurement',
-    title: item.title,
-    detail: item.detail,
-    reason: item.action,
-    owner: 'Procurement',
-    branch: item.branch,
-    priority: item.severity === 'High' ? 'high' : 'medium',
-    score: item.severity === 'High' ? 88 : 72,
-    impact: 'Protect stock cover and supplier flow.',
-    actionLabel: item.action,
-    recordPath: item.recordPath,
-    status: item.severity,
-    autoReady: true
-  }));
-  const inventoryActions = buildInventoryExceptions().map((item, index) => ({
-    id: `INV-${index}-${item.id}`,
-    domain: 'Inventory',
-    title: item.title,
-    detail: item.detail,
-    reason: item.action,
-    owner: 'Warehouse',
-    branch: item.branch,
-    priority: item.severity === 'High' ? 'critical' : item.severity === 'Medium' ? 'high' : 'medium',
-    score: item.severity === 'High' ? 95 : item.severity === 'Medium' ? 84 : 70,
-    impact: 'Reduce stockouts before they hit sales and dispatch.',
-    actionLabel: item.action,
-    recordPath: item.recordPath,
-    status: item.severity,
-    autoReady: item.action.toLowerCase().includes('transfer')
-  }));
-  const notificationActions = activeNotifications().map((item) => ({
-    ...operationalActionForNotification(item),
-    domain: 'Operational',
-    reason: item.meta,
-    impact: 'Keep the inbox from becoming operational drag.',
-    score: item.state === 'Urgent' ? 91 : item.state === 'Action' ? 76 : 62,
-    autoReady: false
-  }));
-  const roleActions = [...financeActions, ...procurementActions, ...inventoryActions, ...notificationActions]
-    .filter((item) => isVisibleForBranch(item.branch, scope) || item.branch === 'System')
-    .sort((a, b) => b.score - a.score)
-    .map((item, index) => ({
-      ...item,
-      lane: index < 5 ? 'top-focus' : item.autoReady ? 'quick-win' : item.priority === 'critical' || item.priority === 'high' ? 'blocked' : 'watch'
-    }));
-  const filtered = lane === 'all' ? roleActions : roleActions.filter((item) => item.lane === lane);
-  const branches = Array.from(new Set(roleActions.map((item) => item.branch).filter(Boolean)));
-  return {
-    generatedAt: new Date().toISOString(),
-    topFocus: roleActions.slice(0, 5),
-    quickWins: roleActions.filter((item) => item.lane === 'quick-win').slice(0, 6),
-    recommendationFeed: filtered,
-    domainSummaries: ['Finance', 'Procurement', 'Inventory', 'Operational'].map((domain) => {
-      const items = roleActions.filter((item) => item.domain === domain);
-      return {
-        domain,
-        count: items.length,
-        urgent: items.filter((item) => item.priority === 'critical' || item.priority === 'high').length,
-        headline: items[0]?.title || `${domain} is stable`,
-        impact: domain === 'Inventory' ? 'Stock cover, transfer flow, and movement pressure.' : domain === 'Procurement' ? 'Reorders, suppliers, and PO pressure.' : domain === 'Operational' ? 'Alerts, blockers, and follow-through.' : 'Collections, statements, and payment allocation.'
-      };
-    }),
-    branchSnapshots: buildBranchSnapshots().map((item) => ({ ...item, heat: item.approvals + item.collections + item.exceptions })).filter((item) => scope === 'all' || item.branch === normalizeBranchScope(scope)),
-    auditHighlights: auditLog.slice(0, 6),
-    availableBranches: ['all', ...branches],
-    laneSummary: {
-      all: roleActions.length,
-      'top-focus': roleActions.filter((item) => item.lane === 'top-focus').length,
-      'quick-win': roleActions.filter((item) => item.lane === 'quick-win').length,
-      blocked: roleActions.filter((item) => item.lane === 'blocked').length,
-      watch: roleActions.filter((item) => item.lane === 'watch').length
-    }
-  };
-}
 
 function buildProcurementReorders() {
   return products.map((item) => {
@@ -598,34 +206,6 @@ const branchDirectory = [
   { id: 'DBN', name: 'Durban', managerName: 'Tariq Naidoo', managerEmail: 'dbn.manager@kryvexis.local' }
 ];
 
-function normalizeBranchKey(value) {
-  return String(value || '').trim().toLowerCase().replace(/^br-/, '').replace(/[^a-z]/g, '');
-}
-
-function findBranchByIdOrName(value) {
-  const key = normalizeBranchKey(value);
-  if (!key) return null;
-  return branchDirectory.find((branch) => {
-    const idKey = normalizeBranchKey(branch.id);
-    const nameKey = normalizeBranchKey(branch.name);
-    return key === idKey || key === nameKey || key === `br${idKey}`;
-  }) || null;
-}
-
-function sessionPayload(session) {
-  if (!session?.user) return null;
-  return {
-    email: session.user.email,
-    name: session.user.fullName,
-    role: session.user.roleKey,
-    branch: session.user.branchName || session.user.branchId || 'Unassigned',
-    branchId: session.user.branchId || null,
-    token: session.token,
-    lastLoginAt: new Date().toISOString(),
-    permissions: session.permissions || []
-  };
-}
-
 const baseAutomationSettings = {
   triggerMode: 'manual-close',
   closeTime: '18:00',
@@ -652,172 +232,6 @@ function findCustomer(id) { return customers.find((entry) => entry.id === id); }
 function activeNotifications() { return notifications.filter((item) => !item.dismissed); }
 function stampNow() { return 'Just now'; }
 function numericAmount(value) { return Number(String(value || '').replace(/[^\d.-]/g, '')) || 0; }
-function formatMoneyValue(amount) { return formatCurrency(Math.max(0, Math.round(amount))); }
-function nextNumericId(prefix, collection, field = 'id', start = 1) {
-  const max = collection.reduce((highest, item) => {
-    const value = String(item[field] || '').match(/(\d+)/g);
-    const current = value ? Number(value[value.length - 1]) : 0;
-    return Math.max(highest, current);
-  }, start);
-  return `${prefix}${max + 1}`;
-}
-function normalizeBranchScope(branch) {
-  if (!branch || branch === 'all') return 'all';
-  return normalizeBranchName(branch) || String(branch);
-}
-function isVisibleForBranch(recordBranch, scope = 'all') {
-  return scope === 'all' || !scope || recordBranch === normalizeBranchScope(scope) || normalizeBranchName(recordBranch) === normalizeBranchScope(scope);
-}
-function quoteLinesTotal(lines = []) {
-  return lines.reduce((sum, line) => sum + numericAmount(line.total || (numericAmount(line.unitPrice) * Number(line.qty || 0))), 0);
-}
-function buildQuoteLinesFromPayload(lines = []) {
-  return lines.filter((line) => line && (line.sku || line.description)).map((line, index) => {
-    const product = products.find((item) => item.sku === line.sku) || null;
-    const qty = Math.max(1, Number(line.qty || 1));
-    const unit = numericAmount(line.unitPrice || product?.price || 0);
-    const total = Math.round(unit * qty);
-    return {
-      id: `QL-${Date.now()}-${index + 1}`,
-      sku: line.sku || product?.sku || `SKU-MANUAL-${index + 1}`,
-      description: line.description || product?.name || `Manual line ${index + 1}`,
-      qty,
-      unitPrice: formatMoneyValue(unit),
-      total: formatMoneyValue(total)
-    };
-  });
-}
-function allocatedTotalForInvoice(invoiceId) {
-  return payments.filter((item) => item.appliedTo === invoiceId && item.status === 'Allocated').reduce((sum, item) => sum + numericAmount(item.amount), 0);
-}
-function refreshInvoicePaymentState(invoiceId) {
-  const invoice = findInvoice(invoiceId);
-  if (!invoice) return null;
-  const invoiceTotal = numericAmount(invoice.amount);
-  const allocated = allocatedTotalForInvoice(invoiceId);
-  if (allocated <= 0) {
-    invoice.paymentStatus = 'Unpaid';
-    if (invoice.status === 'Awaiting allocation') invoice.status = 'Issued';
-    return invoice;
-  }
-  if (allocated >= invoiceTotal) {
-    invoice.paymentStatus = 'Paid';
-    invoice.status = 'Paid';
-    invoice.nextAction = 'No action';
-  } else {
-    invoice.paymentStatus = 'Partially paid';
-    invoice.status = invoice.status === 'Overdue' ? 'Collections in progress' : 'Awaiting allocation';
-    invoice.nextAction = `Collect remaining ${formatMoneyValue(invoiceTotal - allocated)}`;
-  }
-  return invoice;
-}
-function refreshCustomerFinancials(customerId) {
-  const customer = findCustomer(customerId);
-  if (!customer) return null;
-  const invoiceExposure = invoices.filter((item) => item.customerId === customerId && item.status !== 'Paid').reduce((sum, item) => sum + Math.max(0, numericAmount(item.amount) - allocatedTotalForInvoice(item.id)), 0);
-  customer.balance = formatMoneyValue(invoiceExposure);
-  customer.risk = invoiceExposure > 50000 ? 'High' : invoiceExposure > 15000 ? 'Medium' : 'Low';
-  customer.status = invoiceExposure > 25000 ? 'Needs follow-up' : invoiceExposure > 0 ? 'Approval watch' : 'Healthy';
-  customer.nextAction = invoiceExposure > 0 ? `Collect ${customer.balance} and review open documents` : 'Expand account activity';
-  return customer;
-}
-function buildPurchaseHistory(customerId) {
-  const history = [];
-  for (const quote of quotes.filter((item) => item.customerId === customerId)) {
-    history.push({ id: `PH-${quote.id}`, date: quote.updated, type: 'quote', reference: quote.id, amount: quote.total, status: quote.status, note: quote.nextAction });
-  }
-  for (const invoice of invoices.filter((item) => item.customerId === customerId)) {
-    history.push({ id: `PH-${invoice.id}`, date: invoice.due, type: 'invoice', reference: invoice.id, amount: invoice.amount, status: invoice.status, note: invoice.nextAction });
-  }
-  for (const payment of payments.filter((item) => item.customerId === customerId)) {
-    history.push({ id: `PH-${payment.id}`, date: payment.date, type: 'payment', reference: payment.ref, amount: payment.amount, status: payment.status, note: payment.nextAction });
-  }
-  return history.slice(0, 20);
-}
-function buildTopProducts(customerId) {
-  const totals = new Map();
-  const relatedQuotes = quotes.filter((item) => item.customerId === customerId);
-  for (const quote of relatedQuotes) {
-    for (const line of quote.lines || []) {
-      const current = totals.get(line.sku) || { sku: line.sku, name: line.description, quantity: 0, revenue: 0 };
-      current.quantity += Number(line.qty || 0);
-      current.revenue += numericAmount(line.total);
-      totals.set(line.sku, current);
-    }
-  }
-  return Array.from(totals.values()).sort((a, b) => b.revenue - a.revenue).slice(0, 5).map((item) => ({ ...item, revenue: formatMoneyValue(item.revenue) }));
-}
-function buildTopClientsDynamic(scope = 'all') {
-  return customers.filter((customer) => isVisibleForBranch(customer.branch, scope)).map((customer) => {
-    const customerInvoices = invoices.filter((item) => item.customerId === customer.id);
-    const revenue = customerInvoices.reduce((sum, item) => sum + numericAmount(item.amount), 0);
-    const overdueBalance = customerInvoices.filter((item) => /overdue|collections/i.test(item.status)).reduce((sum, item) => sum + Math.max(0, numericAmount(item.amount) - allocatedTotalForInvoice(item.id)), 0);
-    return {
-      customerId: customer.id,
-      name: customer.name,
-      revenue: formatMoneyValue(revenue),
-      invoices: customerInvoices.length,
-      averageOrderValue: formatMoneyValue(customerInvoices.length ? revenue / customerInvoices.length : 0),
-      overdueBalance: formatMoneyValue(overdueBalance),
-      trend: overdueBalance > 0 ? 'Collections pressure building' : 'Healthy collections'
-    };
-  }).sort((a, b) => numericAmount(b.revenue) - numericAmount(a.revenue)).slice(0, 6);
-}
-function buildDocumentQueue(scope = 'all') {
-  const quoteDocs = quotes.filter((item) => isVisibleForBranch(item.branch, scope) && ['Approved', 'Sent to customer'].includes(item.status)).map((item) => ({
-    id: `DOC-${item.id}`,
-    type: 'Quote',
-    reference: item.id,
-    customer: item.customer,
-    branch: item.branch,
-    status: item.status === 'Approved' ? 'Ready to send' : 'Ready to print',
-    actionLabel: item.status === 'Approved' ? 'Send quote' : 'Print quote',
-    recordPath: `/quotes/${item.id}/print`
-  }));
-  const invoiceDocs = invoices.filter((item) => isVisibleForBranch(item.branch, scope) && item.status !== 'Paid').map((item) => ({
-    id: `DOC-${item.id}`,
-    type: 'Invoice',
-    reference: item.id,
-    customer: item.customer,
-    branch: item.branch,
-    status: item.paymentStatus === 'Unpaid' ? 'Ready to send' : 'Needs statement',
-    actionLabel: item.paymentStatus === 'Unpaid' ? 'Print invoice' : 'Send statement',
-    recordPath: item.paymentStatus === 'Unpaid' ? `/invoices/${item.id}/print` : '/accounting/statements'
-  }));
-  return [...quoteDocs, ...invoiceDocs].slice(0, 12);
-}
-function buildTransactionCoreOverview(scope = 'all') {
-  const visibleQuotes = quotes.filter((item) => isVisibleForBranch(item.branch, scope));
-  const visibleInvoices = invoices.filter((item) => isVisibleForBranch(item.branch, scope));
-  const visiblePayments = payments.filter((item) => isVisibleForBranch(findCustomer(item.customerId)?.branch, scope));
-  return {
-    counts: {
-      draftQuotes: visibleQuotes.filter((item) => item.status === 'Draft').length,
-      approvalQuotes: visibleQuotes.filter((item) => item.status === 'Pending approval').length,
-      convertibleQuotes: visibleQuotes.filter((item) => ['Approved', 'Sent to customer'].includes(item.status)).length,
-      openInvoices: visibleInvoices.filter((item) => item.status !== 'Paid').length,
-      overdueInvoices: visibleInvoices.filter((item) => /overdue|collections/i.test(item.status)).length,
-      unallocatedPayments: visiblePayments.filter((item) => item.status === 'Unallocated').length,
-      proofPendingPayments: visiblePayments.filter((item) => item.status === 'Pending proof').length
-    },
-    quotePipeline: visibleQuotes.slice(0, 6),
-    invoiceQueue: visibleInvoices.slice(0, 6),
-    paymentQueue: visiblePayments.slice(0, 6),
-    topClients: buildTopClientsDynamic(scope),
-    documentQueue: buildDocumentQueue(scope)
-  };
-}
-function buildFinanceSummary(scope = 'all') {
-  const visibleInvoices = invoices.filter((item) => isVisibleForBranch(item.branch, scope));
-  const visiblePayments = payments.filter((item) => isVisibleForBranch(findCustomer(item.customerId)?.branch, scope));
-  const overdueExposure = visibleInvoices.filter((item) => /overdue|collections/i.test(item.status)).reduce((sum, item) => sum + Math.max(0, numericAmount(item.amount) - allocatedTotalForInvoice(item.id)), 0);
-  return {
-    overdueExposure: formatMoneyValue(overdueExposure),
-    collectionCalls: visibleInvoices.filter((item) => /overdue|collections/i.test(item.status)).length,
-    allocationQueue: visiblePayments.filter((item) => item.status === 'Unallocated').length,
-    proofExceptions: visiblePayments.filter((item) => item.status === 'Pending proof').length
-  };
-}
 
 function ensureDataDir() {
   if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
@@ -832,7 +246,9 @@ function defaultAutomationState() {
     dayCloseHistory: [],
     emailDispatches: [],
     auditTrail: [],
-    scheduler: { enabled: false, lastAutoRunDate: null }
+    scheduler: { enabled: false, lastAutoRunDate: null },
+    companyProfile: null,
+    documentBranding: null
   };
 }
 function loadAutomationState() {
@@ -850,7 +266,9 @@ function loadAutomationState() {
       automationSettings: { ...baseAutomationSettings, ...(raw.automationSettings || {}) },
       dayCloseHistory: Array.isArray(raw.dayCloseHistory) ? raw.dayCloseHistory : [],
       emailDispatches: Array.isArray(raw.emailDispatches) ? raw.emailDispatches : [],
-      auditTrail: Array.isArray(raw.auditTrail) ? raw.auditTrail : []
+      auditTrail: Array.isArray(raw.auditTrail) ? raw.auditTrail : [],
+      companyProfile: raw.companyProfile || null,
+      documentBranding: raw.documentBranding || null
     };
   } catch (error) {
     console.error('Failed to load automation state', error);
@@ -862,6 +280,71 @@ function saveAutomationState() {
   ensureDataDir();
   fs.writeFileSync(stateFile, JSON.stringify(automationState, null, 2));
 }
+
+function normalizeBranchName(value) {
+  return String(value || '').trim().split(/\s+/).filter(Boolean).map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase()).join(' ') || 'Main Branch';
+}
+function normalizeBranchId(value, index = 0) {
+  const clean = String(value || '').trim().toUpperCase().replace(/\s+/g, '-');
+  return clean || `BR${index + 1}`;
+}
+function buildCompanySession(profile) {
+  const primaryBranch = profile.branches.find((branch) => branch.id === profile.primaryBranchId) || profile.branches[0] || { id: profile.primaryBranchId || 'JHB', name: 'Main Branch' };
+  return {
+    email: profile.email,
+    name: profile.adminName,
+    role: 'admin',
+    branch: primaryBranch.name,
+    branchId: primaryBranch.id,
+    permissions: ['dashboard.view', 'settings.write', 'users.manage', 'reports.read'],
+    token: `company-${Buffer.from(profile.email).toString('base64')}`,
+    lastLoginAt: new Date().toISOString()
+  };
+}
+function applyCompanyOnboarding(payload = {}) {
+  const branchCount = Math.max(1, Math.min(12, Number(payload.branchCount) || 1));
+  const branches = Array.from({ length: branchCount }, (_, index) => {
+    const raw = Array.isArray(payload.branches) ? payload.branches[index] || {} : {};
+    return {
+      id: normalizeBranchId(raw.id, index),
+      name: normalizeBranchName(raw.name || (index === 0 ? 'Main Branch' : `Branch ${index + 1}`))
+    };
+  });
+  const primaryBranchId = branches.some((branch) => branch.id === payload.primaryBranchId) ? payload.primaryBranchId : branches[0].id;
+  const companyProfile = {
+    companyName: String(payload.companyName || 'Kryvexis Solutions').trim(),
+    adminName: String(payload.adminName || payload.fullName || 'Admin User').trim(),
+    email: String(payload.email || '').trim().toLowerCase(),
+    phone: String(payload.phone || '').trim(),
+    businessType: String(payload.businessType || 'Retail').trim(),
+    currency: String(payload.currency || 'ZAR').trim().toUpperCase(),
+    branchCount,
+    primaryBranchId,
+    branches
+  };
+  automationState.companyProfile = companyProfile;
+  automationState.documentBranding = {
+    companyName: companyProfile.companyName,
+    logoDataUrl: payload.logoDataUrl || null,
+    logoFileName: payload.logoFileName || null
+  };
+  branchDirectory.splice(0, branchDirectory.length, ...branches.map((branch, index) => ({
+    id: branch.id,
+    name: branch.name,
+    managerName: index === 0 ? companyProfile.adminName : `Branch ${index + 1} Lead`,
+    managerEmail: index === 0 ? companyProfile.email : `branch${index + 1}@${(companyProfile.companyName || 'kryvexis').toLowerCase().replace(/[^a-z0-9]+/g, '') || 'company'}.local`
+  })));
+  settings.business.currency = companyProfile.currency;
+  settings.business.defaultBranch = branches[0]?.name || settings.business.defaultBranch;
+  automationState.automationSettings = {
+    ...automationState.automationSettings,
+    defaultManagerBranch: branches[0]?.name || automationState.automationSettings.defaultManagerBranch,
+    branchManagers: branchDirectory.map((branch) => ({ branch: branch.name, manager: branch.managerName, email: branch.managerEmail }))
+  };
+  saveAutomationState();
+  return companyProfile;
+}
+
 function formatCurrency(amount) {
   return new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR', maximumFractionDigits: 0 })
     .format(amount).replace('ZAR', 'R').replace(/\u00a0/g, ' ');
@@ -1302,9 +785,9 @@ function buildReportPayload(role = 'admin', branch = 'all') {
     })))
     .filter((item) => allowedBranch === 'all' || !allowedBranch || item.branch === allowedBranch)
     .slice(0, 30);
-  const scope = role === 'manager' ? allowedBranch : branch;
+
   return {
-    scope,
+    scope: role === 'manager' ? allowedBranch : branch,
     date: summary.date,
     canViewAllBranches: role === 'admin' || role === 'executive',
     visibleBranches,
@@ -1333,11 +816,7 @@ function buildReportPayload(role = 'admin', branch = 'all') {
       duplicateBlocked: Boolean(closeRecord && closeRecord.sentStatus === 'sent'),
       lastDispatchId: lastDispatch?.id || closeRecord?.emailDispatchId || null
     },
-    auditTrail: (automationState.auditTrail || []).filter((item) => allowedBranch === 'all' || !allowedBranch || item.branch.includes(allowedBranch)).slice(0, 20),
-    financeSummary: buildFinanceSummary(scope),
-    transactionCore: buildTransactionCoreOverview(scope),
-    topClients: buildTopClientsDynamic(scope),
-    documentQueue: buildDocumentQueue(scope)
+    auditTrail: (automationState.auditTrail || []).filter((item) => allowedBranch === 'all' || !allowedBranch || item.branch.includes(allowedBranch)).slice(0, 20)
   };
 }
 
@@ -1387,39 +866,32 @@ function buildPaymentDetail(payment) {
     activityLog: collectActivity({ recordType: 'payment', recordId: payment.id, customerId: payment.customerId })
   };
 }
+const baseCustomerSummaries = {
+  'CUS-001': {
+    customerId: 'CUS-001', totalSpend: 'R78,240', invoiceCount: 6, averageOrderValue: 'R13,040', overdueBalance: 'R5,040', lastPurchaseDate: '2026-03-09', lastPaymentDate: 'Today 10:42', collectionStatus: '1 overdue invoice needs follow-up',
+    topProducts: [
+      { sku: 'SKU-1001', name: 'Kryvexis Label Printer', quantity: 18, revenue: 'R44,982' },
+      { sku: 'SKU-1021', name: 'Thermal Roll Box', quantity: 56, revenue: 'R21,280' },
+      { sku: 'SKU-1033', name: 'Warehouse Scanner Dock', quantity: 9, revenue: 'R11,610' }
+    ],
+    purchaseHistory: [
+      { id: 'PH-1', date: '2026-03-10', type: 'payment', reference: 'PAY-7701', amount: 'R7,400', status: 'Allocated', note: 'Part-payment allocated to INV-2201' }
+    ]
+  }
+};
 function buildCustomerSummary(id) {
+  const base = baseCustomerSummaries[id];
   const customer = findCustomer(id);
-  if (!customer) return null;
-  refreshCustomerFinancials(id);
-  const allInvoices = invoices.filter((item) => item.customerId === id);
-  const recentInvoices = allInvoices.slice(0, 5);
-  const recentPayments = payments.filter((item) => item.customerId === id).slice(0, 5);
+  if (!base || !customer) return null;
+  const recentInvoices = invoices.filter((item) => item.customerId === id).slice(0, 3);
+  const recentPayments = payments.filter((item) => item.customerId === id).slice(0, 3);
   const openQuotes = quotes.filter((item) => item.customerId === id && item.status !== 'Converted');
-  const overdueInvoices = allInvoices.filter((item) => /overdue|collections/i.test(item.status)).length;
-  const topProducts = buildTopProducts(id);
-  const purchaseHistory = buildPurchaseHistory(id);
-  const totalSpendValue = allInvoices.reduce((sum, item) => sum + numericAmount(item.amount), 0);
-  const overdueBalanceValue = allInvoices.filter((item) => /overdue|collections/i.test(item.status)).reduce((sum, item) => sum + Math.max(0, numericAmount(item.amount) - allocatedTotalForInvoice(item.id)), 0);
+  const overdueInvoices = invoices.filter((item) => item.customerId === id && /overdue|collections/i.test(item.status)).length;
+  const overdueAmount = numericAmount(base.overdueBalance);
+  const openBalance = customer.balance;
+  const health = overdueAmount > 10000 ? 'At risk' : customer.risk === 'Low' ? 'Healthy' : 'Needs attention';
   const linkedActivity = collectActivity({ customerId: id }).slice(0, 10);
-  return {
-    customerId: id,
-    totalSpend: formatMoneyValue(totalSpendValue),
-    invoiceCount: allInvoices.length,
-    averageOrderValue: formatMoneyValue(totalSpendValue / Math.max(1, allInvoices.length)),
-    overdueBalance: formatMoneyValue(overdueBalanceValue),
-    lastPurchaseDate: recentInvoices[0]?.due || 'No invoice yet',
-    lastPaymentDate: recentPayments[0]?.date || 'No payment yet',
-    collectionStatus: overdueInvoices ? `${overdueInvoices} overdue invoices need follow-up` : 'Collections are under control',
-    topProducts,
-    openQuotes,
-    recentInvoices,
-    recentPayments,
-    purchaseHistory,
-    overdueInvoices,
-    openBalance: customer.balance,
-    accountHealth: overdueBalanceValue > 10000 ? 'At risk' : customer.risk === 'Low' ? 'Healthy' : 'Needs attention',
-    linkedActivity
-  };
+  return { ...base, openQuotes, recentInvoices, recentPayments, overdueInvoices, openBalance, accountHealth: health, linkedActivity };
 }
 
 function listRoute(routePath, collection) {
@@ -1432,72 +904,11 @@ function listRoute(routePath, collection) {
 }
 
 app.get('/', (_req, res) => res.json({ ok: true, service: 'kryvexis-os-api', status: 'running', phase: 'SQL-A1' }));
-app.post('/api/auth/signup', async (req, res) => {
-  try {
-    const email = String(req.body?.email || '').trim().toLowerCase();
-    const fullName = String(req.body?.fullName || '').trim();
-    const roleKey = String(req.body?.roleKey || 'manager').trim();
-    const branchId = String(req.body?.branchId || '').trim() || null;
-    if (!email || !fullName) return res.status(400).json({ ok: false, error: 'fullName and email are required' });
-    const { registerUser, createSessionForEmail } = await import('./src/auth/auth-service.js');
-    await registerUser({ email, fullName, roleKey, branchId });
-    const session = await createSessionForEmail(email, { userAgent: req.headers['user-agent'] || null, createdBy: email });
-    return res.json(envelope(sessionPayload(session)));
-  } catch (error) {
-    return res.status(500).json({ ok: false, error: error.message || 'signup failed' });
-  }
-});
-app.post('/api/auth/login', async (req, res) => {
-  try {
-    const email = String(req.body?.email || '').trim().toLowerCase();
-    if (!email) return res.status(400).json({ ok: false, error: 'email is required' });
-    const session = await createSessionForEmail(email, { userAgent: req.headers['user-agent'] || null, createdBy: email });
-    if (!session) return res.status(401).json({ ok: false, error: 'No active Kryvexis user found for that email.' });
-    return res.json(envelope(sessionPayload(session)));
-  } catch (error) {
-    return res.status(500).json({ ok: false, error: error.message || 'login failed' });
-  }
-});
-app.get('/api/auth/me', requireAuth, (req, res) => res.json(envelope(sessionPayload(req.session))));
-app.post('/api/auth/logout', requireAuth, async (req, res) => {
-  await revokeSession(req.session?.token || req.headers.authorization || req.headers['x-session-token']);
-  return res.json(envelope({ success: true }));
-});
-app.post('/api/auth/switch-branch', requireAuth, async (req, res) => {
-  try {
-    const branch = findBranchByIdOrName(req.body?.branch || req.body?.branchId);
-    if (!branch) return res.status(400).json({ ok: false, error: 'valid branch is required' });
-    await switchSessionBranch(req.session?.token || req.headers.authorization || req.headers['x-session-token'], `BR-${branch.id}`);
-    if (req.session?.user) {
-      req.session.user.branchId = `BR-${branch.id}`;
-      req.session.user.branchName = branch.name;
-    }
-    return res.json(envelope(sessionPayload(req.session)));
-  } catch (error) {
-    return res.status(500).json({ ok: false, error: error.message || 'branch switch failed' });
-  }
-});
-app.get('/api/auth/permissions', requireAuth, async (_req, res) => {
-  const catalog = await listRolePermissions();
-  return res.json(envelope(catalog));
-});
-
-app.use('/api', (req, res, next) => {
-  if (req.path === '/bootstrap') return next();
-  if (req.path.startsWith('/auth/')) return next();
-  return requireAuth(req, res, next);
-});
 app.get('/health', (_req, res) => res.json({ status: 'ok', phase: 'SQL-A1', service: 'kryvexis-os-api', sqlAutomation: ENABLE_SQL }));
 app.get('/api/bootstrap', (_req, res) => res.json(envelope({ roles, themeOptions: settings.themes, support: { email: settings.supportEmail, whatsapp: settings.whatsapp } })));
 app.get('/api/dashboard', (req, res) => {
   const role = req.query.role || 'admin';
   res.json(envelope(buildDashboard(role)));
-});
-app.get('/api/action-center', (req, res) => {
-  const role = String(req.query.role || 'admin');
-  const branch = String(req.query.branch || 'all');
-  const lane = String(req.query.lane || 'all');
-  return res.json(envelope(buildActionCenter(role, branch, lane)));
 });
 app.get('/api/customers/:id/summary', (req, res) => {
   const summary = buildCustomerSummary(req.params.id);
@@ -1521,117 +932,6 @@ app.get('/api/payments/:id', (req, res) => {
   const payment = findPayment(req.params.id);
   if (!payment) return res.status(404).json({ ok: false, error: 'payment item not found' });
   return res.json(envelope(buildPaymentDetail(payment)));
-});
-app.get('/api/transaction-core/overview', (req, res) => {
-  const branch = String(req.query.branch || 'all');
-  return res.json(envelope(buildTransactionCoreOverview(branch)));
-});
-app.get('/api/documents/queue', (req, res) => {
-  const branch = String(req.query.branch || 'all');
-  return res.json(envelope(buildDocumentQueue(branch)));
-});
-app.post('/api/quotes', requirePermission('quotes.write'), (req, res) => {
-  const customer = findCustomer(req.body?.customerId);
-  if (!customer) return res.status(400).json({ ok: false, error: 'valid customerId is required' });
-  const lines = buildQuoteLinesFromPayload(req.body?.lines || []);
-  if (!lines.length) return res.status(400).json({ ok: false, error: 'at least one line is required' });
-  const subtotalAmount = quoteLinesTotal(lines);
-  const taxAmount = Math.round(subtotalAmount * 0.15);
-  const totalAmount = subtotalAmount + taxAmount;
-  const quote = {
-    id: nextNumericId('Q-', quotes),
-    customerId: customer.id,
-    customer: customer.name,
-    owner: String(req.body?.owner || customer.owner || 'Sales Desk'),
-    value: formatMoneyValue(totalAmount),
-    status: req.body?.status || 'Draft',
-    validity: req.body?.validity || isoDateOffset(7),
-    branch: req.body?.branch || customer.branch,
-    trigger: totalAmount > 50000 ? 'High-value threshold' : 'None',
-    updated: stampNow(),
-    notes: String(req.body?.notes || 'Created from transactional core workflow.'),
-    nextAction: req.body?.status === 'Pending approval' ? 'Manager review required before send' : 'Review and send to customer',
-    subtotal: formatMoneyValue(subtotalAmount),
-    tax: formatMoneyValue(taxAmount),
-    total: formatMoneyValue(totalAmount),
-    marginBand: totalAmount > 50000 ? 'Protected margin' : 'Standard margin',
-    approvalOwner: totalAmount > 50000 ? 'Sales Manager' : 'Not required',
-    lines,
-    workflow: [
-      { label: 'Drafted', detail: `Quote created for ${customer.name} from the transaction core.` },
-      { label: 'Next step', detail: totalAmount > 50000 ? 'Route for approval before send.' : 'Send to customer or convert later.' }
-    ]
-  };
-  quotes.unshift(quote);
-  pushAudit({ title: 'Quote created', detail: `${quote.id} created for ${quote.customer}.`, actor: quote.owner, timestamp: stampNow(), recordType: 'quote', recordId: quote.id, recordPath: recordPathFor('quote', quote.id), customerId: quote.customerId, status: quote.status });
-  if (quote.status === 'Pending approval') {
-    pushNotification({ id: `NT-${Date.now()}`, title: `Quote approval required`, meta: `${quote.id} - Sales`, state: 'Pending', read: false, type: 'approval', dismissed: false, snoozedUntil: null });
-  }
-  return res.json(envelope({ quote: buildQuoteDetail(quote) }));
-});
-app.post('/api/invoices', requirePermission('invoices.write'), (req, res) => {
-  const customer = findCustomer(req.body?.customerId);
-  if (!customer) return res.status(400).json({ ok: false, error: 'valid customerId is required' });
-  const sourceQuote = req.body?.sourceQuoteId ? findQuote(req.body.sourceQuoteId) : null;
-  const amount = sourceQuote ? numericAmount(sourceQuote.total) : numericAmount(req.body?.amount);
-  if (!amount) return res.status(400).json({ ok: false, error: 'amount or sourceQuoteId is required' });
-  const invoice = {
-    id: nextNumericId('INV-', invoices),
-    customerId: customer.id,
-    customer: customer.name,
-    amount: formatMoneyValue(amount),
-    branch: req.body?.branch || customer.branch,
-    status: 'Issued',
-    due: req.body?.due || `Due in ${Number(req.body?.dueDays || 30)} days`,
-    source: sourceQuote?.id || 'Manual',
-    paymentStatus: 'Unpaid',
-    tax: 'VAT standard',
-    reminders: 'Not started',
-    nextAction: 'Send invoice and monitor payment'
-  };
-  invoices.unshift(invoice);
-  if (sourceQuote) {
-    sourceQuote.status = 'Converted';
-    sourceQuote.updated = stampNow();
-    sourceQuote.nextAction = `Invoice ${invoice.id} ready for collection workflow`;
-    sourceQuote.workflow.push({ label: 'Converted', detail: `Invoice ${invoice.id} created from this quote` });
-  }
-  refreshCustomerFinancials(customer.id);
-  pushAudit({ title: 'Invoice created', detail: `${invoice.id} created for ${invoice.customer}.`, actor: 'Finance Team', timestamp: stampNow(), recordType: 'invoice', recordId: invoice.id, recordPath: recordPathFor('invoice', invoice.id), customerId: invoice.customerId, status: invoice.status });
-  pushNotification({ id: `NT-${Date.now()}`, title: `Invoice ${invoice.id} issued`, meta: `${invoice.customer} - Finance`, state: 'New', read: false, type: 'collection', dismissed: false, snoozedUntil: null });
-  return res.json(envelope({ invoice: buildInvoiceDetail(invoice) }));
-});
-app.post('/api/payments', requirePermission('payments.allocate'), (req, res) => {
-  const customer = findCustomer(req.body?.customerId);
-  if (!customer) return res.status(400).json({ ok: false, error: 'valid customerId is required' });
-  const amount = numericAmount(req.body?.amount);
-  if (!amount) return res.status(400).json({ ok: false, error: 'amount is required' });
-  const targetInvoiceId = String(req.body?.invoiceId || '').trim() || null;
-  const proofAttached = Boolean(req.body?.proofAttached);
-  const payment = {
-    id: nextNumericId('PAY-', payments),
-    ref: nextNumericId('PAY-', payments, 'ref'),
-    customerId: customer.id,
-    party: customer.name,
-    amount: formatMoneyValue(amount),
-    method: req.body?.method || 'EFT',
-    status: proofAttached ? (targetInvoiceId ? 'Ready to allocate' : 'Unallocated') : 'Pending proof',
-    date: stampNow(),
-    appliedTo: targetInvoiceId || 'To be assigned',
-    proof: proofAttached ? 'Attached' : 'Missing',
-    nextAction: proofAttached ? (targetInvoiceId ? `Allocate against ${targetInvoiceId}` : 'Allocate to open invoice') : 'Request proof attachment'
-  };
-  payments.unshift(payment);
-  if (proofAttached && targetInvoiceId && req.body?.autoAllocate !== false) {
-    payment.status = 'Allocated';
-    payment.nextAction = 'Allocation complete';
-    const invoice = refreshInvoicePaymentState(targetInvoiceId);
-    if (invoice) invoice.nextAction = `Payment ${payment.ref} allocated`;
-  }
-  refreshCustomerFinancials(customer.id);
-  pushAudit({ title: 'Payment captured', detail: `${payment.ref} captured for ${customer.name}.`, actor: 'Finance Team', timestamp: stampNow(), recordType: 'payment', recordId: payment.id, recordPath: recordPathFor('payment', payment.id), customerId: payment.customerId, status: payment.status });
-  pushNotification({ id: `NT-${Date.now()}`, title: `Payment ${payment.ref} captured`, meta: `${customer.name} - Finance`, state: payment.status === 'Pending proof' ? 'Action' : 'New', read: false, type: 'payment', dismissed: false, snoozedUntil: null });
-  return res.json(envelope({ payment: buildPaymentDetail(payment) }));
 });
 app.get('/api/notifications', (_req, res) => res.json(envelope(activeNotifications())));
 app.patch('/api/notifications/:id/read', (req, res) => {
@@ -1658,7 +958,7 @@ app.patch('/api/notifications/:id/dismiss', (req, res) => {
   pushAudit({ title: 'Notification dismissed', detail: `${notification.title} removed from active inbox.`, actor: 'Ops Desk', timestamp: stampNow(), recordType: 'system', recordId: notification.id, recordPath: '/notifications', customerId: null, status: 'Dismissed' });
   return res.json(envelope(notification));
 });
-app.post('/api/quotes/:id/status', requirePermission('quotes.write'), (req, res) => {
+app.post('/api/quotes/:id/status', (req, res) => {
   const quote = findQuote(req.params.id);
   if (!quote) return res.status(404).json({ ok: false, error: 'quote item not found' });
   const nextStatus = req.body?.status;
@@ -1672,7 +972,7 @@ app.post('/api/quotes/:id/status', requirePermission('quotes.write'), (req, res)
   pushAudit({ title: 'Quote status changed', detail: `${quote.id} moved to ${nextStatus}.`, actor: quote.owner, timestamp: stampNow(), recordType: 'quote', recordId: quote.id, recordPath: recordPathFor('quote', quote.id), customerId: quote.customerId, status: nextStatus });
   return res.json(envelope({ quote: buildQuoteDetail(quote) }));
 });
-app.post('/api/quotes/:id/approve', requirePermission('quotes.approve'), (req, res) => {
+app.post('/api/quotes/:id/approve', (req, res) => {
   const quote = findQuote(req.params.id);
   if (!quote) return res.status(404).json({ ok: false, error: 'quote item not found' });
   quote.status = 'Approved';
@@ -1683,7 +983,7 @@ app.post('/api/quotes/:id/approve', requirePermission('quotes.approve'), (req, r
   pushNotification({ id: `NT-${Date.now()}`, title: `Quote ${quote.id} approved`, meta: `${quote.customer} - Sales`, state: 'New', read: false, type: 'approval', dismissed: false, snoozedUntil: null });
   return res.json(envelope({ quote: buildQuoteDetail(quote) }));
 });
-app.post('/api/quotes/:id/convert', requirePermission('quotes.convert'), (req, res) => {
+app.post('/api/quotes/:id/convert', (req, res) => {
   const quote = findQuote(req.params.id);
   if (!quote) return res.status(404).json({ ok: false, error: 'quote item not found' });
   const existingInvoice = invoices.find((entry) => entry.source === quote.id);
@@ -1702,7 +1002,7 @@ app.post('/api/quotes/:id/convert', requirePermission('quotes.convert'), (req, r
   pushAudit({ title: 'Invoice created', detail: `${invoice.id} created from quote ${quote.id}.`, actor: quote.owner, timestamp: stampNow(), recordType: 'invoice', recordId: invoice.id, recordPath: recordPathFor('invoice', invoice.id), customerId: quote.customerId, status: 'Draft' });
   return res.json(envelope({ quote: buildQuoteDetail(quote), invoice: buildInvoiceDetail(invoice), reused: false }));
 });
-app.post('/api/invoices/:id/reminder', requirePermission('invoices.write'), (req, res) => {
+app.post('/api/invoices/:id/reminder', (req, res) => {
   const invoice = findInvoice(req.params.id);
   if (!invoice) return res.status(404).json({ ok: false, error: 'invoice item not found' });
   invoice.reminders = 'Reminder sent today';
@@ -1711,7 +1011,7 @@ app.post('/api/invoices/:id/reminder', requirePermission('invoices.write'), (req
   pushNotification({ id: `NT-${Date.now()}`, title: `Reminder sent for ${invoice.id}`, meta: `${invoice.customer} - Finance`, state: 'Done', read: true, type: 'collection', dismissed: false, snoozedUntil: null });
   return res.json(envelope({ invoice: buildInvoiceDetail(invoice) }));
 });
-app.post('/api/payments/:id/resolve-proof', requirePermission('payments.resolve'), (req, res) => {
+app.post('/api/payments/:id/resolve-proof', (req, res) => {
   const payment = findPayment(req.params.id);
   if (!payment) return res.status(404).json({ ok: false, error: 'payment item not found' });
   payment.proof = 'Attached and verified';
@@ -1721,7 +1021,7 @@ app.post('/api/payments/:id/resolve-proof', requirePermission('payments.resolve'
   pushNotification({ id: `NT-${Date.now()}`, title: `Payment proof resolved`, meta: `${payment.ref} - Finance`, state: 'Done', read: true, type: 'payment', dismissed: false, snoozedUntil: null });
   return res.json(envelope({ payment: buildPaymentDetail(payment) }));
 });
-app.post('/api/payments/:id/allocate', requirePermission('payments.allocate'), (req, res) => {
+app.post('/api/payments/:id/allocate', (req, res) => {
   const payment = findPayment(req.params.id);
   if (!payment) return res.status(404).json({ ok: false, error: 'payment item not found' });
   const invoiceId = req.body?.invoiceId || invoices.find((entry) => entry.customerId === payment.customerId && entry.status !== 'Paid')?.id;
@@ -1729,12 +1029,13 @@ app.post('/api/payments/:id/allocate', requirePermission('payments.allocate'), (
   payment.appliedTo = invoiceId;
   payment.status = 'Allocated';
   payment.nextAction = 'Allocation complete';
-  const invoice = refreshInvoicePaymentState(invoiceId);
+  const invoice = findInvoice(invoiceId);
   if (invoice) {
+    invoice.paymentStatus = 'Allocated receipt';
+    invoice.status = invoice.status === 'Overdue' ? 'Collections in progress' : invoice.status;
     invoice.nextAction = `Payment ${payment.ref} allocated`;
     pushAudit({ title: 'Invoice updated from payment', detail: `${invoice.id} now reflects allocation from ${payment.ref}.`, actor: 'Finance Team', timestamp: stampNow(), recordType: 'invoice', recordId: invoice.id, recordPath: recordPathFor('invoice', invoice.id), customerId: invoice.customerId, status: invoice.status });
   }
-  refreshCustomerFinancials(payment.customerId);
   pushAudit({ title: 'Payment allocated', detail: `${payment.ref} allocated to ${invoiceId}.`, actor: 'Finance Team', timestamp: stampNow(), recordType: 'payment', recordId: payment.id, recordPath: recordPathFor('payment', payment.id), customerId: payment.customerId, status: 'Allocated' });
   pushNotification({ id: `NT-${Date.now()}`, title: `Payment ${payment.ref} allocated`, meta: `${invoiceId} - Finance`, state: 'Done', read: true, type: 'payment', dismissed: false, snoozedUntil: null });
   return res.json(envelope({ payment: buildPaymentDetail(payment) }));
@@ -1801,12 +1102,7 @@ function buildEmailDraft(kind, id) {
 }
 
 listRoute('customers', customers);
-app.get('/api/products', (_req, res) => res.json(envelope(buildInventoryRows())));
-app.get('/api/products/:id', (req, res) => {
-  const item = buildInventoryRows().find((entry) => entry.id === req.params.id || entry.sku === req.params.id);
-  if (!item) return res.status(404).json({ ok: false, error: 'products item not found' });
-  return res.json(envelope(item));
-});
+listRoute('products', products);
 listRoute('suppliers', suppliers);
 listRoute('purchase-orders', purchaseOrders);
 app.get('/api/emails/:kind/:id', (req, res) => {
@@ -1817,7 +1113,7 @@ app.get('/api/emails/:kind/:id', (req, res) => {
 app.get('/api/accounting/overview', (_req, res) => res.json(envelope(buildAccountingOverview())));
 app.get('/api/accounting/debtors', (_req, res) => res.json(envelope(buildDebtorRows())));
 app.get('/api/accounting/statements', (_req, res) => res.json(envelope(buildStatementRows())));
-app.post('/api/accounting/statements/:customerId/send', requirePermission('invoices.write'), (req, res) => {
+app.post('/api/accounting/statements/:customerId/send', (req, res) => {
   const customer = findCustomer(req.params.customerId);
   if (!customer) return res.status(404).json({ ok: false, error: 'customer not found' });
   pushAudit({ title: 'Statement sent', detail: `Statement queued for ${customer.name}.`, actor: 'Finance Team', timestamp: stampNow(), recordType: 'system', recordId: `STM-${customer.id}`, recordPath: `/accounting/statements`, customerId: customer.id, status: 'Sent' });
@@ -1825,7 +1121,7 @@ app.post('/api/accounting/statements/:customerId/send', requirePermission('invoi
   return res.json(envelope(buildStatementRows().find((item) => item.customerId === customer.id)));
 });
 app.get('/api/accounting/cash-ups', (_req, res) => res.json(envelope(cashUps)));
-app.post('/api/accounting/cash-ups/:id/approve', requirePermission('invoices.write'), (req, res) => {
+app.post('/api/accounting/cash-ups/:id/approve', (req, res) => {
   const item = cashUps.find((entry) => entry.id === req.params.id);
   if (!item) return res.status(404).json({ ok: false, error: 'cash-up not found' });
   item.status = 'Approved';
@@ -1834,7 +1130,7 @@ app.post('/api/accounting/cash-ups/:id/approve', requirePermission('invoices.wri
   return res.json(envelope(item));
 });
 app.get('/api/accounting/expenses', (_req, res) => res.json(envelope(expenses)));
-app.post('/api/accounting/expenses/:id/approve', requirePermission('invoices.write'), (req, res) => {
+app.post('/api/accounting/expenses/:id/approve', (req, res) => {
   const item = expenses.find((entry) => entry.id === req.params.id);
   if (!item) return res.status(404).json({ ok: false, error: 'expense not found' });
   item.status = 'Approved';
@@ -1849,11 +1145,6 @@ app.get('/api/procurement/reorders', (_req, res) => res.json(envelope(buildProcu
 app.get('/api/procurement/suppliers', (_req, res) => res.json(envelope(buildSupplierInsights())));
 app.get('/api/procurement/purchase-orders', (_req, res) => res.json(envelope(buildProcurementPurchaseOrders())));
 app.get('/api/procurement/exceptions', (_req, res) => res.json(envelope(buildProcurementExceptions())));
-app.get('/api/inventory/brain', (_req, res) => res.json(envelope(buildInventoryOverview())));
-app.get('/api/inventory/stock-risks', (_req, res) => res.json(envelope(buildStockRisks())));
-app.get('/api/inventory/transfers', (_req, res) => res.json(envelope(buildTransferSuggestions())));
-app.get('/api/inventory/movement-intelligence', (_req, res) => res.json(envelope(buildMovementIntelligence())));
-app.get('/api/inventory/exceptions', (_req, res) => res.json(envelope(buildInventoryExceptions())));
 
 app.get('/api/reports', async (req, res) => {
   if (pool) await hydrateAutomationState();
@@ -1865,7 +1156,7 @@ app.get('/api/automation-settings', async (_req, res) => {
   if (pool) await hydrateAutomationState();
   return res.json(envelope(automationState.automationSettings));
 });
-app.post('/api/automation-settings', requirePermission('automation.manage'), async (req, res) => {
+app.post('/api/automation-settings', async (req, res) => {
   automationState.automationSettings = {
     ...automationState.automationSettings,
     ...req.body,
@@ -1876,7 +1167,7 @@ app.post('/api/automation-settings', requirePermission('automation.manage'), asy
   await persistAutomationState();
   return res.json(envelope(automationState.automationSettings));
 });
-app.post('/api/day-close/run', requirePermission('automation.manage'), async (req, res) => {
+app.post('/api/day-close/run', async (req, res) => {
   try {
     if (pool) await hydrateAutomationState();
     const result = await runDayClose({ trigger: req.body?.trigger || 'manual', sendEmail: Boolean(req.body?.sendEmail), date: req.body?.date || isoDateOffset(-1), force: Boolean(req.body?.force), actor: req.body?.actor || 'Antonie Meyer' });
@@ -1885,7 +1176,7 @@ app.post('/api/day-close/run', requirePermission('automation.manage'), async (re
     return res.status(500).json({ ok: false, error: error.message || 'day close failed' });
   }
 });
-app.post('/api/day-close/send-summary', requirePermission('automation.manage'), async (req, res) => {
+app.post('/api/day-close/send-summary', async (req, res) => {
   try {
     if (pool) await hydrateAutomationState();
     const dispatch = await sendLatestSummary({ resend: Boolean(req.body?.resend), actor: req.body?.actor || 'Antonie Meyer' });
@@ -1896,8 +1187,20 @@ app.post('/api/day-close/send-summary', requirePermission('automation.manage'), 
 });
 app.get('/api/settings', async (_req, res) => {
   if (pool) await hydrateAutomationState();
-  return res.json(envelope({ ...settings, automation: automationState.automationSettings }));
+  return res.json(envelope({ ...settings, automation: automationState.automationSettings, companyProfile: automationState.companyProfile, documentBranding: automationState.documentBranding }));
 });
+
+app.post('/api/auth/company-signup', (req, res) => {
+  const email = String(req.body?.email || '').trim().toLowerCase();
+  const companyName = String(req.body?.companyName || '').trim();
+  const adminName = String(req.body?.adminName || req.body?.fullName || '').trim();
+  if (!email) return res.status(400).json({ ok: false, error: 'Email is required' });
+  if (!companyName) return res.status(400).json({ ok: false, error: 'Company name is required' });
+  if (!adminName) return res.status(400).json({ ok: false, error: 'Admin name is required' });
+  const profile = applyCompanyOnboarding(req.body || {});
+  return res.json(envelope(buildCompanySession(profile)));
+});
+
 app.get('/api/roles', (_req, res) => res.json(envelope(roles)));
 
 function startScheduler() {

@@ -48,6 +48,8 @@ export function InvoicePrintPage() {
       notes={`Source: ${item.source}. ${item.nextAction}`}
       supportEmail={settings?.supportEmail}
       whatsapp={settings?.whatsapp}
+      companyName={settings?.documentBranding?.companyName ?? settings?.companyProfile?.companyName}
+      logoDataUrl={settings?.documentBranding?.logoDataUrl}
       sourceLabel="Source quote"
       sourceValue={item.sourceQuoteId ? <Link to={`/quotes/${item.sourceQuoteId}`}>{item.source}</Link> : item.source}
     />

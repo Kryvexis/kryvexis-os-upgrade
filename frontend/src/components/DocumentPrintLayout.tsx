@@ -42,6 +42,8 @@ type Props = {
   whatsapp?: string;
   sourceLabel?: string;
   sourceValue?: ReactNode;
+  companyName?: string;
+  logoDataUrl?: string;
 };
 
 export function DocumentPrintLayout({
@@ -65,7 +67,9 @@ export function DocumentPrintLayout({
   supportEmail,
   whatsapp,
   sourceLabel,
-  sourceValue
+  sourceValue,
+  companyName,
+  logoDataUrl
 }: Props) {
   return (
     <div className="print-page-shell">
@@ -77,7 +81,7 @@ export function DocumentPrintLayout({
       <article className="document-sheet">
         <header className="document-header">
           <div>
-            <p className="document-kicker">Kryvexis OS</p>
+            <p className="document-kicker">{companyName ?? 'Kryvexis OS'}</p>
             <h1>{title}</h1>
             <p className="document-subtitle">{subtitle}</p>
           </div>
@@ -89,13 +93,16 @@ export function DocumentPrintLayout({
         </header>
 
         <section className="document-brand-row">
-          <div className="document-brand-card">
-            <p className="document-section-label">Prepared for</p>
-            <h2>{customerName}</h2>
-            <p>{branch} branch workflow</p>
+          <div className="document-brand-card document-brand-identity">
+            {logoDataUrl ? <img src={logoDataUrl} alt={`${companyName ?? 'Company'} logo`} className="document-company-logo" /> : null}
+            <div>
+              <p className="document-section-label">Prepared for</p>
+              <h2>{customerName}</h2>
+              <p>{branch} branch workflow</p>
+            </div>
           </div>
           <div className="document-brand-card align-right">
-            <p className="document-section-label">Kryvexis Solutions</p>
+            <p className="document-section-label">{companyName ?? 'Kryvexis Solutions'}</p>
             <p>{supportEmail ?? 'kryvexissolutions@gmail.com'}</p>
             <p>{whatsapp ?? '+27686282874'}</p>
           </div>
@@ -164,8 +171,8 @@ export function DocumentPrintLayout({
         </section>
 
         <footer className="document-footer">
-          <span>Generated from Kryvexis OS operational workflow</span>
-          <span>{kind} print foundation · Phase C</span>
+          <span>Generated from {companyName ?? 'Kryvexis OS'} operational workflow</span>
+          <span>{kind} print foundation · Company onboarding</span>
         </footer>
       </article>
     </div>
