@@ -5,11 +5,12 @@ import type {
   AuthSession,
   CompanyOnboardingPayload,
   CompanyProfile,
-  ImportJob,
-  ImportPreview,
   BankAccountRow,
   CashUpRow,
   CreditorRow,
+  CreateInvoicePayload,
+  CreatePaymentPayload,
+  CreateQuotePayload,
   Customer,
   CustomerSummary,
   DashboardResponse,
@@ -19,6 +20,7 @@ import type {
   EmailTemplateKind,
   ExpenseRow,
   FinanceExceptionRow,
+  InventoryOverview,
   Invoice,
   InvoiceDetail,
   JournalEntryRow,
@@ -44,14 +46,17 @@ import type {
   Role,
   RoleKey,
   Settings,
+  StatementRow,
+  Supplier,
+  SupplierBillsPayload,
+  VatPayload,
   WorkspaceAdminResponse,
   WorkspaceBranchSavePayload,
   WorkspaceCompanyUpdatePayload,
   WorkspaceInvitePayload,
-  StatementRow,
-  Supplier,
-  SupplierBillsPayload,
-  VatPayload
+  ImportPreview,
+  ImportPreviewPayload,
+  ImportCommitResult
 } from '../types';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
@@ -77,7 +82,6 @@ function writeSession(session: AuthSession | null) {
   }
   window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(session));
 }
-
 
 function readCompanyProfile(): CompanyProfile | null {
   if (typeof window === 'undefined') return null;
@@ -196,33 +200,62 @@ export const api = {
   async login(email: string): Promise<AuthSession> {
     const cleanEmail = email.trim().toLowerCase();
     if (!cleanEmail) throw new Error('Please enter your work email');
-    const session: AuthSession = {
-      email: cleanEmail,
-      name: cleanEmail.split('@')[0].split(/[._-]/).map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(' '),
-      role: inferRole(cleanEmail),
-      branch: inferBranch(cleanEmail),
-      token: `demo-${btoa(cleanEmail)}`,
-      lastLoginAt: new Date().toISOString()
-    };
-    writeSession(session);
-    return session;
+    try {
+      const session = await request<AuthSession>('/api/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ email: cleanEmail })
+      });
+      writeSession(session);
+      return session;
+    } catch {
+      const session: AuthSession = {
+        email: cleanEmail,
+        name: cleanEmail.split('@')[0].split(/[._-]/).map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(' '),
+        role: inferRole(cleanEmail),
+        branch: inferBranch(cleanEmail),
+        token: `demo-${btoa(cleanEmail)}`,
+        lastLoginAt: new Date().toISOString()
+      };
+      writeSession(session);
+      return session;
+    }
   },
   async logout(): Promise<void> {
+    try {
+      await request<void>('/api/auth/logout', { method: 'POST' });
+    } catch {
+      // ignore logout transport failures; still clear local session
+    }
     writeSession(null);
   },
   async me(): Promise<AuthSession | null> {
-    return readSession();
+    try {
+      const session = await request<AuthSession>('/api/auth/me');
+      writeSession(session);
+      return session;
+    } catch {
+      return readSession();
+    }
   },
   companyProfile: () => readCompanyProfile(),
   async switchBranch(branch: string): Promise<AuthSession | null> {
     const current = readSession();
     if (!current) return null;
-    const next = { ...current, branch };
-    writeSession(next);
-    return next;
+    try {
+      const next = await request<AuthSession>('/api/auth/switch-branch', {
+        method: 'POST',
+        body: JSON.stringify({ branchId: current.branchId ?? branch, branchName: branch })
+      });
+      writeSession(next);
+      return next;
+    } catch {
+      const next = { ...current, branch };
+      writeSession(next);
+      return next;
+    }
   },
   accountingOverview: () => request<AccountingOverview>('/api/accounting/overview'),
-  actionCenter: (role?: RoleKey) => request<ActionCenterResponse>(`/api/action-center${role ? `?role=${role}` : ''}`),
+  actionCenter: (role?: RoleKey, branch = 'all', lane = 'all') => request<ActionCenterResponse>(`/api/action-center?${new URLSearchParams({ ...(role ? { role } : {}), branch, lane }).toString()}`),
   debtors: () => request<DebtorRow[]>('/api/accounting/debtors'),
   statements: () => request<StatementRow[]>('/api/accounting/statements'),
   sendStatement: (customerId: string) => request<StatementRow>(`/api/accounting/statements/${customerId}/send`, { method: 'POST' }),
@@ -245,17 +278,21 @@ export const api = {
   suppliers: () => request<Supplier[]>('/api/suppliers'),
   purchaseOrders: () => request<PurchaseOrder[]>('/api/purchase-orders'),
   product: (id: string) => request<Product>(`/api/products/${id}`),
+  inventoryOverview: () => request<InventoryOverview>('/api/inventory/brain'),
   quotes: () => request<Quote[]>('/api/quotes'),
   quote: (id: string) => request<QuoteDetail>(`/api/quotes/${id}`),
+  createQuote: (payload: CreateQuotePayload) => request<{ quote: QuoteDetail }>('/api/quotes', { method: 'POST', body: JSON.stringify(payload) }),
   updateQuoteStatus: (id: string, status: QuoteStatus) =>
     request<{ quote: QuoteDetail }>(`/api/quotes/${id}/status`, { method: 'POST', body: JSON.stringify({ status }) }),
   convertQuote: (id: string) => request<QuoteConversionResult>(`/api/quotes/${id}/convert`, { method: 'POST' }),
   approveQuote: (id: string) => request<{ quote: QuoteDetail }>(`/api/quotes/${id}/approve`, { method: 'POST' }),
   invoices: () => request<Invoice[]>('/api/invoices'),
   invoice: (id: string) => request<InvoiceDetail>(`/api/invoices/${id}`),
+  createInvoice: (payload: CreateInvoicePayload) => request<{ invoice: InvoiceDetail }>('/api/invoices', { method: 'POST', body: JSON.stringify(payload) }),
   sendInvoiceReminder: (id: string) => request<{ invoice: InvoiceDetail }>(`/api/invoices/${id}/reminder`, { method: 'POST' }),
   payments: () => request<Payment[]>('/api/payments'),
   payment: (id: string) => request<Payment>(`/api/payments/${id}`),
+  createPayment: (payload: CreatePaymentPayload) => request<{ payment: Payment }>('/api/payments', { method: 'POST', body: JSON.stringify(payload) }),
   resolvePaymentProof: (id: string) => request<{ payment: Payment }>(`/api/payments/${id}/resolve-proof`, { method: 'POST' }),
   allocatePayment: (id: string, invoiceId?: string) => request<{ payment: Payment }>(`/api/payments/${id}/allocate`, { method: 'POST', body: JSON.stringify({ invoiceId }) }),
   notifications: () => request<Notification[]>('/api/notifications'),
@@ -274,7 +311,6 @@ export const api = {
     } satisfies Settings;
   },
   roles: () => request<Role[]>('/api/roles'),
-
   procurementOverview: () => request<ProcurementOverview>('/api/procurement/brain'),
   procurementReorders: () => request<ReorderCandidateRow[]>('/api/procurement/reorders'),
   procurementSuppliers: () => request<SupplierInsightRow[]>('/api/procurement/suppliers'),
@@ -289,6 +325,6 @@ export const api = {
   updateWorkspaceCompany: (payload: WorkspaceCompanyUpdatePayload) => request<WorkspaceAdminResponse>('/api/workspace-admin/company', { method: 'POST', body: JSON.stringify(payload) }),
   saveWorkspaceBranches: (payload: WorkspaceBranchSavePayload) => request<WorkspaceAdminResponse>('/api/workspace-admin/branches', { method: 'POST', body: JSON.stringify(payload) }),
   inviteWorkspaceUser: (payload: WorkspaceInvitePayload) => request<WorkspaceAdminResponse>('/api/workspace-admin/users/invite', { method: 'POST', body: JSON.stringify(payload) }),
-  previewImport: (payload: { importType: string; filename: string; content: string }) => request<ImportPreview>('/api/workspace-admin/import-center/preview', { method: 'POST', body: JSON.stringify(payload) }),
-  commitImport: (payload: { importType: string; filename: string; content: string }) => request<{ importJob: ImportJob; workspace: WorkspaceAdminResponse }>('/api/workspace-admin/import-center/commit', { method: 'POST', body: JSON.stringify(payload) })
+  previewImport: (payload: ImportPreviewPayload) => request<ImportPreview>('/api/workspace-admin/import-center/preview', { method: 'POST', body: JSON.stringify(payload) }),
+  commitImport: (payload: ImportPreviewPayload) => request<ImportCommitResult>('/api/workspace-admin/import-center/commit', { method: 'POST', body: JSON.stringify(payload) })
 };
