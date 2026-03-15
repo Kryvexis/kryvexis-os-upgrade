@@ -1,3 +1,4 @@
+
 import type {
   AccountingOverview,
   ActionCenterResponse,
@@ -25,8 +26,6 @@ import type {
   Invoice,
   InvoiceDetail,
   JournalEntryRow,
-  KPI,
-  LedgerAccountRow,
   LedgerPayload,
   Notification,
   Payment,
@@ -105,26 +104,6 @@ function writeCompanyProfile(profile: CompanyProfile | null) {
   window.localStorage.setItem(COMPANY_PROFILE_STORAGE_KEY, JSON.stringify(profile));
 }
 
-function inferRole(email: string): RoleKey {
-  const value = email.toLowerCase();
-  if (value.includes('finance') || value.includes('rina')) return 'finance';
-  if (value.includes('warehouse') || value.includes('stock')) return 'warehouse';
-  if (value.includes('procurement') || value.includes('buyer')) return 'procurement';
-  if (value.includes('ops') || value.includes('operations')) return 'operations';
-  if (value.includes('exec')) return 'executive';
-  if (value.includes('manager')) return 'manager';
-  if (value.includes('admin')) return 'admin';
-  return 'sales';
-}
-
-function inferBranch(email: string): string {
-  const value = email.toLowerCase();
-  if (value.includes('ct') || value.includes('cape')) return 'Cape Town';
-  if (value.includes('dbn') || value.includes('durban')) return 'Durban';
-  if (value.includes('pta') || value.includes('pretoria')) return 'Pretoria';
-  return 'Johannesburg';
-}
-
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const session = readSession();
   const response = await fetch(`${API_BASE}${path}`, {
@@ -167,68 +146,29 @@ export const api = {
       }
     };
     writeCompanyProfile(companyProfile);
-    try {
-      const session = await request<AuthSession>('/api/auth/company-signup', {
-        method: 'POST',
-        body: JSON.stringify(payload)
-      });
-      writeSession(session);
-      return session;
-    } catch (error) {
-      try {
-        const session = await request<AuthSession>('/api/auth/signup', {
-          method: 'POST',
-          body: JSON.stringify({
-            email: companyProfile.email,
-            fullName: companyProfile.adminName,
-            branchId: companyProfile.primaryBranchId,
-            companyName: companyProfile.companyName,
-            branches: companyProfile.branches,
-            phone: companyProfile.phone,
-            businessType: companyProfile.businessType,
-            currency: companyProfile.currency,
-            logoDataUrl: payload.logoDataUrl,
-            logoFileName: payload.logoFileName
-          })
-        });
-        writeSession(session);
-        return session;
-      } catch {
-        if (error instanceof Error) throw error;
-        throw new Error('Company signup failed');
-      }
-    }
+    const session = await request<AuthSession>('/api/auth/company-signup', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+    writeSession(session);
+    return session;
   },
   async login(email: string): Promise<AuthSession> {
     const cleanEmail = email.trim().toLowerCase();
     if (!cleanEmail) throw new Error('Please enter your work email');
-    try {
-      const session = await request<AuthSession>('/api/auth/login', {
-        method: 'POST',
-        body: JSON.stringify({ email: cleanEmail })
-      });
-      writeSession(session);
-      return session;
-    } catch {
-      const session: AuthSession = {
-        email: cleanEmail,
-        name: cleanEmail.split('@')[0].split(/[._-]/).map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(' '),
-        role: inferRole(cleanEmail),
-        branch: inferBranch(cleanEmail),
-        token: `demo-${btoa(cleanEmail)}`,
-        lastLoginAt: new Date().toISOString()
-      };
-      writeSession(session);
-      return session;
-    }
+    const session = await request<AuthSession>('/api/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email: cleanEmail })
+    });
+    writeSession(session);
+    return session;
   },
   async logout(): Promise<void> {
     try {
       await request<void>('/api/auth/logout', { method: 'POST' });
-    } catch {
-      // ignore logout transport failures; still clear local session
+    } finally {
+      writeSession(null);
     }
-    writeSession(null);
   },
   async me(): Promise<AuthSession | null> {
     try {
@@ -236,25 +176,20 @@ export const api = {
       writeSession(session);
       return session;
     } catch {
-      return readSession();
+      writeSession(null);
+      return null;
     }
   },
   companyProfile: () => readCompanyProfile(),
   async switchBranch(branch: string): Promise<AuthSession | null> {
     const current = readSession();
     if (!current) return null;
-    try {
-      const next = await request<AuthSession>('/api/auth/switch-branch', {
-        method: 'POST',
-        body: JSON.stringify({ branchId: current.branchId ?? branch, branchName: branch })
-      });
-      writeSession(next);
-      return next;
-    } catch {
-      const next = { ...current, branch };
-      writeSession(next);
-      return next;
-    }
+    const next = await request<AuthSession>('/api/auth/switch-branch', {
+      method: 'POST',
+      body: JSON.stringify({ branchId: current.branchId ?? branch, branchName: branch })
+    });
+    writeSession(next);
+    return next;
   },
   accountingOverview: () => request<AccountingOverview>('/api/accounting/overview'),
   actionCenter: (role?: RoleKey, branch = 'all', lane = 'all') => request<ActionCenterResponse>(`/api/action-center?${new URLSearchParams({ ...(role ? { role } : {}), branch, lane }).toString()}`),

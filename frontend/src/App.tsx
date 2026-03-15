@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { AppShell } from './layout/AppShell';
@@ -21,7 +22,6 @@ import { SettingsPage } from './pages/SettingsPage';
 import { WorkspaceAdminPage } from './pages/WorkspaceAdminPage';
 import { EmailComposerPage } from './pages/EmailComposerPage';
 import { SalesWorkspacePage } from './pages/SalesWorkspacePage';
-import { PosPage } from './pages/PosPage';
 import { InventoryWorkspacePage } from './pages/InventoryWorkspacePage';
 import { ProcurementWorkspacePage } from './pages/ProcurementWorkspacePage';
 import { ProcurementExceptionsPage } from './pages/ProcurementExceptionsPage';
@@ -43,10 +43,12 @@ import { SupplierBillsPage } from './pages/SupplierBillsPage';
 import { LedgerPage } from './pages/LedgerPage';
 import { OperationsWorkspacePage } from './pages/OperationsWorkspacePage';
 import { ReportsPage } from './pages/ReportsPage';
+import { PosPage } from './pages/PosPage';
 import { AuthPage } from './pages/AuthPage';
 import { SystemIgnitionPage } from './pages/SystemIgnitionPage';
 import { applyTheme, getStoredTheme, type ThemeMode } from './lib/theme';
 import { api } from './lib/api';
+import { canAccessModule } from './lib/permissions';
 import type { AuthSession, RoleKey } from './types';
 import logo from './assets/kryvexis-logo.png';
 
@@ -61,12 +63,12 @@ function IntroPage({ onContinue }: { onContinue: () => void }) {
         <div className="intro-panel card">
           <img src={logo} alt="Kryvexis" className="entry-logo entry-logo-large" />
           <p className="eyebrow">Welcome to Kryvexis OS</p>
-          <h1>One intelligent command center for finance, procurement, stock control, and the sales counter.</h1>
-          <p className="entry-copy">Built to feel cinematic on mobile, sharp on desktop, and powerful enough to run the business from one place.</p>
+          <h1>One intelligent command center for finance, procurement, stock control, and sales.</h1>
+          <p className="entry-copy">Built to feel cinematic on mobile, sharp on desktop, and governed enough to keep roles, workspaces, and automation clean.</p>
           <div className="intro-feature-grid">
             <div className="intro-feature-card"><strong>Accounting intelligence</strong><p>Collection scoring, cash-up alerts, and statement actions in one finance cockpit.</p></div>
             <div className="intro-feature-card"><strong>Procurement autopilot</strong><p>Reorder pressure, supplier insight, and purchase decisions guided by live demand.</p></div>
-            <div className="intro-feature-card"><strong>Sales desk + POS</strong><p>Quick sale, quote, invoice, and account sale from one counter-ready surface.</p></div>
+            <div className="intro-feature-card"><strong>Inventory + POS</strong><p>Reservation-aware stock, action ranking, and a sales desk that posts into the same OS.</p></div>
           </div>
           <button type="button" className="entry-primary-button intro-cta" onClick={onContinue}>Enter Kryvexis</button>
         </div>
@@ -88,6 +90,13 @@ function SplashScreen() {
   );
 }
 
+function GuardedRoute({ role, moduleKey, children }: { role: RoleKey; moduleKey: Parameters<typeof canAccessModule>[1]; children: JSX.Element }) {
+  if (!canAccessModule(role, moduleKey)) {
+    return <Navigate to="/" replace />;
+  }
+  return children;
+}
+
 export default function App() {
   const [session, setSession] = useState<AuthSession | null>(null);
   const [booting, setBooting] = useState(true);
@@ -99,7 +108,9 @@ export default function App() {
   const [role, setRole] = useState<RoleKey>('manager');
   const [theme, setTheme] = useState<ThemeMode>(getStoredTheme());
 
-  useEffect(() => { applyTheme(theme); }, [theme]);
+  useEffect(() => {
+    applyTheme(theme);
+  }, [theme]);
 
   useEffect(() => {
     let active = true;
@@ -129,6 +140,7 @@ export default function App() {
   }, [booting, showIgnition]);
 
   if (booting) return <SplashScreen />;
+
   if (showIgnition) return <SystemIgnitionPage onFinish={() => setShowIgnition(false)} />;
 
   if (!introSeen) {
@@ -151,45 +163,45 @@ export default function App() {
       <Route path="/invoices/:id/print" element={<InvoicePrintPage />} />
       <Route element={<AppShell role={role} setRole={setRole} theme={theme} setTheme={setTheme} />}>
         <Route path="/" element={<DashboardPage role={role} />} />
-        <Route path="/sales" element={<SalesWorkspacePage />} />
-        <Route path="/sales/pos" element={<PosPage />} />
-        <Route path="/inventory" element={<InventoryWorkspacePage />} />
-        <Route path="/procurement" element={<ProcurementWorkspacePage />} />
-        <Route path="/procurement/brain" element={<ProcurementBrainPage />} />
-        <Route path="/procurement/reorders" element={<ReordersPage />} />
-        <Route path="/procurement/suppliers" element={<SupplierScorecardsPage />} />
-        <Route path="/procurement/purchase-orders" element={<PurchaseOrderRecommendationsPage />} />
-        <Route path="/procurement/exceptions" element={<ProcurementExceptionsPage />} />
-        <Route path="/accounting" element={<AccountingWorkspacePage />} />
-        <Route path="/action-center" element={<ActionCenterPage role={role} />} />
-        <Route path="/accounting/debtors" element={<DebtorsPage />} />
-        <Route path="/accounting/statements" element={<StatementsPage />} />
-        <Route path="/accounting/cash-up" element={<CashUpPage />} />
-        <Route path="/accounting/expenses" element={<ExpensesPage />} />
-        <Route path="/accounting/creditors" element={<CreditorsPage />} />
-        <Route path="/accounting/exceptions" element={<FinanceExceptionsPage />} />
-        <Route path="/accounting/ledger" element={<LedgerPage />} />
-        <Route path="/accounting/bills" element={<SupplierBillsPage />} />
-        <Route path="/accounting/reconciliation" element={<ReconciliationPage />} />
-        <Route path="/accounting/vat" element={<VatControlPage />} />
-        <Route path="/accounting/period-close" element={<PeriodClosePage />} />
-        <Route path="/operations" element={<OperationsWorkspacePage />} />
-        <Route path="/reports" element={<ReportsPage role={role} />} />
-        <Route path="/customers" element={<CustomersPage />} />
-        <Route path="/customers/:id" element={<CustomerDetailPage />} />
-        <Route path="/quotes" element={<QuotesPage />} />
-        <Route path="/quotes/:id" element={<QuoteDetailPage />} />
-        <Route path="/invoices" element={<InvoicesPage />} />
-        <Route path="/invoices/:id" element={<InvoiceDetailPage />} />
-        <Route path="/products" element={<ProductsPage />} />
-        <Route path="/products/:id" element={<ProductDetailPage />} />
-        <Route path="/payments" element={<PaymentsPage />} />
-        <Route path="/payments/:id" element={<PaymentDetailPage />} />
+        <Route path="/sales" element={<GuardedRoute role={role} moduleKey="sales"><SalesWorkspacePage /></GuardedRoute>} />
+        <Route path="/sales/pos" element={<GuardedRoute role={role} moduleKey="sales-pos"><PosPage /></GuardedRoute>} />
+        <Route path="/inventory" element={<GuardedRoute role={role} moduleKey="inventory"><InventoryWorkspacePage /></GuardedRoute>} />
+        <Route path="/procurement" element={<GuardedRoute role={role} moduleKey="procurement"><ProcurementWorkspacePage /></GuardedRoute>} />
+        <Route path="/procurement/brain" element={<GuardedRoute role={role} moduleKey="procurement"><ProcurementBrainPage /></GuardedRoute>} />
+        <Route path="/procurement/reorders" element={<GuardedRoute role={role} moduleKey="procurement"><ReordersPage /></GuardedRoute>} />
+        <Route path="/procurement/suppliers" element={<GuardedRoute role={role} moduleKey="procurement"><SupplierScorecardsPage /></GuardedRoute>} />
+        <Route path="/procurement/purchase-orders" element={<GuardedRoute role={role} moduleKey="procurement"><PurchaseOrderRecommendationsPage /></GuardedRoute>} />
+        <Route path="/procurement/exceptions" element={<GuardedRoute role={role} moduleKey="procurement"><ProcurementExceptionsPage /></GuardedRoute>} />
+        <Route path="/accounting" element={<GuardedRoute role={role} moduleKey="accounting"><AccountingWorkspacePage /></GuardedRoute>} />
+        <Route path="/action-center" element={<GuardedRoute role={role} moduleKey="action-center"><ActionCenterPage role={role} /></GuardedRoute>} />
+        <Route path="/accounting/debtors" element={<GuardedRoute role={role} moduleKey="accounting"><DebtorsPage /></GuardedRoute>} />
+        <Route path="/accounting/statements" element={<GuardedRoute role={role} moduleKey="accounting"><StatementsPage /></GuardedRoute>} />
+        <Route path="/accounting/cash-up" element={<GuardedRoute role={role} moduleKey="accounting"><CashUpPage /></GuardedRoute>} />
+        <Route path="/accounting/expenses" element={<GuardedRoute role={role} moduleKey="accounting"><ExpensesPage /></GuardedRoute>} />
+        <Route path="/accounting/creditors" element={<GuardedRoute role={role} moduleKey="accounting"><CreditorsPage /></GuardedRoute>} />
+        <Route path="/accounting/exceptions" element={<GuardedRoute role={role} moduleKey="accounting"><FinanceExceptionsPage /></GuardedRoute>} />
+        <Route path="/accounting/ledger" element={<GuardedRoute role={role} moduleKey="accounting"><LedgerPage /></GuardedRoute>} />
+        <Route path="/accounting/bills" element={<GuardedRoute role={role} moduleKey="accounting"><SupplierBillsPage /></GuardedRoute>} />
+        <Route path="/accounting/reconciliation" element={<GuardedRoute role={role} moduleKey="accounting"><ReconciliationPage /></GuardedRoute>} />
+        <Route path="/accounting/vat" element={<GuardedRoute role={role} moduleKey="accounting"><VatControlPage /></GuardedRoute>} />
+        <Route path="/accounting/period-close" element={<GuardedRoute role={role} moduleKey="accounting"><PeriodClosePage /></GuardedRoute>} />
+        <Route path="/operations" element={<GuardedRoute role={role} moduleKey="operations"><OperationsWorkspacePage /></GuardedRoute>} />
+        <Route path="/reports" element={<GuardedRoute role={role} moduleKey="reports"><ReportsPage role={role} /></GuardedRoute>} />
+        <Route path="/customers" element={<GuardedRoute role={role} moduleKey="customers"><CustomersPage /></GuardedRoute>} />
+        <Route path="/customers/:id" element={<GuardedRoute role={role} moduleKey="customers"><CustomerDetailPage /></GuardedRoute>} />
+        <Route path="/quotes" element={<GuardedRoute role={role} moduleKey="quotes"><QuotesPage /></GuardedRoute>} />
+        <Route path="/quotes/:id" element={<GuardedRoute role={role} moduleKey="quotes"><QuoteDetailPage /></GuardedRoute>} />
+        <Route path="/invoices" element={<GuardedRoute role={role} moduleKey="invoices"><InvoicesPage /></GuardedRoute>} />
+        <Route path="/invoices/:id" element={<GuardedRoute role={role} moduleKey="invoices"><InvoiceDetailPage /></GuardedRoute>} />
+        <Route path="/products" element={<GuardedRoute role={role} moduleKey="inventory"><ProductsPage /></GuardedRoute>} />
+        <Route path="/products/:id" element={<GuardedRoute role={role} moduleKey="inventory"><ProductDetailPage /></GuardedRoute>} />
+        <Route path="/payments" element={<GuardedRoute role={role} moduleKey="payments"><PaymentsPage /></GuardedRoute>} />
+        <Route path="/payments/:id" element={<GuardedRoute role={role} moduleKey="payments"><PaymentDetailPage /></GuardedRoute>} />
         <Route path="/notifications" element={<NotificationsPage />} />
-        <Route path="/roles" element={<RolesPage />} />
-        <Route path="/settings" element={<SettingsPage />} />
-        <Route path="/workspace-admin" element={<WorkspaceAdminPage />} />
-        <Route path="/emails/:kind/:id" element={<EmailComposerPage />} />
+        <Route path="/roles" element={<GuardedRoute role={role} moduleKey="roles"><RolesPage /></GuardedRoute>} />
+        <Route path="/settings" element={<GuardedRoute role={role} moduleKey="settings"><SettingsPage /></GuardedRoute>} />
+        <Route path="/workspace-admin" element={<GuardedRoute role={role} moduleKey="workspace-admin"><WorkspaceAdminPage /></GuardedRoute>} />
+        <Route path="/emails/:kind/:id" element={<GuardedRoute role={role} moduleKey="settings"><EmailComposerPage /></GuardedRoute>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

@@ -1,3 +1,4 @@
+
 import { useEffect, useMemo, useState } from 'react';
 import { Card } from '../components/Card';
 import { api } from '../lib/api';
@@ -108,6 +109,15 @@ export function SettingsPage() {
           <div><span>Executives receive</span><strong>{settings.automation?.sendToExecutives ? 'Yes' : 'No'}</strong></div>
           <div><span>Manager recipients</span><strong>{settings.automation?.managerRecipients.join(', ') || '—'}</strong></div>
           <div><span>Executive recipients</span><strong>{settings.automation?.executiveRecipients.join(', ') || '—'}</strong></div>
+        </div>
+      </Card>
+
+      <Card title="Email automation control" subtitle="Operational emails now belong to one governed control surface.">
+        <div className="setting-list">
+          <div><span>Quote sends</span><strong>Manual with audit trail</strong></div>
+          <div><span>Invoice reminders</span><strong>Scheduled by due state</strong></div>
+          <div><span>Payment proof follow-up</span><strong>Triggered by missing proof</strong></div>
+          <div><span>Daily summaries</span><strong>Close-driven with resend protection</strong></div>
         </div>
       </Card>
     </div>

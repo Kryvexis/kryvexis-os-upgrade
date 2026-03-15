@@ -1,31 +1,35 @@
+
 import { useEffect, useMemo, useState } from 'react';
 import { NavLink, Outlet, useLocation, Link } from 'react-router-dom';
 import { api } from '../lib/api';
+import { canAccessModule, getRoleAccess, type ModuleKey } from '../lib/permissions';
 import type { Notification, RoleKey } from '../types';
 
-const coreModules = [
-  ['/', 'Dashboard', '◔'],
-  ['/sales', 'Sales', '⌁'],
-  ['/inventory', 'Inventory', '◫'],
-  ['/procurement', 'Purchasing', '◎'],
-  ['/accounting', 'Accounting', '◌'],
-  ['/operations', 'Operations', '↗'],
-  ['/reports', 'Reports', '▣']
-] as const;
+const coreModules: Array<[string, string, string, ModuleKey]> = [
+  ['/', 'Dashboard', '◔', 'dashboard'],
+  ['/sales', 'Sales', '⌁', 'sales'],
+  ['/sales/pos', 'POS', '⌗', 'sales-pos'],
+  ['/inventory', 'Inventory', '◫', 'inventory'],
+  ['/procurement', 'Purchasing', '◎', 'procurement'],
+  ['/accounting', 'Accounting', '◌', 'accounting'],
+  ['/operations', 'Operations', '↗', 'operations'],
+  ['/reports', 'Reports', '▣', 'reports'],
+  ['/action-center', 'Action Center', '✦', 'action-center']
+];
 
-const adminItems = [
-  ['/workspace-admin', 'Workspace Admin', '◈'],
-  ['/roles', 'Roles', '⌘'],
-  ['/settings', 'Settings', '⚙']
-] as const;
+const adminItems: Array<[string, string, string, ModuleKey]> = [
+  ['/workspace-admin', 'Workspace Admin', '◈', 'workspace-admin'],
+  ['/roles', 'Roles', '⌘', 'roles'],
+  ['/settings', 'Settings', '⚙', 'settings']
+];
 
-const quickActions = [
-  { label: 'Open POS', to: '/sales/pos' },
-  { label: 'New quote', to: '/quotes' },
-  { label: 'New invoice', to: '/invoices' },
-  { label: 'Run reports', to: '/reports' },
-  { label: 'Record payment', to: '/payments' }
-] as const;
+const quickActions: Array<{ label: string; to: string; permission: ModuleKey }> = [
+  { label: 'New quote', to: '/quotes', permission: 'quotes' },
+  { label: 'New invoice', to: '/invoices', permission: 'invoices' },
+  { label: 'Record payment', to: '/payments', permission: 'payments' },
+  { label: 'Open POS', to: '/sales/pos', permission: 'sales-pos' },
+  { label: 'Run reports', to: '/reports', permission: 'reports' }
+];
 
 const roleLabels: Record<RoleKey, string> = {
   admin: 'Admin',
@@ -39,13 +43,14 @@ const roleLabels: Record<RoleKey, string> = {
 };
 
 const pageTitles: Array<[string, string]> = [
-  ['/sales/pos', 'Sales Desk / POS'],
+  ['/sales/pos', 'Sales Desk'],
   ['/sales', 'Sales'],
   ['/inventory', 'Inventory'],
   ['/procurement', 'Purchasing'],
   ['/accounting', 'Accounting'],
   ['/operations', 'Operations'],
   ['/reports', 'Reports'],
+  ['/action-center', 'Action Center'],
   ['/customers', 'Customers'],
   ['/quotes', 'Quotes'],
   ['/invoices', 'Invoices'],
@@ -65,6 +70,7 @@ export function AppShell({ role, setRole, theme, setTheme }: { role: RoleKey; se
   const [alertsOpen, setAlertsOpen] = useState(false);
   const [quickOpen, setQuickOpen] = useState(false);
   const activeLabel = pageTitles.find(([prefix]) => location.pathname === prefix || location.pathname.startsWith(`${prefix}/`))?.[1] ?? 'Dashboard';
+  const access = getRoleAccess(role);
 
   useEffect(() => {
     api.notifications().then(setNotifications).catch(() => setNotifications([]));
@@ -86,7 +92,9 @@ export function AppShell({ role, setRole, theme, setTheme }: { role: RoleKey; se
     }
   }
 
-  const navItems = role === 'admin' ? adminItems : [];
+  const navItems = adminItems.filter(([, , , permission]) => canAccessModule(role, permission));
+  const filteredCore = coreModules.filter(([, , , permission]) => canAccessModule(role, permission));
+  const filteredQuick = quickActions.filter((item) => canAccessModule(role, item.permission));
   const shellClass = ['app-shell', sidebarCollapsed ? 'sidebar-collapsed' : '', sidebarOpen ? 'sidebar-open' : ''].filter(Boolean).join(' ');
   const unread = notifications.filter((item) => !item.read && !item.dismissed).length;
   const recentAlerts = notifications.filter((item) => !item.dismissed).slice(0, 5);
@@ -108,7 +116,7 @@ export function AppShell({ role, setRole, theme, setTheme }: { role: RoleKey; se
 
         <div className="nav-section">
           <nav className="nav-list nav-list-icons">
-            {coreModules.map(([to, label, icon]) => (
+            {filteredCore.map(([to, label, icon]) => (
               <NavLink key={to} to={to} end={to === '/'} className={({ isActive }) => `nav-link nav-link-icon ${isActive ? 'active' : ''}`}>
                 <span className="nav-link-icon-mark">{icon}</span>
                 <span>{label}</span>
@@ -117,31 +125,40 @@ export function AppShell({ role, setRole, theme, setTheme }: { role: RoleKey; se
           </nav>
         </div>
 
-        <div className="nav-section admin-nav-section">
-          <nav className="nav-list nav-list-icons">
-            {navItems.map(([to, label, icon]) => (
-              <NavLink key={to} to={to} className={({ isActive }) => `nav-link nav-link-icon ${isActive ? 'active' : ''}`}>
-                <span className="nav-link-icon-mark">{icon}</span>
-                <span>{label}</span>
-              </NavLink>
-            ))}
-          </nav>
-        </div>
+        {navItems.length ? (
+          <div className="nav-section admin-nav-section">
+            <nav className="nav-list nav-list-icons">
+              {navItems.map(([to, label, icon]) => (
+                <NavLink key={to} to={to} className={({ isActive }) => `nav-link nav-link-icon ${isActive ? 'active' : ''}`}>
+                  <span className="nav-link-icon-mark">{icon}</span>
+                  <span>{label}</span>
+                </NavLink>
+              ))}
+            </nav>
+          </div>
+        ) : null}
 
         <div className="sidebar-foot">
-          <label className="stack-field">
-            <span>Role view</span>
-            <select value={role} onChange={(e) => setRole(e.target.value as RoleKey)}>
-              <option value="admin">Admin</option>
-              <option value="manager">Manager</option>
-              <option value="executive">Executive</option>
-              <option value="sales">Sales</option>
-              <option value="finance">Finance</option>
-              <option value="warehouse">Warehouse</option>
-              <option value="procurement">Procurement</option>
-              <option value="operations">Operations</option>
-            </select>
-          </label>
+          {role === 'admin' ? (
+            <label className="stack-field">
+              <span>Role view</span>
+              <select value={role} onChange={(e) => setRole(e.target.value as RoleKey)}>
+                <option value="admin">Admin</option>
+                <option value="manager">Manager</option>
+                <option value="executive">Executive</option>
+                <option value="sales">Sales</option>
+                <option value="finance">Finance</option>
+                <option value="warehouse">Warehouse</option>
+                <option value="procurement">Procurement</option>
+                <option value="operations">Operations</option>
+              </select>
+            </label>
+          ) : (
+            <div className="setting-list compact-settings">
+              <div><span>Access</span><strong>{roleLabels[role]}</strong></div>
+              <div><span>Finance</span><strong>{access.canViewFinance ? 'Visible' : 'Hidden'}</strong></div>
+            </div>
+          )}
 
           <label className="stack-field">
             <span>Theme</span>
@@ -165,16 +182,18 @@ export function AppShell({ role, setRole, theme, setTheme }: { role: RoleKey; se
           </div>
 
           <div className="topbar-actions topbar-user-row enhanced-topbar-actions">
-            <div className={`topbar-popover ${quickOpen ? 'open' : ''}`}>
-              <button className="ghost-button topbar-action-button" type="button" onClick={() => setQuickOpen((v) => !v)}>＋ Quick actions</button>
-              {quickOpen ? (
-                <div className="popover-menu quick-actions-menu">
-                  {quickActions.map((action) => (
-                    <Link key={action.label} to={action.to} className="popover-link">{action.label}</Link>
-                  ))}
-                </div>
-              ) : null}
-            </div>
+            {filteredQuick.length ? (
+              <div className={`topbar-popover ${quickOpen ? 'open' : ''}`}>
+                <button className="ghost-button topbar-action-button" type="button" onClick={() => setQuickOpen((v) => !v)}>＋ Quick actions</button>
+                {quickOpen ? (
+                  <div className="popover-menu quick-actions-menu">
+                    {filteredQuick.map((action) => (
+                      <Link key={action.label} to={action.to} className="popover-link">{action.label}</Link>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
 
             <div className={`topbar-popover ${alertsOpen ? 'open' : ''}`}>
               <button className="icon-chip topbar-bell-button" type="button" aria-label="Open inbox" onClick={() => setAlertsOpen((v) => !v)}>
@@ -213,7 +232,7 @@ export function AppShell({ role, setRole, theme, setTheme }: { role: RoleKey; se
         <section className="page-body"><Outlet /></section>
 
         <nav className="mobile-nav">
-          {[...coreModules, ['/sales/pos', 'POS', '🛒'] as const, ['/notifications', 'Inbox', '✦'] as const].slice(0, 6).map(([to, label]) => (
+          {[...filteredCore, ['/notifications', 'Inbox', '✦', 'notifications' as ModuleKey]].slice(0, 6).map(([to, label]) => (
             <NavLink key={to} to={to} end={to === '/'} className={({ isActive }) => `mobile-link ${isActive ? 'active' : ''}`}>
               {label}
             </NavLink>
