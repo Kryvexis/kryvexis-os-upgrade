@@ -23,6 +23,7 @@ const quickActions = [
   { label: 'Open POS', to: '/sales/pos' },
   { label: 'New quote', to: '/quotes' },
   { label: 'New invoice', to: '/invoices' },
+  { label: 'Run reports', to: '/reports' },
   { label: 'Record payment', to: '/payments' }
 ] as const;
 

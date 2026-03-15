@@ -1,16 +1,10 @@
 Kryvexis OS POS Core
 
-Included in this package:
-- Sales Desk / POS page
-- POS route under /sales/pos
-- Sales workspace tile for POS
-- Quick action link to POS
-- Mobile nav visibility for POS
-- POS UI styles
+Files included:
+- frontend/src/App.tsx
+- frontend/src/layout/AppShell.tsx
+- frontend/src/pages/PosPage.tsx
+- frontend/src/pages/SalesWorkspacePage.tsx
+- frontend/src/styles/global.css
 
-Notes:
-- This first POS Core package reuses the existing quote / invoice / payment APIs.
-- Quick Sale creates an invoice and then records a payment.
-- Quote mode creates a quote from the basket.
-- Invoice mode creates an invoice from the basket total.
-- Account Sale creates the invoice and immediately captures payment.
+This package adds a first Sales Desk / POS workspace that reuses the existing quote, invoice, and payment APIs.

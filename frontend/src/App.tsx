@@ -21,6 +21,7 @@ import { SettingsPage } from './pages/SettingsPage';
 import { WorkspaceAdminPage } from './pages/WorkspaceAdminPage';
 import { EmailComposerPage } from './pages/EmailComposerPage';
 import { SalesWorkspacePage } from './pages/SalesWorkspacePage';
+import { PosPage } from './pages/PosPage';
 import { InventoryWorkspacePage } from './pages/InventoryWorkspacePage';
 import { ProcurementWorkspacePage } from './pages/ProcurementWorkspacePage';
 import { ProcurementExceptionsPage } from './pages/ProcurementExceptionsPage';
@@ -44,7 +45,6 @@ import { OperationsWorkspacePage } from './pages/OperationsWorkspacePage';
 import { ReportsPage } from './pages/ReportsPage';
 import { AuthPage } from './pages/AuthPage';
 import { SystemIgnitionPage } from './pages/SystemIgnitionPage';
-import { PosPage } from './pages/PosPage';
 import { applyTheme, getStoredTheme, type ThemeMode } from './lib/theme';
 import { api } from './lib/api';
 import type { AuthSession, RoleKey } from './types';
@@ -61,12 +61,12 @@ function IntroPage({ onContinue }: { onContinue: () => void }) {
         <div className="intro-panel card">
           <img src={logo} alt="Kryvexis" className="entry-logo entry-logo-large" />
           <p className="eyebrow">Welcome to Kryvexis OS</p>
-          <h1>One intelligent command center for finance, procurement, and stock control.</h1>
+          <h1>One intelligent command center for finance, procurement, stock control, and the sales counter.</h1>
           <p className="entry-copy">Built to feel cinematic on mobile, sharp on desktop, and powerful enough to run the business from one place.</p>
           <div className="intro-feature-grid">
             <div className="intro-feature-card"><strong>Accounting intelligence</strong><p>Collection scoring, cash-up alerts, and statement actions in one finance cockpit.</p></div>
             <div className="intro-feature-card"><strong>Procurement autopilot</strong><p>Reorder pressure, supplier insight, and purchase decisions guided by live demand.</p></div>
-            <div className="intro-feature-card"><strong>Inventory brain</strong><p>Low-stock prediction, movement intelligence, and branch-aware stock control.</p></div>
+            <div className="intro-feature-card"><strong>Sales desk + POS</strong><p>Quick sale, quote, invoice, and account sale from one counter-ready surface.</p></div>
           </div>
           <button type="button" className="entry-primary-button intro-cta" onClick={onContinue}>Enter Kryvexis</button>
         </div>
@@ -99,9 +99,7 @@ export default function App() {
   const [role, setRole] = useState<RoleKey>('manager');
   const [theme, setTheme] = useState<ThemeMode>(getStoredTheme());
 
-  useEffect(() => {
-    applyTheme(theme);
-  }, [theme]);
+  useEffect(() => { applyTheme(theme); }, [theme]);
 
   useEffect(() => {
     let active = true;
@@ -131,7 +129,6 @@ export default function App() {
   }, [booting, showIgnition]);
 
   if (booting) return <SplashScreen />;
-
   if (showIgnition) return <SystemIgnitionPage onFinish={() => setShowIgnition(false)} />;
 
   if (!introSeen) {

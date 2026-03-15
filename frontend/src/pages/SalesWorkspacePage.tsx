@@ -5,11 +5,11 @@ export function SalesWorkspacePage() {
     <ModuleWorkspace
       title="Sales"
       items={[
-        { title: 'Sales Desk / POS', to: '/sales/pos', icon: '🛒' },
         { title: 'Customers', to: '/customers', icon: '👥' },
         { title: 'Quotes', to: '/quotes', icon: '🧾' },
         { title: 'Invoices', to: '/invoices', icon: '📄' },
-        { title: 'Payments', to: '/payments', icon: '💳' }
+        { title: 'Payments', to: '/payments', icon: '💳' },
+        { title: 'Sales Desk / POS', to: '/sales/pos', icon: '🛒' }
       ]}
     />
   );
