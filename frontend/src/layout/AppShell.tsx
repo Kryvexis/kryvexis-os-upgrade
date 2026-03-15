@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { NavLink, Outlet, useLocation, Link } from 'react-router-dom';
 import { api } from '../lib/api';
-import type { Notification, RoleKey, WorkspaceSummary } from '../types';
+import type { Notification, RoleKey } from '../types';
 
 const coreModules = [
   ['/', 'Dashboard', '◔'],
@@ -20,9 +20,9 @@ const adminItems = [
 ] as const;
 
 const quickActions = [
+  { label: 'Open POS', to: '/sales/pos' },
   { label: 'New quote', to: '/quotes' },
   { label: 'New invoice', to: '/invoices' },
-  { label: 'Run reports', to: '/reports' },
   { label: 'Record payment', to: '/payments' }
 ] as const;
 
@@ -38,6 +38,7 @@ const roleLabels: Record<RoleKey, string> = {
 };
 
 const pageTitles: Array<[string, string]> = [
+  ['/sales/pos', 'Sales Desk / POS'],
   ['/sales', 'Sales'],
   ['/inventory', 'Inventory'],
   ['/procurement', 'Purchasing'],
@@ -62,18 +63,11 @@ export function AppShell({ role, setRole, theme, setTheme }: { role: RoleKey; se
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [alertsOpen, setAlertsOpen] = useState(false);
   const [quickOpen, setQuickOpen] = useState(false);
-  const [workspaces, setWorkspaces] = useState<WorkspaceSummary[]>([]);
-  const [switchingWorkspace, setSwitchingWorkspace] = useState(false);
   const activeLabel = pageTitles.find(([prefix]) => location.pathname === prefix || location.pathname.startsWith(`${prefix}/`))?.[1] ?? 'Dashboard';
 
   useEffect(() => {
     api.notifications().then(setNotifications).catch(() => setNotifications([]));
   }, [location.pathname]);
-
-  useEffect(() => {
-    if (role !== 'admin') return;
-    api.workspaces().then((result) => setWorkspaces(result.workspaces || [])).catch(() => setWorkspaces([]));
-  }, [role, location.pathname]);
 
   useEffect(() => {
     setAlertsOpen(false);
@@ -94,7 +88,6 @@ export function AppShell({ role, setRole, theme, setTheme }: { role: RoleKey; se
   const navItems = role === 'admin' ? adminItems : [];
   const shellClass = ['app-shell', sidebarCollapsed ? 'sidebar-collapsed' : '', sidebarOpen ? 'sidebar-open' : ''].filter(Boolean).join(' ');
   const unread = notifications.filter((item) => !item.read && !item.dismissed).length;
-  const activeWorkspace = workspaces.find((item) => item.active) || null;
   const recentAlerts = notifications.filter((item) => !item.dismissed).slice(0, 5);
   const breadcrumb = useMemo(() => {
     const section = pageTitles.find(([prefix]) => location.pathname === prefix || location.pathname.startsWith(`${prefix}/`))?.[1] ?? 'Dashboard';
@@ -107,7 +100,7 @@ export function AppShell({ role, setRole, theme, setTheme }: { role: RoleKey; se
         <div className="brand-block brand-block-tight">
           <span className="brand-mark">K</span>
           <div>
-            <strong>{activeWorkspace?.companyName || 'Kryvexis OS'}</strong>
+            <strong>Kryvexis OS</strong>
             <p>{roleLabels[role]} workspace</p>
           </div>
         </div>
@@ -135,24 +128,6 @@ export function AppShell({ role, setRole, theme, setTheme }: { role: RoleKey; se
         </div>
 
         <div className="sidebar-foot">
-          {role === 'admin' && workspaces.length ? <label className="stack-field">
-            <span>Company workspace</span>
-            <select value={activeWorkspace?.id || ''} onChange={async (e) => {
-              const workspaceId = e.target.value;
-              if (!workspaceId) return;
-              setSwitchingWorkspace(true);
-              try {
-                const result = await api.selectWorkspace(workspaceId);
-                setWorkspaces(result.workspaces || []);
-                if (typeof window !== 'undefined') window.location.assign('/workspace-admin');
-              } finally {
-                setSwitchingWorkspace(false);
-              }
-            }} disabled={switchingWorkspace}>
-              {workspaces.map((workspace) => <option key={workspace.id} value={workspace.id}>{workspace.companyName}</option>)}
-            </select>
-          </label> : null}
-
           <label className="stack-field">
             <span>Role view</span>
             <select value={role} onChange={(e) => setRole(e.target.value as RoleKey)}>
@@ -237,7 +212,7 @@ export function AppShell({ role, setRole, theme, setTheme }: { role: RoleKey; se
         <section className="page-body"><Outlet /></section>
 
         <nav className="mobile-nav">
-          {[...coreModules, ['/notifications', 'Inbox', '✦'] as const].slice(0, 6).map(([to, label]) => (
+          {[...coreModules, ['/sales/pos', 'POS', '🛒'] as const, ['/notifications', 'Inbox', '✦'] as const].slice(0, 6).map(([to, label]) => (
             <NavLink key={to} to={to} end={to === '/'} className={({ isActive }) => `mobile-link ${isActive ? 'active' : ''}`}>
               {label}
             </NavLink>

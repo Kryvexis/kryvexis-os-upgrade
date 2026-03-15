@@ -44,6 +44,7 @@ import { OperationsWorkspacePage } from './pages/OperationsWorkspacePage';
 import { ReportsPage } from './pages/ReportsPage';
 import { AuthPage } from './pages/AuthPage';
 import { SystemIgnitionPage } from './pages/SystemIgnitionPage';
+import { PosPage } from './pages/PosPage';
 import { applyTheme, getStoredTheme, type ThemeMode } from './lib/theme';
 import { api } from './lib/api';
 import type { AuthSession, RoleKey } from './types';
@@ -154,6 +155,7 @@ export default function App() {
       <Route element={<AppShell role={role} setRole={setRole} theme={theme} setTheme={setTheme} />}>
         <Route path="/" element={<DashboardPage role={role} />} />
         <Route path="/sales" element={<SalesWorkspacePage />} />
+        <Route path="/sales/pos" element={<PosPage />} />
         <Route path="/inventory" element={<InventoryWorkspacePage />} />
         <Route path="/procurement" element={<ProcurementWorkspacePage />} />
         <Route path="/procurement/brain" element={<ProcurementBrainPage />} />
