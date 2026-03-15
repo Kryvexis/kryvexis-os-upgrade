@@ -18,6 +18,7 @@ import { PaymentDetailPage } from './pages/PaymentDetailPage';
 import { NotificationsPage } from './pages/NotificationsPage';
 import { RolesPage } from './pages/RolesPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { WorkspaceAdminPage } from './pages/WorkspaceAdminPage';
 import { EmailComposerPage } from './pages/EmailComposerPage';
 import { SalesWorkspacePage } from './pages/SalesWorkspacePage';
 import { InventoryWorkspacePage } from './pages/InventoryWorkspacePage';
@@ -128,16 +129,7 @@ export default function App() {
     return () => window.clearTimeout(timer);
   }, [booting, showIgnition]);
 
-  if (booting && session) return <SplashScreen />;
-
-  if (!session) {
-    return <AuthPage onAuthenticated={(next) => {
-      setSession(next);
-      setRole(next.role);
-      setBooting(false);
-      setShowIgnition(true);
-    }} />;
-  }
+  if (booting) return <SplashScreen />;
 
   if (showIgnition) return <SystemIgnitionPage onFinish={() => setShowIgnition(false)} />;
 
@@ -145,6 +137,13 @@ export default function App() {
     return <IntroPage onContinue={() => {
       window.localStorage.setItem(INTRO_STORAGE_KEY, 'true');
       setIntroSeen(true);
+    }} />;
+  }
+
+  if (!session) {
+    return <AuthPage onAuthenticated={(next) => {
+      setSession(next);
+      setRole(next.role);
     }} />;
   }
 
@@ -190,6 +189,7 @@ export default function App() {
         <Route path="/notifications" element={<NotificationsPage />} />
         <Route path="/roles" element={<RolesPage />} />
         <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/workspace-admin" element={<WorkspaceAdminPage />} />
         <Route path="/emails/:kind/:id" element={<EmailComposerPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>

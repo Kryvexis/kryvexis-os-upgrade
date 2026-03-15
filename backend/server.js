@@ -248,7 +248,10 @@ function defaultAutomationState() {
     auditTrail: [],
     scheduler: { enabled: false, lastAutoRunDate: null },
     companyProfile: null,
-    documentBranding: null
+    documentBranding: null,
+    workspaceUsers: [],
+    importJobs: [],
+    rolePolicies: []
   };
 }
 function loadAutomationState() {
@@ -268,7 +271,10 @@ function loadAutomationState() {
       emailDispatches: Array.isArray(raw.emailDispatches) ? raw.emailDispatches : [],
       auditTrail: Array.isArray(raw.auditTrail) ? raw.auditTrail : [],
       companyProfile: raw.companyProfile || null,
-      documentBranding: raw.documentBranding || null
+      documentBranding: raw.documentBranding || null,
+      workspaceUsers: Array.isArray(raw.workspaceUsers) ? raw.workspaceUsers : [],
+      importJobs: Array.isArray(raw.importJobs) ? raw.importJobs : [],
+      rolePolicies: Array.isArray(raw.rolePolicies) ? raw.rolePolicies : []
     };
   } catch (error) {
     console.error('Failed to load automation state', error);
@@ -301,6 +307,114 @@ function buildCompanySession(profile) {
     lastLoginAt: new Date().toISOString()
   };
 }
+
+function createDefaultRolePolicies() {
+  return [
+    { roleKey: 'admin', label: 'Admin', navigation: ['dashboard', 'sales', 'inventory', 'procurement', 'accounting', 'operations', 'reports', 'workspace-admin', 'roles', 'settings'], canViewFinance: true, canManageRoles: true, canManageWorkspace: true, canManageAutomation: true },
+    { roleKey: 'manager', label: 'Manager', navigation: ['dashboard', 'sales', 'inventory', 'procurement', 'reports'], canViewFinance: true, canManageRoles: false, canManageWorkspace: false, canManageAutomation: false },
+    { roleKey: 'executive', label: 'Executive', navigation: ['dashboard', 'reports', 'action-center'], canViewFinance: true, canManageRoles: false, canManageWorkspace: false, canManageAutomation: false },
+    { roleKey: 'sales', label: 'Sales', navigation: ['dashboard', 'sales', 'customers', 'quotes', 'invoices'], canViewFinance: false, canManageRoles: false, canManageWorkspace: false, canManageAutomation: false },
+    { roleKey: 'finance', label: 'Finance', navigation: ['dashboard', 'accounting', 'invoices', 'payments', 'reports'], canViewFinance: true, canManageRoles: false, canManageWorkspace: false, canManageAutomation: false },
+    { roleKey: 'warehouse', label: 'Warehouse', navigation: ['dashboard', 'inventory'], canViewFinance: false, canManageRoles: false, canManageWorkspace: false, canManageAutomation: false },
+    { roleKey: 'procurement', label: 'Procurement', navigation: ['dashboard', 'procurement', 'inventory'], canViewFinance: false, canManageRoles: false, canManageWorkspace: false, canManageAutomation: false },
+    { roleKey: 'operations', label: 'Operations', navigation: ['dashboard', 'operations', 'reports'], canViewFinance: false, canManageRoles: false, canManageWorkspace: false, canManageAutomation: false }
+  ];
+}
+function ensureWorkspaceUsers() {
+  if (Array.isArray(automationState.workspaceUsers) && automationState.workspaceUsers.length) return automationState.workspaceUsers;
+  const company = automationState.companyProfile || { adminName: 'Antonie Meyer', email: 'kryvexissolutions@gmail.com' };
+  automationState.workspaceUsers = [
+    { id: 'WU-ADMIN', fullName: company.adminName || 'Antonie Meyer', email: company.email || 'kryvexissolutions@gmail.com', roleKey: 'admin', branchId: branchDirectory[0]?.id || 'JHB', branchName: branchDirectory[0]?.name || 'Johannesburg', status: 'active', canManageRoles: true, canManageWorkspace: true, invitedAt: null },
+    ...branchDirectory.slice(0, 2).map((branch, index) => ({ id: `WU-MGR-${index + 1}`, fullName: branch.managerName, email: branch.managerEmail, roleKey: index === 0 ? 'manager' : 'sales', branchId: branch.id, branchName: branch.name, status: 'active', canManageRoles: false, canManageWorkspace: false, invitedAt: null }))
+  ];
+  return automationState.workspaceUsers;
+}
+function ensureRolePolicies() {
+  if (!Array.isArray(automationState.rolePolicies) || !automationState.rolePolicies.length) automationState.rolePolicies = createDefaultRolePolicies();
+  return automationState.rolePolicies;
+}
+function buildWorkspaceAdminPayload() {
+  const companyProfile = automationState.companyProfile || {
+    companyName: 'Kryvexis Solutions',
+    adminName: 'Antonie Meyer',
+    email: 'kryvexissolutions@gmail.com',
+    phone: '',
+    businessType: 'Retail',
+    currency: settings.business.currency || 'ZAR',
+    branchCount: branchDirectory.length,
+    primaryBranchId: branchDirectory[0]?.id || 'JHB',
+    branches: branchDirectory.map((branch) => ({ id: branch.id, name: branch.name }))
+  };
+  const primaryBranchId = companyProfile.primaryBranchId || branchDirectory[0]?.id || 'JHB';
+  return {
+    companyProfile,
+    documentBranding: automationState.documentBranding || { companyName: companyProfile.companyName },
+    branches: branchDirectory.map((branch) => ({ id: branch.id, name: branch.name, managerName: branch.managerName, managerEmail: branch.managerEmail, isPrimary: branch.id === primaryBranchId, active: branch.active !== false })),
+    users: ensureWorkspaceUsers(),
+    rolePolicies: ensureRolePolicies(),
+    importJobs: Array.isArray(automationState.importJobs) ? automationState.importJobs.slice().sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))) : []
+  };
+}
+function parseCsv(content = '') {
+  const lines = String(content || '').split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  if (!lines.length) return { columns: [], rows: [] };
+  const split = (line) => line.split(',').map((cell) => cell.trim().replace(/^"|"$/g, ''));
+  const columns = split(lines[0]);
+  const rows = lines.slice(1).map((line) => {
+    const cells = split(line);
+    return Object.fromEntries(columns.map((column, index) => [column, cells[index] || '']));
+  });
+  return { columns, rows };
+}
+function defaultImportTarget(importType, column) {
+  const c = String(column).toLowerCase();
+  const maps = {
+    customers: [['name', 'customer.name'], ['email', 'customer.email'], ['phone', 'customer.phone'], ['branch', 'customer.branchId']],
+    products: [['sku', 'product.sku'], ['name', 'product.name'], ['price', 'product.price'], ['stock', 'inventory.onHand']],
+    stock: [['sku', 'inventory.sku'], ['branch', 'inventory.branchId'], ['qty', 'inventory.onHand']],
+    invoices: [['customer', 'invoice.customer'], ['amount', 'invoice.amount'], ['due', 'invoice.dueDate']],
+    payments: [['customer', 'payment.customer'], ['amount', 'payment.amount'], ['date', 'payment.date']]
+  };
+  for (const [needle, target] of maps[importType] || []) if (c.includes(needle)) return target;
+  return `${importType}.field`;
+}
+function buildImportPreview({ importType = 'customers', filename = 'import.csv', content = '' } = {}) {
+  const { columns, rows } = parseCsv(content);
+  const requiredByType = {
+    customers: ['name'],
+    products: ['sku', 'name'],
+    stock: ['sku'],
+    invoices: ['customer', 'amount'],
+    payments: ['customer', 'amount']
+  };
+  const required = requiredByType[importType] || [];
+  const lowerColumns = columns.map((item) => item.toLowerCase());
+  const issues = [];
+  for (const field of required) {
+    if (!lowerColumns.some((column) => column.includes(field))) {
+      issues.push({ row: 0, level: 'error', column: field, message: `Missing required column for ${field}.` });
+    }
+  }
+  rows.forEach((row, index) => {
+    if (Object.values(row).every((value) => !String(value || '').trim())) issues.push({ row: index + 2, level: 'warning', message: 'Row is blank and would be skipped.' });
+    if (importType === 'customers' && !Object.keys(row).some((column) => column.toLowerCase().includes('email'))) issues.push({ row: index + 2, level: 'warning', message: 'No email column detected for customer matching.' });
+    if ((importType === 'invoices' || importType === 'payments') && !Object.values(row).some((value) => String(value).match(/\d/))) issues.push({ row: index + 2, level: 'error', message: 'Financial row appears empty or malformed.' });
+  });
+  const mappings = columns.map((column) => ({ source: column, target: defaultImportTarget(importType, column), required: required.some((field) => column.toLowerCase().includes(field)), sample: rows[0]?.[column] || '' }));
+  return {
+    importType,
+    filename,
+    columns,
+    rowCount: rows.length,
+    createCount: Math.max(rows.length - issues.filter((issue) => issue.level === 'error' && issue.row > 0).length, 0),
+    warningCount: issues.filter((issue) => issue.level === 'warning').length,
+    errorCount: issues.filter((issue) => issue.level === 'error').length,
+    mappings,
+    issues,
+    sampleRows: rows.slice(0, 5)
+  };
+}
+
 function applyCompanyOnboarding(payload = {}) {
   const branchCount = Math.max(1, Math.min(12, Number(payload.branchCount) || 1));
   const branches = Array.from({ length: branchCount }, (_, index) => {
@@ -341,6 +455,14 @@ function applyCompanyOnboarding(payload = {}) {
     defaultManagerBranch: branches[0]?.name || automationState.automationSettings.defaultManagerBranch,
     branchManagers: branchDirectory.map((branch) => ({ branch: branch.name, manager: branch.managerName, email: branch.managerEmail }))
   };
+  ensureRolePolicies();
+  const users = ensureWorkspaceUsers();
+  if (users[0]) {
+    users[0].fullName = companyProfile.adminName;
+    users[0].email = companyProfile.email;
+    users[0].branchId = primaryBranchId;
+    users[0].branchName = branches.find((branch) => branch.id === primaryBranchId)?.name || branches[0]?.name || users[0].branchName;
+  }
   saveAutomationState();
   return companyProfile;
 }
@@ -1185,6 +1307,104 @@ app.post('/api/day-close/send-summary', async (req, res) => {
     return res.status(500).json({ ok: false, error: error.message || 'email send failed' });
   }
 });
+
+app.get('/api/workspace-admin', (_req, res) => {
+  ensureRolePolicies();
+  ensureWorkspaceUsers();
+  return res.json(envelope(buildWorkspaceAdminPayload()));
+});
+
+app.post('/api/workspace-admin/company', (req, res) => {
+  const payload = req.body || {};
+  const existing = automationState.companyProfile || { branchCount: branchDirectory.length, primaryBranchId: branchDirectory[0]?.id || 'JHB', branches: branchDirectory.map((branch) => ({ id: branch.id, name: branch.name })) };
+  applyCompanyOnboarding({ ...existing, ...payload, logoDataUrl: payload.logoDataUrl, logoFileName: payload.logoFileName });
+  return res.json(envelope(buildWorkspaceAdminPayload()));
+});
+
+app.post('/api/workspace-admin/branches', (req, res) => {
+  const payload = req.body || {};
+  const incoming = Array.isArray(payload.branches) ? payload.branches : [];
+  if (!incoming.length) return res.status(400).json({ error: 'At least one branch is required.' });
+  const normalized = incoming.map((branch, index) => ({
+    id: normalizeBranchId(branch.id, index),
+    name: normalizeBranchName(branch.name || `Branch ${index + 1}`),
+    managerName: String(branch.managerName || `Branch ${index + 1} Lead`).trim(),
+    managerEmail: String(branch.managerEmail || `branch${index + 1}@company.local`).trim().toLowerCase(),
+    active: branch.active !== false
+  }));
+  const primaryBranchId = normalized.some((branch) => branch.id === payload.primaryBranchId) ? payload.primaryBranchId : normalized[0].id;
+  branchDirectory.splice(0, branchDirectory.length, ...normalized);
+  automationState.companyProfile = {
+    ...(automationState.companyProfile || {}),
+    companyName: automationState.companyProfile?.companyName || 'Kryvexis Solutions',
+    adminName: automationState.companyProfile?.adminName || 'Antonie Meyer',
+    email: automationState.companyProfile?.email || 'kryvexissolutions@gmail.com',
+    phone: automationState.companyProfile?.phone || '',
+    businessType: automationState.companyProfile?.businessType || 'Retail',
+    currency: automationState.companyProfile?.currency || settings.business.currency || 'ZAR',
+    branchCount: normalized.length,
+    primaryBranchId,
+    branches: normalized.map((branch) => ({ id: branch.id, name: branch.name }))
+  };
+  automationState.automationSettings = {
+    ...automationState.automationSettings,
+    defaultManagerBranch: normalized.find((branch) => branch.id === primaryBranchId)?.name || normalized[0].name,
+    branchManagers: normalized.map((branch) => ({ branch: branch.name, manager: branch.managerName, email: branch.managerEmail }))
+  };
+  ensureWorkspaceUsers();
+  automationState.workspaceUsers = automationState.workspaceUsers.map((user) => {
+    const branch = normalized.find((item) => item.id === user.branchId) || normalized[0];
+    return { ...user, branchId: branch.id, branchName: branch.name };
+  });
+  saveAutomationState();
+  return res.json(envelope(buildWorkspaceAdminPayload()));
+});
+
+app.post('/api/workspace-admin/users/invite', (req, res) => {
+  const payload = req.body || {};
+  if (!payload.email || !payload.fullName) return res.status(400).json({ error: 'Full name and email are required.' });
+  ensureWorkspaceUsers();
+  const branch = branchDirectory.find((item) => item.id === payload.branchId) || branchDirectory[0];
+  automationState.workspaceUsers.unshift({
+    id: `WU-${Date.now()}`,
+    fullName: String(payload.fullName).trim(),
+    email: String(payload.email).trim().toLowerCase(),
+    roleKey: payload.roleKey || 'sales',
+    branchId: branch?.id || 'JHB',
+    branchName: branch?.name || 'Johannesburg',
+    status: 'invited',
+    canManageRoles: Boolean(payload.canManageRoles),
+    canManageWorkspace: Boolean(payload.canManageWorkspace),
+    invitedAt: new Date().toISOString()
+  });
+  saveAutomationState();
+  return res.json(envelope(buildWorkspaceAdminPayload()));
+});
+
+app.post('/api/workspace-admin/import-center/preview', (req, res) => {
+  const preview = buildImportPreview(req.body || {});
+  return res.json(envelope(preview));
+});
+
+app.post('/api/workspace-admin/import-center/commit', (req, res) => {
+  const preview = buildImportPreview(req.body || {});
+  const importJob = {
+    id: `IMP-${Date.now()}`,
+    importType: preview.importType,
+    filename: req.body?.filename || 'import.csv',
+    status: preview.errorCount > 0 ? 'previewed' : 'imported',
+    createdAt: new Date().toISOString(),
+    createdBy: automationState.companyProfile?.adminName || 'Antonie Meyer',
+    rowCount: preview.rowCount,
+    importedCount: preview.errorCount > 0 ? 0 : preview.createCount,
+    warningCount: preview.warningCount,
+    errorCount: preview.errorCount
+  };
+  automationState.importJobs = Array.isArray(automationState.importJobs) ? [importJob, ...automationState.importJobs].slice(0, 25) : [importJob];
+  saveAutomationState();
+  return res.json(envelope({ importJob, workspace: buildWorkspaceAdminPayload() }));
+});
+
 app.get('/api/settings', async (_req, res) => {
   if (pool) await hydrateAutomationState();
   return res.json(envelope({ ...settings, automation: automationState.automationSettings, companyProfile: automationState.companyProfile, documentBranding: automationState.documentBranding }));

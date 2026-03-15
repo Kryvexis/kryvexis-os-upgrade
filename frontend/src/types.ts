@@ -4,6 +4,19 @@ export type CompanyBranchInput = { id: string; name: string; };
 export type DocumentBranding = { companyName: string; logoDataUrl?: string; logoFileName?: string; };
 export type CompanyProfile = { companyName: string; adminName: string; email: string; phone?: string; businessType?: string; currency: string; branchCount: number; primaryBranchId: string; branches: CompanyBranchInput[]; documentBranding?: DocumentBranding; };
 export type CompanyOnboardingPayload = CompanyProfile & { logoDataUrl?: string; logoFileName?: string; };
+
+export type WorkspaceBranch = { id: string; name: string; managerName: string; managerEmail: string; isPrimary: boolean; active: boolean; };
+export type WorkspaceUser = { id: string; fullName: string; email: string; roleKey: RoleKey; branchId: string; branchName: string; status: 'active' | 'invited' | 'disabled' | string; canManageRoles: boolean; canManageWorkspace: boolean; invitedAt?: string | null; };
+export type WorkspaceRolePolicy = { roleKey: RoleKey; label: string; navigation: string[]; canViewFinance: boolean; canManageRoles: boolean; canManageWorkspace: boolean; canManageAutomation: boolean; };
+export type ImportColumnMapping = { source: string; target: string; required: boolean; sample: string; };
+export type ImportValidationIssue = { row: number; level: 'warning' | 'error'; message: string; column?: string; };
+export type ImportPreview = { importType: 'customers' | 'products' | 'stock' | 'invoices' | 'payments' | string; columns: string[]; rowCount: number; createCount: number; warningCount: number; errorCount: number; mappings: ImportColumnMapping[]; issues: ImportValidationIssue[]; sampleRows: Record<string, string>[]; };
+export type ImportJob = { id: string; importType: string; filename: string; status: 'previewed' | 'imported' | 'failed' | string; createdAt: string; createdBy: string; rowCount: number; importedCount: number; warningCount: number; errorCount: number; };
+export type WorkspaceAdminResponse = { companyProfile: CompanyProfile; documentBranding: DocumentBranding; branches: WorkspaceBranch[]; users: WorkspaceUser[]; rolePolicies: WorkspaceRolePolicy[]; importJobs: ImportJob[]; };
+export type WorkspaceCompanyUpdatePayload = { companyName: string; adminName: string; email: string; phone?: string; businessType?: string; currency: string; logoDataUrl?: string; logoFileName?: string; };
+export type WorkspaceBranchSavePayload = { branches: Array<{ id: string; name: string; managerName: string; managerEmail: string; active: boolean; }>; primaryBranchId: string; };
+export type WorkspaceInvitePayload = { fullName: string; email: string; roleKey: RoleKey; branchId: string; canManageRoles?: boolean; canManageWorkspace?: boolean; };
+
 export type KPI = { label: string; value: string; detail: string };
 export type PanelGroup = { title: string; items: string[] };
 export type Customer = {
@@ -41,7 +54,7 @@ export type Settings = { themes: string[]; paymentModes: string[]; density: stri
 export type Role = { key: RoleKey; label: string; description: string; dashboards: string[]; };
 export type TopClient = { customerId: string; name: string; revenue: string; invoices: number; averageOrderValue: string; overdueBalance: string; trend: string; };
 export type OperationalActionItem = { id: string; title: string; detail: string; owner: string; branch: string; priority: 'high' | 'medium' | 'low' | string; recordPath: string; actionLabel: string; status: string; };
-export type BranchSnapshot = { branch: string; approvals: number; collections: number; exceptions: number; heat?: number };
+export type BranchSnapshot = { branch: string; approvals: number; collections: number; exceptions: number };
 export type DashboardResponse = { role: string; kpis: KPI[]; panels: PanelGroup[]; highlights: Notification[]; recentCustomers: Customer[]; lowStockProducts: Product[]; topClients: TopClient[]; actionCenter: { branchSnapshots: BranchSnapshot[]; actionQueue: OperationalActionItem[]; auditHighlights: ActivityEntry[]; }; };
 export type PurchaseHistoryEntry = { id: string; date: string; type: 'invoice' | 'payment' | 'quote'; reference: string; amount: string; status: string; note: string; };
 export type TopProduct = { sku: string; name: string; quantity: number; revenue: string; };
@@ -58,28 +71,7 @@ export type CloseStatus = { date: string; state: 'open' | 'closed'; label: strin
 export type SendStatus = { state: 'not-ready' | 'pending' | 'sent'; label: string; lastSentAt: string | null; duplicateBlocked: boolean; lastDispatchId: string | null; };
 export type AutomationAuditEntry = { id: string; occurredAt: string; actor: string; action: string; status: 'success' | 'blocked' | 'info' | 'error'; detail: string; branch: string; date: string; };
 export type BranchCloseHistoryRow = { recordId: string; branch: string; date: string; closedAt: string; totalSales: number; varianceToTarget: number; sentStatus: 'pending' | 'sent'; };
-export type FinanceSummary = { overdueExposure: string; collectionCalls: number; allocationQueue: number; proofExceptions: number; };
-export type QuotePipelineRow = { id: string; customer: string; status: string; value: string; nextAction: string; recordPath: string; };
-export type InvoiceQueueRow = { id: string; customer: string; status: string; amount: string; paymentStatus: string; recordPath: string; };
-export type PaymentQueueRow = { id: string; ref: string; customer: string; status: string; amount: string; nextAction: string; recordPath: string; };
-export type DocumentQueueRow = { id: string; reference: string; type: string; customer: string; status: string; actionLabel: string; recordPath: string; };
-export type TransactionCoreSummary = {
-  counts: {
-    draftQuotes: number;
-    approvalQuotes: number;
-    convertibleQuotes: number;
-    openInvoices: number;
-    overdueInvoices: number;
-    unallocatedPayments: number;
-    proofPendingPayments: number;
-  };
-  quotePipeline: QuotePipelineRow[];
-  invoiceQueue: InvoiceQueueRow[];
-  paymentQueue: PaymentQueueRow[];
-  topClients: TopClient[];
-  documentQueue: DocumentQueueRow[];
-};
-export type ReportsResponse = { scope: string; date: string; canViewAllBranches: boolean; visibleBranches: ReportBranch[]; totals: ReportTotals; sellerBoard: SellerRow[]; emailPreview: { subject: string; body: string }; emailDispatches: EmailDispatch[]; dayCloseHistory: DayCloseRecord[]; branchCloseHistory: BranchCloseHistoryRow[]; automation: AutomationSettings; closeStatus: CloseStatus; sendStatus: SendStatus; auditTrail: AutomationAuditEntry[]; financeSummary?: FinanceSummary; transactionCore?: TransactionCoreSummary; topClients?: TopClient[]; documentQueue?: DocumentQueueRow[]; };
+export type ReportsResponse = { scope: string; date: string; canViewAllBranches: boolean; visibleBranches: ReportBranch[]; totals: ReportTotals; sellerBoard: SellerRow[]; emailPreview: { subject: string; body: string }; emailDispatches: EmailDispatch[]; dayCloseHistory: DayCloseRecord[]; branchCloseHistory: BranchCloseHistoryRow[]; automation: AutomationSettings; closeStatus: CloseStatus; sendStatus: SendStatus; auditTrail: AutomationAuditEntry[]; };
 
 export type DebtorRow = { id: string; customerId: string; customer: string; branch: string; overdueAmount: string; currentAmount: string; totalOpen: string; oldestBucket: string; risk: string; recommendation: string; score: number; };
 export type StatementRow = { id: string; customerId: string; customer: string; branch: string; balance: string; overdueInvoices: number; lastIssued: string; nextAction: string; status: string; };
@@ -113,7 +105,8 @@ export type PeriodClosePayload = { readiness: string; status: string; checklist:
 export type ActionCenterDomain = 'Finance' | 'Procurement' | 'Inventory' | 'Operations';
 export type ActionRecommendation = { id: string; domain: ActionCenterDomain | string; title: string; detail: string; reason: string; owner: string; branch: string; priority: 'critical' | 'high' | 'medium' | 'low' | string; score: number; impact: string; actionLabel: string; recordPath: string; status: string; autoReady?: boolean; };
 export type ActionCenterDomainSummary = { domain: ActionCenterDomain | string; count: number; urgent: number; headline: string; impact: string; };
-export type ActionCenterResponse = { generatedAt: string; topFocus: ActionRecommendation[]; quickWins: ActionRecommendation[]; recommendationFeed: ActionRecommendation[]; domainSummaries: ActionCenterDomainSummary[]; branchSnapshots: BranchSnapshot[]; auditHighlights: ActivityEntry[]; availableBranches?: string[]; laneSummary?: Record<string, number>; };
+export type ActionCenterResponse = { generatedAt: string; topFocus: ActionRecommendation[]; quickWins: ActionRecommendation[]; recommendationFeed: ActionRecommendation[]; domainSummaries: ActionCenterDomainSummary[]; branchSnapshots: BranchSnapshot[]; auditHighlights: ActivityEntry[]; };
+
 
 export type ProcurementRecommendation = {
   id: string;
@@ -176,16 +169,3 @@ export type ProcurementOverview = {
   purchaseOrders: ProcurementPoRow[];
   exceptions: ProcurementExceptionRow[];
 };
-
-export type CreateQuoteLinePayload = { sku: string; description: string; qty: number; unitPrice: string; };
-export type CreateQuotePayload = { customerId: string; owner?: string; status: 'Draft' | 'Pending approval'; notes?: string; lines: CreateQuoteLinePayload[]; };
-export type CreateInvoicePayload = { customerId: string; sourceQuoteId?: string; dueDays?: number; amount?: string; };
-export type CreatePaymentPayload = { customerId: string; invoiceId?: string; amount: string; method: string; proofAttached?: boolean; autoAllocate?: boolean; };
-
-export type InventoryFocusItem = { id: string; title: string; detail: string; impact: string; actionLabel: string; recordPath: string; priority: string; };
-export type InventoryRow = { id: string; product: string; branch: string; sku: string; onHand: number; reserved: number; freeToSell: number; reorderAt: number; riskBand: string; recommendation: string; };
-export type InventoryStockRiskRow = { id: string; product: string; branch: string; freeToSell: number; reorderAt: number; riskBand: string; };
-export type InventoryTransferSuggestion = { id: string; product: string; fromBranch: string; toBranch: string; suggestedUnits: number; buyShortfallOnly: number; urgency: string; score: number; };
-export type InventoryMovementRow = { id: string; product: string; branch: string; movementBand: string; recommendation: string; };
-export type InventoryExceptionRow = { id: string; title: string; severity: string; detail: string; action: string; recordPath: string; };
-export type InventoryOverview = { generatedAt: string; kpis: KPI[]; focus: InventoryFocusItem[]; stockRisks: InventoryStockRiskRow[]; transferSuggestions: InventoryTransferSuggestion[]; movementIntelligence: InventoryMovementRow[]; exceptions: InventoryExceptionRow[]; rows: InventoryRow[]; };

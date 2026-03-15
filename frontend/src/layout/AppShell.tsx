@@ -5,7 +5,6 @@ import type { Notification, RoleKey } from '../types';
 
 const coreModules = [
   ['/', 'Dashboard', '◔'],
-  ['/action-center', 'Action Center', '✦'],
   ['/sales', 'Sales', '⌁'],
   ['/inventory', 'Inventory', '◫'],
   ['/procurement', 'Purchasing', '◎'],
@@ -15,6 +14,7 @@ const coreModules = [
 ] as const;
 
 const adminItems = [
+  ['/workspace-admin', 'Workspace Admin', '◈'],
   ['/roles', 'Roles', '⌘'],
   ['/settings', 'Settings', '⚙']
 ] as const;
@@ -38,7 +38,6 @@ const roleLabels: Record<RoleKey, string> = {
 };
 
 const pageTitles: Array<[string, string]> = [
-  ['/action-center', 'Action Center'],
   ['/sales', 'Sales'],
   ['/inventory', 'Inventory'],
   ['/procurement', 'Purchasing'],
@@ -52,7 +51,8 @@ const pageTitles: Array<[string, string]> = [
   ['/payments', 'Payments'],
   ['/notifications', 'Inbox'],
   ['/roles', 'Roles'],
-  ['/settings', 'Settings']
+  ['/settings', 'Settings'],
+  ['/workspace-admin', 'Workspace Admin']
 ];
 
 export function AppShell({ role, setRole, theme, setTheme }: { role: RoleKey; setRole: (role: RoleKey) => void; theme: 'dark' | 'light' | 'system'; setTheme: (theme: 'dark' | 'light' | 'system') => void; }) {
@@ -84,6 +84,7 @@ export function AppShell({ role, setRole, theme, setTheme }: { role: RoleKey; se
     }
   }
 
+  const navItems = role === 'admin' ? adminItems : [];
   const shellClass = ['app-shell', sidebarCollapsed ? 'sidebar-collapsed' : '', sidebarOpen ? 'sidebar-open' : ''].filter(Boolean).join(' ');
   const unread = notifications.filter((item) => !item.read && !item.dismissed).length;
   const recentAlerts = notifications.filter((item) => !item.dismissed).slice(0, 5);
@@ -116,7 +117,7 @@ export function AppShell({ role, setRole, theme, setTheme }: { role: RoleKey; se
 
         <div className="nav-section admin-nav-section">
           <nav className="nav-list nav-list-icons">
-            {adminItems.map(([to, label, icon]) => (
+            {navItems.map(([to, label, icon]) => (
               <NavLink key={to} to={to} className={({ isActive }) => `nav-link nav-link-icon ${isActive ? 'active' : ''}`}>
                 <span className="nav-link-icon-mark">{icon}</span>
                 <span>{label}</span>
@@ -210,7 +211,7 @@ export function AppShell({ role, setRole, theme, setTheme }: { role: RoleKey; se
         <section className="page-body"><Outlet /></section>
 
         <nav className="mobile-nav">
-          {[['/', 'Home'], ['/action-center', 'Actions'], ['/inventory', 'Stock'], ['/accounting', 'Finance'], ['/notifications', 'Inbox']].map(([to, label]) => (
+          {[...coreModules, ['/notifications', 'Inbox', '✦'] as const].slice(0, 6).map(([to, label]) => (
             <NavLink key={to} to={to} end={to === '/'} className={({ isActive }) => `mobile-link ${isActive ? 'active' : ''}`}>
               {label}
             </NavLink>
